@@ -1,0 +1,19 @@
+{
+  "name": "quran-lms",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/frontend",
+    "apps/backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev -w apps/frontend",
+    "dev:backend": "npm run start:dev -w apps/backend",
+    "build:frontend": "npm run build -w apps/frontend",
+    "build:backend": "npm run build -w apps/backend",
+    "db:generate": "npm run prisma:generate -w apps/backend",
+    "db:migrate": "npm run prisma:migrate -w apps/backend",
+    "db:studio": "npm run prisma:studio -w apps/backend",
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\""
+  }
+}

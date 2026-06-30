@@ -1,0 +1,214 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  TEACHER
+  STUDENT
+  REVIEWER
+}
+
+enum CourseType {
+  NAZIRA
+  TAJWEED
+  HIFZ_UL_QURAN
+  ISLAMIC_STUDIES
+}
+
+enum ClassStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum RecordingStatus {
+  PROCESSING
+  UPLOADING
+  READY
+  FAILED
+}
+
+enum ReviewMode {
+  LIVE_MONITOR
+  RECORDING_REVIEW
+}
+
+enum ReviewStatus {
+  DRAFT
+  SUBMITTED
+}
+
+enum FlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+model User {
+  id                  String               @id @default(uuid()) @db.Uuid
+  name                String
+  email               String               @unique
+  passwordHash        String
+  role                Role
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  
+  // Relations
+  coursesTaught       Course[]             @relation("TeacherCourses")
+  enrollments         Enrollment[]
+  attendances         Attendance[]
+  reviewerAssignments ReviewerAssignment[] @relation("ReviewerAssignments")
+  classReviews        ClassReview[]        @relation("ReviewerReviews")
+  auditLogs           AuditLog[]
+}
+
+model Course {
+  id                  String               @id @default(uuid()) @db.Uuid
+  title               String
+  type                CourseType
+  curriculum          String               // Text describing the curriculum syllabus or json
+  teacherId           String               @db.Uuid
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  
+  // Relations
+  teacher             User                 @relation("TeacherCourses", fields: [teacherId], references: [id])
+  enrollments         Enrollment[]
+  classSessions       ClassSession[]
+  reviewerAssignments ReviewerAssignment[]
+}
+
+model Enrollment {
+  id         String   @id @default(uuid()) @db.Uuid
+  studentId  String   @db.Uuid
+  courseId   String   @db.Uuid
+  enrolledAt DateTime @default(now())
+
+  // Relations
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, courseId])
+}
+
+model ClassSession {
+  id              String        @id @default(uuid()) @db.Uuid
+  courseId        String        @db.Uuid
+  teacherId       String        @db.Uuid
+  scheduledAt     DateTime
+  durationMinutes Int
+  status          ClassStatus   @default(SCHEDULED)
+  livekitRoomId   String?       @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  course          Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendances     Attendance[]
+  recording       Recording?
+  classReviews    ClassReview[]
+}
+
+model Attendance {
+  id              String       @id @default(uuid()) @db.Uuid
+  sessionId       String       @db.Uuid
+  userId          String       @db.Uuid
+  joinTime        DateTime?
+  leaveTime       DateTime?
+  durationSeconds Int          @default(0)
+  createdAt       DateTime     @default(now())
+
+  // Relations
+  session         ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+}
+
+model Recording {
+  id              String          @id @default(uuid()) @db.Uuid
+  sessionId       String          @unique @db.Uuid
+  localPath       String?
+  driveFileId     String?
+  driveUrl        String?
+  durationSeconds Int             @default(0)
+  status          RecordingStatus @default(PROCESSING)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  session         ClassSession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model ReviewerAssignment {
+  id         String   @id @default(uuid()) @db.Uuid
+  reviewerId String   @db.Uuid
+  courseId   String   @db.Uuid
+  assignedAt DateTime @default(now())
+  isActive   Boolean  @default(true)
+
+  // Relations
+  reviewer   User     @relation("ReviewerAssignments", fields: [reviewerId], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([reviewerId, courseId])
+}
+
+model ClassReview {
+  id                          String             @id @default(uuid()) @db.Uuid
+  sessionId                   String             @db.Uuid
+  reviewerId                  String             @db.Uuid
+  reviewMode                  ReviewMode
+  reviewedAt                  DateTime           @default(now())
+  curriculumAdherenceScore    Int                // 1 to 5
+  teachingQualityScore        Int                // 1 to 5
+  engagementScore             Int                // 1 to 5
+  overallScore                Float              // Average of scores
+  strengths                   String
+  improvements                String
+  privateNotes                String             // Internal note, only visible to Admins
+  isFlagged                   Boolean            @default(false)
+  flagSeverity                FlagSeverity?
+  flagReason                  String?
+  status                      ReviewStatus       @default(DRAFT)
+  createdAt                   DateTime           @default(now())
+  updatedAt                   DateTime           @updatedAt
+
+  // Relations
+  session                     ClassSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  reviewer                    User               @relation("ReviewerReviews", fields: [reviewerId], references: [id], onDelete: Cascade)
+  annotations                 ReviewAnnotation[]
+}
+
+model ReviewAnnotation {
+  id        String   @id @default(uuid()) @db.Uuid
+  reviewId  String   @db.Uuid
+  timestamp Float    // video position in seconds
+  note      String
+  category  String   // Positive, Concern, Policy Violation, General
+  createdAt DateTime @default(now())
+
+  // Relations
+  review    ClassReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String?  @db.Uuid
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}

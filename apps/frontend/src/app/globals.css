@@ -1,0 +1,101 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 20% 98%;
+    --foreground: 220 40% 12%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 220 40% 12%;
+    
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 40% 12%;
+    
+    --primary: 156 72% 22%;
+    --primary-foreground: 355 0% 100%;
+    
+    --secondary: 40 25% 90%;
+    --secondary-foreground: 156 72% 22%;
+    
+    --muted: 220 15% 92%;
+    --muted-foreground: 220 15% 45%;
+    
+    --accent: 38 92% 50%;
+    --accent-foreground: 220 40% 12%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --border: 220 15% 85%;
+    --input: 220 15% 90%;
+    --ring: 156 72% 22%;
+    
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 220 25% 8%;
+    --foreground: 210 20% 96%;
+    
+    --card: 220 25% 12%;
+    --card-foreground: 210 20% 96%;
+    
+    --popover: 220 25% 12%;
+    --popover-foreground: 210 20% 96%;
+    
+    --primary: 158 64% 52%;
+    --primary-foreground: 220 25% 8%;
+    
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 158 64% 52%;
+    
+    --muted: 220 20% 18%;
+    --muted-foreground: 220 10% 65%;
+    
+    --accent: 43 96% 60%;
+    --accent-foreground: 220 25% 8%;
+    
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 20% 96%;
+    
+    --border: 220 20% 18%;
+    --input: 220 20% 18%;
+    --ring: 158 64% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased selection:bg-primary/20 transition-colors duration-300;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Glassmorphism Classes */
+.glass-panel {
+  @apply bg-white/70 dark:bg-card/70 backdrop-blur-md border border-white/20 dark:border-white/5;
+}
+
+.glass-card {
+  @apply bg-white/40 dark:bg-card/40 backdrop-blur-lg border border-white/10 dark:border-white/5 shadow-xl;
+}
+
+/* Custom Micro-animations */
+@keyframes float {
+  0% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+  100% { transform: translateY(0px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+.hover-lift {
+  @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5;
+}
