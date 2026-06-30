@@ -23,6 +23,18 @@ export class EnrollmentsController {
     return this.enrollmentsService.findAll();
   }
 
+  @Get('stats')
+  @Roles(Role.ADMIN)
+  async getStats() {
+    return this.enrollmentsService.getStats();
+  }
+
+  @Get('student/:studentId')
+  @Roles(Role.ADMIN, Role.STUDENT)
+  async findByStudent(@Param('studentId') studentId: string) {
+    return this.enrollmentsService.findByStudent(studentId);
+  }
+
   @Delete(':id')
   @Roles(Role.ADMIN)
   async remove(@Param('id') id: string) {

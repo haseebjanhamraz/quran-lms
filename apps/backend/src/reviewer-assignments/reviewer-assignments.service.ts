@@ -78,4 +78,20 @@ export class ReviewerAssignmentsService {
       data: { isActive: false },
     });
   }
+
+  async findByReviewer(reviewerId: string) {
+    return this.prisma.reviewerAssignment.findMany({
+      where: { reviewerId, isActive: true },
+      include: {
+        course: {
+          select: {
+            id: true,
+            title: true,
+            type: true,
+            teacher: { select: { id: true, name: true, email: true } },
+          },
+        },
+      },
+    });
+  }
 }

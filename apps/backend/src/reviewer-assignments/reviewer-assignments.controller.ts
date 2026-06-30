@@ -23,6 +23,12 @@ export class ReviewerAssignmentsController {
     return this.reviewerAssignmentsService.findAll();
   }
 
+  @Get('reviewer/:reviewerId')
+  @Roles(Role.ADMIN, Role.REVIEWER)
+  async findByReviewer(@Param('reviewerId') reviewerId: string) {
+    return this.reviewerAssignmentsService.findByReviewer(reviewerId);
+  }
+
   @Delete(':id')
   @Roles(Role.ADMIN)
   async remove(@Param('id') id: string) {

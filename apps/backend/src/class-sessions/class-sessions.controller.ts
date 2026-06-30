@@ -43,6 +43,11 @@ export class ClassSessionsController {
     return [];
   }
 
+  @Get('stats')
+  async getStats(@CurrentUser() user: any) {
+    return this.classSessionsService.getStats(user);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.classSessionsService.findOne(id);

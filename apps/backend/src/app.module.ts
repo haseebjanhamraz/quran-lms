@@ -15,6 +15,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { RecordingsModule } from './recordings/recordings.module';
 import { GoogleDriveModule } from './google-drive/google-drive.module';
 import { ClassReviewsModule } from './class-reviews/class-reviews.module';
+import { AuditLogsModule } from './audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ClassReviewsModule } from './class-reviews/class-reviews.module';
     RecordingsModule,
     GoogleDriveModule,
     ClassReviewsModule,
+    AuditLogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

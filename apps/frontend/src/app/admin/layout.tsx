@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
@@ -15,6 +15,8 @@ import {
   Menu,
   ChevronLeft,
   ChevronRight,
+  Activity,
+  Flag,
 } from 'lucide-react';
 
 const NAV_ITEMS = [
@@ -24,6 +26,8 @@ const NAV_ITEMS = [
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
   { label: 'Reviewer Assignments', icon: ShieldCheck, href: '/admin/reviewer-assignments' },
+  { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },
+  { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs' },
 ];
 
 function getInitials(name: string): string {
@@ -45,6 +49,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [flaggedCount, setFlaggedCount] = useState(0);
+
+  useEffect(() => {
+    async function getFlagged() {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+        const res = await fetch(`${API_URL}/class-reviews/flagged`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          setFlaggedCount(Array.isArray(data) ? data.length : data.data?.length ?? 0);
+        }
+      } catch (_) {}
+    }
+    getFlagged();
+    const interval = setInterval(getFlagged, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   function handleLogout() {
     logout();
@@ -112,19 +133,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Sidebar Navigation */}
         <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-          {NAV_ITEMS.map(({ label, icon: Icon, href }) => {
-            const isActive = pathname === href;
+          {NAV_ITEMS.map((item) => {
+            const isActive = pathname === item.href;
+            const Icon = item.icon;
             return (
               <Link
-                key={label}
-                href={href}
+                key={item.label}
+                href={item.href}
                 onClick={() => setIsMobileOpen(false)}
                 className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
                   isActive
                     ? 'bg-[#C9A84C]/15 text-[#C9A84C]'
                     : 'text-slate-300 hover:bg-white/5 hover:text-slate-100'
                 }`}
-                title={isCollapsed ? label : undefined}
+                title={isCollapsed ? item.label : undefined}
               >
                 <Icon
                   size={18}
@@ -132,8 +154,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     isActive ? 'text-[#C9A84C]' : 'text-slate-400 group-hover:text-slate-200'
                   }
                 />
-                {!isCollapsed && <span className="truncate">{label}</span>}
-                {isActive && !isCollapsed && (
+                {!isCollapsed && <span className="truncate">{item.label}</span>}
+                {item.isFlaggedReviews && flaggedCount > 0 && (
+                  <span className={`ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white ${isCollapsed ? 'absolute right-2 top-2' : ''}`}>
+                    {flaggedCount}
+                  </span>
+                )}
+                {isActive && !isCollapsed && !item.isFlaggedReviews && (
                   <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#C9A84C]" />
                 )}
               </Link>

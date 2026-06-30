@@ -81,4 +81,28 @@ export class RecordingsService {
     }
     return rec;
   }
+
+  async retryUpload(sessionId: string) {
+    const rec = await this.prisma.recording.findUnique({
+      where: { sessionId },
+    });
+    if (!rec) {
+      throw new NotFoundException('No recording record found for this session');
+    }
+
+    const filePath = rec.localPath || `recordings/room-${sessionId}.mp4`;
+    const filename = filePath.split('/').pop() || `room-${sessionId}.mp4`;
+
+    await this.prisma.recording.update({
+      where: { sessionId },
+      data: {
+        status: RecordingStatus.PROCESSING,
+        localPath: filePath,
+      },
+    });
+
+    await this.queueUploadJob(sessionId, filePath, filename);
+
+    return { success: true, message: 'Upload retried', status: RecordingStatus.PROCESSING };
+  }
 }

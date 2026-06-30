@@ -61,4 +61,16 @@ export class ClassReviewsController {
   async getFlaggedReviews() {
     return this.classReviewsService.getFlaggedReviews();
   }
+
+  @Get('history')
+  @Roles(Role.REVIEWER, Role.ADMIN)
+  async getReviewerHistory(@CurrentUser() user: any) {
+    return this.classReviewsService.getReviewerHistory(user.id);
+  }
+
+  @Get('teacher/:teacherId')
+  @Roles(Role.TEACHER, Role.ADMIN)
+  async findByTeacher(@Param('teacherId') teacherId: string) {
+    return this.classReviewsService.findByTeacher(teacherId);
+  }
 }

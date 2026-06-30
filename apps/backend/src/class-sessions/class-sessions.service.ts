@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
@@ -141,7 +141,7 @@ export class ClassSessionsService {
       ? new Date(updateClassSessionDto.scheduledAt)
       : session.scheduledAt;
 
-    const newDuration = updateClassSessionDto.durationMinutes ?? session.durationMinutes;
+    let newDuration = updateClassSessionDto.durationMinutes ?? session.durationMinutes;
 
     // Check conflicts if scheduling is changed
     if (updateClassSessionDto.scheduledAt || updateClassSessionDto.durationMinutes) {
@@ -156,6 +156,23 @@ export class ClassSessionsService {
         throw new ConflictException(
           'Scheduling conflict: The teacher is already assigned to another class during this time slot.',
         );
+      }
+    }
+
+    // If status changes from LIVE to COMPLETED, calculate actual duration and trigger recording upload
+    if (updateClassSessionDto.status === ClassStatus.COMPLETED && session.status === ClassStatus.LIVE) {
+      const elapsed = Math.round((Date.now() - session.updatedAt.getTime()) / 60000);
+      newDuration = Math.max(1, elapsed);
+      
+      // Trigger recording upload
+      try {
+        await this.recordingsService.queueUploadJob(
+          id,
+          `recordings/room-${id}.mp4`,
+          `room-${id}.mp4`
+        );
+      } catch (err: any) {
+        Logger.error(`Failed to queue upload job when ending class: ${err.message}`, 'ClassSessionsService');
       }
     }
 
@@ -194,6 +211,7 @@ export class ClassSessionsService {
       where: { teacherId },
       include: {
         course: { select: { title: true, type: true } },
+        recording: true,
       },
       orderBy: { scheduledAt: 'asc' },
     });
@@ -214,6 +232,7 @@ export class ClassSessionsService {
       },
       include: {
         course: { select: { title: true, type: true } },
+        recording: true,
       },
       orderBy: { scheduledAt: 'asc' },
     });
@@ -234,6 +253,7 @@ export class ClassSessionsService {
       },
       include: {
         course: { select: { title: true, type: true } },
+        recording: true,
       },
       orderBy: { scheduledAt: 'asc' },
     });
@@ -378,5 +398,176 @@ export class ClassSessionsService {
       roomName,
       serverUrl: this.configService.get<string>('LIVEKIT_HOST'),
     };
+  }
+
+  async getStats(user: any) {
+    const role = user.role;
+    const userId = user.id;
+
+    if (role === Role.ADMIN) {
+      const [total, scheduled, live, completed, cancelled, today] = await Promise.all([
+        this.prisma.classSession.count(),
+        this.prisma.classSession.count({ where: { status: ClassStatus.SCHEDULED } }),
+        this.prisma.classSession.count({ where: { status: ClassStatus.LIVE } }),
+        this.prisma.classSession.count({ where: { status: ClassStatus.COMPLETED } }),
+        this.prisma.classSession.count({ where: { status: ClassStatus.CANCELLED } }),
+        this.prisma.classSession.count({
+          where: {
+            scheduledAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            },
+          },
+        }),
+      ]);
+
+      const totalTeachers = await this.prisma.user.count({ where: { role: Role.TEACHER } });
+      const totalStudents = await this.prisma.user.count({ where: { role: Role.STUDENT } });
+      const totalCourses = await this.prisma.course.count();
+
+      return {
+        total,
+        scheduled,
+        live,
+        completed,
+        cancelled,
+        today,
+        totalTeachers,
+        totalStudents,
+        totalCourses,
+      };
+    }
+
+    if (role === Role.TEACHER) {
+      const [total, scheduled, live, completed, cancelled, today, courses] = await Promise.all([
+        this.prisma.classSession.count({ where: { teacherId: userId } }),
+        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.SCHEDULED } }),
+        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.LIVE } }),
+        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.COMPLETED } }),
+        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.CANCELLED } }),
+        this.prisma.classSession.count({
+          where: {
+            teacherId: userId,
+            scheduledAt: {
+              gte: new Date(new Date().setHours(0, 0, 0, 0)),
+              lt: new Date(new Date().setHours(23, 59, 59, 999)),
+            },
+          },
+        }),
+        this.prisma.course.findMany({
+          where: { teacherId: userId },
+          select: { id: true },
+        }),
+      ]);
+
+      const completedSessions = await this.prisma.classSession.findMany({
+        where: { teacherId: userId, status: ClassStatus.COMPLETED },
+        select: { durationMinutes: true },
+      });
+      const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
+
+      const courseIds = courses.map((c) => c.id);
+      const studentCountResult = await this.prisma.enrollment.groupBy({
+        by: ['studentId'],
+        where: { courseId: { in: courseIds } },
+      });
+
+      return {
+        total,
+        scheduled,
+        live,
+        completed,
+        cancelled,
+        today,
+        totalHours: Math.round(totalMinutes / 60),
+        totalStudents: studentCountResult.length,
+      };
+    }
+
+    if (role === Role.STUDENT) {
+      const enrollments = await this.prisma.enrollment.findMany({
+        where: { studentId: userId },
+        select: { courseId: true },
+      });
+      const courseIds = enrollments.map((e) => e.courseId);
+
+      const [total, scheduled, live, completed, cancelled] = await Promise.all([
+        this.prisma.classSession.count({ where: { courseId: { in: courseIds } } }),
+        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.SCHEDULED } }),
+        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.LIVE } }),
+        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.COMPLETED } }),
+        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.CANCELLED } }),
+      ]);
+
+      const completedSessions = await this.prisma.classSession.findMany({
+        where: { courseId: { in: courseIds }, status: ClassStatus.COMPLETED },
+        select: { durationMinutes: true },
+      });
+      const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
+
+      return {
+        total,
+        scheduled,
+        live,
+        completed,
+        cancelled,
+        totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+        enrolledCourses: courseIds.length,
+      };
+    }
+
+    if (role === Role.REVIEWER) {
+      const assignments = await this.prisma.reviewerAssignment.findMany({
+        where: { reviewerId: userId, isActive: true },
+        select: { courseId: true },
+      });
+      const courseIds = assignments.map((a) => a.courseId);
+
+      const [total, pendingCount, flaggedCount] = await Promise.all([
+        this.prisma.classSession.count({ where: { courseId: { in: courseIds } } }),
+        this.prisma.classSession.count({
+          where: {
+            courseId: { in: courseIds },
+            status: ClassStatus.COMPLETED,
+            classReviews: {
+              none: {
+                status: 'SUBMITTED',
+              },
+            },
+          },
+        }),
+        this.prisma.classReview.count({
+          where: {
+            reviewerId: userId,
+            isFlagged: true,
+          },
+        }),
+      ]);
+
+      const completedReviews = await this.prisma.classReview.count({
+        where: {
+          reviewerId: userId,
+          status: 'SUBMITTED',
+        },
+      });
+
+      const reviews = await this.prisma.classReview.findMany({
+        where: { reviewerId: userId },
+        select: { overallScore: true },
+      });
+      const avgScore = reviews.length
+        ? Math.round((reviews.reduce((acc, r) => acc + r.overallScore, 0) / reviews.length) * 10) / 10
+        : 0;
+
+      return {
+        total,
+        pending: pendingCount,
+        flagged: flaggedCount,
+        completedReviews,
+        avgScore,
+      };
+    }
+
+    return {};
   }
 }

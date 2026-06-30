@@ -104,4 +104,19 @@ export class CoursesService {
       where: { id },
     });
   }
+
+  async findByTeacher(teacherId: string) {
+    return this.prisma.course.findMany({
+      where: { teacherId },
+      include: {
+        _count: {
+          select: {
+            enrollments: true,
+            classSessions: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

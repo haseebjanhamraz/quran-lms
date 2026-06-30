@@ -8,9 +8,10 @@ import {
   RoomAudioRenderer,
   ParticipantTile,
   useTracks,
+  useLocalParticipant,
 } from '@livekit/components-react';
 import { Track } from 'livekit-client';
-import { Loader2, AlertCircle, Mic, Video, ScreenShare, LogOut, ShieldAlert } from 'lucide-react';
+import { Loader2, AlertCircle, Mic, Video, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
 import '@livekit/components-styles';
 
 export default function ClassroomPage() {
@@ -92,11 +93,11 @@ export default function ClassroomPage() {
       <ClassroomHeader roomName={tokenInfo.roomName} />
       
       {/* Dynamic Video Layout */}
-      <div className="flex-1 relative flex flex-col md:flex-row p-4 gap-4 overflow-hidden h-[calc(100vh-140px)]">
+      <div className="flex-1 relative flex flex-col p-4 overflow-hidden h-[calc(100vh-140px)]">
         <VideoGrid />
       </div>
 
-      <ControlBarCustom role={user?.role} />
+      <ControlBarCustom role={user?.role} sessionId={id} />
       
       <RoomAudioRenderer />
     </LiveKitRoom>
@@ -145,6 +146,8 @@ function VideoGrid() {
     { onlySubscribed: false },
   );
 
+  const [isFullScreenShare, setIsFullScreenShare] = useState(false);
+
   if (tracks.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-card/25 rounded-2xl border border-border/40">
@@ -154,9 +157,94 @@ function VideoGrid() {
     );
   }
 
+  // Find if there is any active screen share
+  const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare);
+  const cameraTracks = tracks.filter((t) => t.source === Track.Source.Camera);
+
+  if (screenShareTrack) {
+    if (isFullScreenShare) {
+      // Full screen shared screen with floating small participants that expand on hover
+      return (
+        <div className="relative flex-1 w-full h-full bg-slate-950 rounded-2xl overflow-hidden border border-border/40">
+          {/* Main shared screen */}
+          <div className="w-full h-full">
+            <ParticipantTile
+              trackRef={screenShareTrack}
+              className="w-full h-full bg-black flex items-center justify-center"
+            />
+          </div>
+
+          {/* Toggle Full Screen Button */}
+          <button
+            onClick={() => setIsFullScreenShare(false)}
+            className="absolute top-4 left-4 z-20 bg-slate-900/80 hover:bg-slate-800 text-white p-2.5 rounded-xl border border-slate-700/60 shadow-lg transition-all"
+            title="Exit Full Screen Share"
+          >
+            <Minimize2 className="h-4 w-4" />
+          </button>
+
+          {/* Floating participant list (small, expandable on hover) */}
+          <div className="absolute top-4 right-4 z-20 flex flex-col gap-3 items-end max-h-[80%] overflow-y-auto pr-1">
+            {cameraTracks.map((track) => (
+              <div
+                key={`${track.participant.identity}-${track.source}`}
+                className="group relative transition-all duration-300 ease-in-out w-14 h-14 rounded-full overflow-hidden border border-slate-750 bg-slate-900/90 shadow-xl hover:w-48 hover:h-32 hover:rounded-xl"
+              >
+                <ParticipantTile
+                  trackRef={track}
+                  className="w-full h-full object-cover"
+                />
+                {/* Tiny badge with name */}
+                <div className="absolute bottom-1 right-2 bg-black/60 px-1.5 py-0.5 rounded text-[10px] text-white max-w-[80%] truncate pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                  {track.participant.name || track.participant.identity}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    } else {
+      // Standard shared screen with participants list on the right (responsive)
+      return (
+        <div className="flex-1 w-full h-full flex flex-col md:flex-row gap-4 overflow-hidden">
+          {/* Left panel: Shared Screen */}
+          <div className="flex-1 relative bg-slate-950 rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center aspect-video md:aspect-auto">
+            <ParticipantTile
+              trackRef={screenShareTrack}
+              className="w-full h-full"
+            />
+            {/* Toggle Full Screen Button */}
+            <button
+              onClick={() => setIsFullScreenShare(true)}
+              className="absolute top-4 left-4 z-20 bg-slate-900/80 hover:bg-slate-800 text-white p-2.5 rounded-xl border border-slate-700/60 shadow-lg transition-all"
+              title="Full Screen Share"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+            <div className="absolute top-4 right-4 bg-blue-500/80 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-md">
+              Screen Shared
+            </div>
+          </div>
+
+          {/* Right sidebar: Participant camera grids (responsive row on mobile, col on desktop) */}
+          <div className="w-full md:w-64 lg:w-80 shrink-0 flex md:flex-col gap-3 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto max-h-[140px] md:max-h-none py-1">
+            {cameraTracks.map((track) => (
+              <ParticipantTile
+                key={`${track.participant.identity}-${track.source}`}
+                trackRef={track}
+                className="w-40 md:w-full aspect-video shrink-0 bg-card/50 border border-border/40 rounded-2xl overflow-hidden flex items-center justify-center hover:border-primary/20 transition-all duration-300"
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+  }
+
+  // Normal Grid when no screen share
   return (
     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-y-auto pr-1">
-      {tracks.map((track) => (
+      {cameraTracks.map((track) => (
         <ParticipantTile
           key={`${track.participant.identity}-${track.source}`}
           trackRef={track}
@@ -167,8 +255,17 @@ function VideoGrid() {
   );
 }
 
-function ControlBarCustom({ role }: { role?: string }) {
+function ControlBarCustom({ role, sessionId }: { role?: string; sessionId: string }) {
   const router = useRouter();
+  const [ending, setEnding] = useState(false);
+  const {
+    isMicrophoneEnabled,
+    isCameraEnabled,
+    isScreenShareEnabled,
+    localParticipant,
+  } = useLocalParticipant();
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
   if (role === 'REVIEWER' || role === 'ADMIN') {
     return (
@@ -180,16 +277,69 @@ function ControlBarCustom({ role }: { role?: string }) {
     );
   }
 
+  const handleEndClass = async () => {
+    if (confirm('Are you sure you want to end this class for everyone? This will save the actual class duration and trigger recording uploads.')) {
+      setEnding(true);
+      try {
+        const res = await fetch(`${API_URL}/class-sessions/${sessionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'COMPLETED' }),
+          credentials: 'include',
+        });
+        if (res.ok) {
+          router.push('/');
+        } else {
+          alert('Failed to end the class session properly.');
+        }
+      } catch (err) {
+        console.error('Error ending class:', err);
+        alert('Network error while ending class.');
+      } finally {
+        setEnding(false);
+      }
+    }
+  };
+
   return (
     <footer className="h-20 border-t border-border bg-card/60 backdrop-blur-md flex items-center justify-between px-6 z-10">
-      <div className="flex items-center gap-2">
-        <button className="p-3 bg-muted hover:bg-muted/80 rounded-xl text-foreground transition-all duration-200 outline-none">
+      <div className="flex items-center gap-3">
+        {/* Microphone Toggle Button */}
+        <button
+          onClick={() => localParticipant?.setMicrophoneEnabled(!isMicrophoneEnabled)}
+          className={`p-3 rounded-xl transition-all duration-200 outline-none border ${
+            isMicrophoneEnabled
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+          }`}
+          title={isMicrophoneEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
+        >
           <Mic className="h-5 w-5" />
         </button>
-        <button className="p-3 bg-muted hover:bg-muted/80 rounded-xl text-foreground transition-all duration-200 outline-none">
+
+        {/* Camera Toggle Button */}
+        <button
+          onClick={() => localParticipant?.setCameraEnabled(!isCameraEnabled)}
+          className={`p-3 rounded-xl transition-all duration-200 outline-none border ${
+            isCameraEnabled
+              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+              : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+          }`}
+          title={isCameraEnabled ? 'Disable Camera' : 'Enable Camera'}
+        >
           <Video className="h-5 w-5" />
         </button>
-        <button className="p-3 bg-muted hover:bg-muted/80 rounded-xl text-foreground transition-all duration-200 outline-none">
+
+        {/* Screen Share Toggle Button */}
+        <button
+          onClick={() => localParticipant?.setScreenShareEnabled(!isScreenShareEnabled)}
+          className={`p-3 rounded-xl transition-all duration-200 outline-none border ${
+            isScreenShareEnabled
+              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'
+              : 'bg-slate-700/50 text-slate-400 border-slate-700/60 hover:bg-slate-700'
+          }`}
+          title={isScreenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+        >
           <ScreenShare className="h-5 w-5" />
         </button>
       </div>
@@ -201,11 +351,22 @@ function ControlBarCustom({ role }: { role?: string }) {
               router.push('/');
             }
           }}
-          className="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-colors outline-none shadow-md hover:shadow-red-500/10"
+          className="flex items-center gap-1.5 border border-slate-700 hover:bg-slate-800 text-slate-350 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors outline-none"
         >
           <LogOut className="h-4 w-4" />
-          <span>Disconnect</span>
+          <span>Leave Room</span>
         </button>
+
+        {role === 'TEACHER' && (
+          <button
+            onClick={handleEndClass}
+            disabled={ending}
+            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-650 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-colors outline-none shadow-md hover:shadow-red-500/10 disabled:opacity-50"
+          >
+            {ending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+            <span>End Class for All</span>
+          </button>
+        )}
       </div>
     </footer>
   );

@@ -20,4 +20,10 @@ export class RecordingsController {
   async getRecording(@Param('sessionId') sessionId: string) {
     return this.recordingsService.getRecordingBySession(sessionId);
   }
+
+  @Post(':sessionId/retry')
+  @Roles(Role.ADMIN, Role.TEACHER)
+  async retryUpload(@Param('sessionId') sessionId: string) {
+    return this.recordingsService.retryUpload(sessionId);
+  }
 }

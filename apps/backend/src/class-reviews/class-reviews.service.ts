@@ -264,4 +264,60 @@ export class ClassReviewsService {
       orderBy: { reviewedAt: 'desc' },
     });
   }
+
+  async getReviewerHistory(reviewerId: string) {
+    return this.prisma.classReview.findMany({
+      where: {
+        reviewerId,
+        status: ReviewStatus.SUBMITTED,
+      },
+      include: {
+        session: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                type: true,
+                teacher: { select: { id: true, name: true, email: true } },
+              },
+            },
+            recording: true,
+          },
+        },
+      },
+      orderBy: { reviewedAt: 'desc' },
+    });
+  }
+
+  async findByTeacher(teacherId: string) {
+    return this.prisma.classReview.findMany({
+      where: {
+        session: {
+          teacherId,
+        },
+        status: ReviewStatus.SUBMITTED,
+      },
+      include: {
+        session: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                title: true,
+                type: true,
+              },
+            },
+          },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+      orderBy: { reviewedAt: 'desc' },
+    });
+  }
 }

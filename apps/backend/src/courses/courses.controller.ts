@@ -28,6 +28,11 @@ export class CoursesController {
     return this.coursesService.findOne(id);
   }
 
+  @Get('teacher/:teacherId')
+  async findByTeacher(@Param('teacherId') teacherId: string) {
+    return this.coursesService.findByTeacher(teacherId);
+  }
+
   @Put(':id')
   @Roles(Role.ADMIN)
   async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {

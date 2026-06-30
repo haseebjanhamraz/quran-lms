@@ -16,7 +16,10 @@ import {
   TrendingUp,
   CheckCircle,
   PlayCircle,
+  ExternalLink,
 } from 'lucide-react';
+
+// ─── Interfaces ──────────────────────────────────────────────────────────────
 
 interface SessionItem {
   id: string;
@@ -24,6 +27,7 @@ interface SessionItem {
   scheduledAt: string;
   durationMinutes: number;
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  recording?: { driveUrl: string | null; status: string } | null;
 }
 
 interface Course {
@@ -33,8 +37,21 @@ interface Course {
   teacher?: { name: string };
 }
 
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+interface StudentStats {
+  total: number;
+  scheduled: number;
+  live: number;
+  completed: number;
+  cancelled: number;
+  totalHours: number;
+  enrolledCourses: number;
+}
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
   const d = new Date(iso);
@@ -63,10 +80,10 @@ function getCountdown(iso: string): string {
 
 function CourseTypeBadge({ type }: { type: string }) {
   const map: Record<string, string> = {
-    QURAN: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30',
+    NAZIRA: 'from-emerald-500/20 to-teal-500/20 text-emerald-400 border-emerald-500/30',
     TAJWEED: 'from-blue-500/20 to-indigo-500/20 text-blue-400 border-blue-500/30',
-    ARABIC: 'from-violet-500/20 to-purple-500/20 text-violet-400 border-violet-500/30',
-    ISLAMIC: 'from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/30',
+    HIFZ_UL_QURAN: 'from-violet-500/20 to-purple-500/20 text-violet-400 border-violet-500/30',
+    ISLAMIC_STUDIES: 'from-amber-500/20 to-orange-500/20 text-amber-400 border-amber-500/30',
   };
   const cls =
     map[type] ??
@@ -75,16 +92,21 @@ function CourseTypeBadge({ type }: { type: string }) {
     <span
       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-gradient-to-r border ${cls}`}
     >
-      {type}
+      {type.replace(/_/g, ' ')}
     </span>
   );
 }
 
+// ─── Main Component ───────────────────────────────────────────────────────────
+
 export default function StudentDashboard() {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
+
+  const [activeTab, setActiveTab] = useState<'learning' | 'attendance'>('learning');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
 
   useEffect(() => {
@@ -93,17 +115,27 @@ export default function StudentDashboard() {
     }
   }, [authLoading, user, router]);
 
+  const refreshSessionsSilently = async () => {
+    try {
+      const sessRes = await fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' });
+      if (sessRes.ok) {
+        const d = await sessRes.json();
+        setSessions(Array.isArray(d) ? d : d.sessions ?? []);
+      }
+    } catch (_) {}
+  };
+
   useEffect(() => {
     if (authLoading || !user) return;
     const fetchData = async () => {
       setDataLoading(true);
       try {
-        const [sessRes, coursesRes] = await Promise.all([
-          fetch(`${API_URL}/class-sessions/calendar`, {
-            credentials: 'include',
-          }),
+        const [sessRes, coursesRes, statsRes] = await Promise.all([
+          fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' }),
           fetch(`${API_URL}/courses`, { credentials: 'include' }),
+          fetch(`${API_URL}/class-sessions/stats`, { credentials: 'include' }),
         ]);
+
         if (sessRes.ok) {
           const d = await sessRes.json();
           setSessions(Array.isArray(d) ? d : d.sessions ?? []);
@@ -111,6 +143,10 @@ export default function StudentDashboard() {
         if (coursesRes.ok) {
           const d = await coursesRes.json();
           setCourses(Array.isArray(d) ? d : d.courses ?? []);
+        }
+        if (statsRes.ok) {
+          const d = await statsRes.json();
+          setStats(d);
         }
       } catch {
         // network errors silently ignored; UI shows empty states
@@ -121,28 +157,38 @@ export default function StudentDashboard() {
     fetchData();
   }, [authLoading, user]);
 
-  const completedSessions = sessions.filter((s) => s.status === 'COMPLETED');
-  const scheduledSessions = sessions.filter((s) => s.status === 'SCHEDULED');
-  const liveSessions = sessions.filter((s) => s.status === 'LIVE');
-  const totalHours =
-    completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0) / 60;
+  useEffect(() => {
+    if (user) {
+      const hasActiveUploads = sessions.some(
+        (s) =>
+          s.status === 'COMPLETED' &&
+          (!s.recording || s.recording.status === 'PROCESSING' || s.recording.status === 'UPLOADING')
+      );
 
-  const upcomingSessions = [...liveSessions, ...scheduledSessions].sort(
-    (a, b) =>
-      new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()
-  );
+      if (hasActiveUploads) {
+        const interval = setInterval(refreshSessionsSilently, 5000);
+        return () => clearInterval(interval);
+      }
+    }
+  }, [sessions, user]);
+
+  const completedSessions = sessions.filter((s) => s.status === 'COMPLETED');
+  const upcomingSessions = sessions
+    .filter((s) => s.status === 'SCHEDULED' || s.status === 'LIVE')
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
 
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-blue-400 animate-spin" />
+        <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
       </div>
     );
   }
 
+  if (!user) return null;
+
   return (
     <div className="min-h-screen bg-slate-950" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      {/* ─── Global Styles injected via style tag ─── */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
@@ -190,7 +236,7 @@ export default function StudentDashboard() {
           box-shadow: 0 12px 40px rgba(59,130,246,0.12);
         }
         .btn-primary {
-          background: linear-gradient(135deg, #3b82f6, #6366f1);
+          background: linear-gradient(135deg, #C9A84C, #a8842e);
           color: #fff;
           border: none;
           border-radius: 0.625rem;
@@ -259,8 +305,8 @@ export default function StudentDashboard() {
         }
         .gold-text { color: #C9A84C; }
         .gradient-hero {
-          background: linear-gradient(135deg, #0d2137 0%, #0c1a2e 40%, #0d1e38 70%, #0b1929 100%);
-          border: 1px solid rgba(96,165,250,0.15);
+          background: linear-gradient(135deg, #0a2e2b 0%, #08211f 40%, #092624 70%, #051413 100%);
+          border: 1px solid rgba(201,168,76,0.2);
           border-radius: 1.25rem;
           position: relative;
           overflow: hidden;
@@ -270,20 +316,12 @@ export default function StudentDashboard() {
           position: absolute;
           top: -60px; left: -60px;
           width: 280px; height: 280px;
-          background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);
-          pointer-events: none;
-        }
-        .gradient-hero::after {
-          content: '';
-          position: absolute;
-          bottom: -80px; right: -40px;
-          width: 320px; height: 320px;
-          background: radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(201,168,76,0.1) 0%, transparent 70%);
           pointer-events: none;
         }
         .verse-banner {
-          background: linear-gradient(135deg, rgba(16,185,129,0.18) 0%, rgba(20,184,166,0.14) 100%);
-          border: 1px solid rgba(16,185,129,0.25);
+          background: linear-gradient(135deg, rgba(201,168,76,0.1) 0%, rgba(201,168,76,0.05) 100%);
+          border: 1px solid rgba(201,168,76,0.2);
           border-radius: 0.875rem;
         }
         .section-heading {
@@ -316,59 +354,57 @@ export default function StudentDashboard() {
 
       {/* ═══════════════ NAVBAR ═══════════════ */}
       <nav className="navbar">
-        <div
-          style={{
-            maxWidth: '1200px',
-            margin: '0 auto',
-            padding: '0.875rem 1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}
-        >
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0.875rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Brand */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <div
-              style={{
-                background: 'linear-gradient(135deg,#3b82f6,#6366f1)',
-                borderRadius: '0.625rem',
-                padding: '0.45rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
+            <div style={{ background: 'linear-gradient(135deg,#C9A84C,#a8842e)', borderRadius: '0.625rem', padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <GraduationCap style={{ color: '#fff', width: 20, height: 20 }} />
             </div>
-            <span
-              style={{
-                fontWeight: 800,
-                fontSize: '1.1rem',
-                color: '#f1f5f9',
-                letterSpacing: '-0.01em',
-              }}
-            >
+            <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f1f5f9', letterSpacing: '-0.01em' }}>
               Student Portal
             </span>
+          </div>
+
+          {/* Navigation Tabs */}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              onClick={() => setActiveTab('learning')}
+              style={{
+                background: activeTab === 'learning' ? 'rgba(201,168,76,0.15)' : 'transparent',
+                color: activeTab === 'learning' ? '#C9A84C' : '#94a3b8',
+                border: activeTab === 'learning' ? '1px solid rgba(201,168,76,0.3)' : '1px solid transparent',
+                borderRadius: '0.5rem',
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Learning Portal
+            </button>
+            <button
+              onClick={() => setActiveTab('attendance')}
+              style={{
+                background: activeTab === 'attendance' ? 'rgba(201,168,76,0.15)' : 'transparent',
+                color: activeTab === 'attendance' ? '#C9A84C' : '#94a3b8',
+                border: activeTab === 'attendance' ? '1px solid rgba(201,168,76,0.3)' : '1px solid transparent',
+                borderRadius: '0.5rem',
+                padding: '0.4rem 0.85rem',
+                fontSize: '0.82rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Attendance Logs
+            </button>
           </div>
 
           {/* User area */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
             {user && (
               <div style={{ textAlign: 'right', lineHeight: 1.3 }}>
-                <p
-                  style={{
-                    fontSize: '0.875rem',
-                    fontWeight: 600,
-                    color: '#e2e8f0',
-                    margin: 0,
-                  }}
-                >
-                  {user.name}
-                </p>
-                <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>
-                  {user.email}
-                </p>
+                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#e2e8f0', margin: 0 }}>{user.name}</p>
+                <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>{user.email}</p>
               </div>
             )}
             <button className="btn-logout" onClick={logout}>
@@ -381,590 +417,259 @@ export default function StudentDashboard() {
 
       {/* ═══════════════ MAIN ═══════════════ */}
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
-
-        {/* ── HERO ── */}
+        {/* HERO */}
         <section className="gradient-hero" style={{ padding: '2.5rem', marginBottom: '2rem' }}>
-          <div
-            className="hero-inner"
-            style={{
-              position: 'relative',
-              zIndex: 1,
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              gap: '2rem',
-            }}
-          >
+          <div className="hero-inner" style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '2rem' }}>
             <div style={{ flex: 1 }}>
-              {/* Small pill */}
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '0.4rem',
-                  background: 'rgba(59,130,246,0.12)',
-                  border: '1px solid rgba(96,165,250,0.25)',
-                  borderRadius: '999px',
-                  padding: '0.3rem 0.9rem',
-                  marginBottom: '1rem',
-                }}
-              >
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '999px', padding: '0.3rem 0.9rem', marginBottom: '1rem' }}>
                 <Star style={{ width: 13, height: 13, color: '#C9A84C' }} />
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>
-                  Daily Progress
-                </span>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>Quranic Journey</span>
               </div>
-
-              <h1
-                style={{
-                  fontSize: 'clamp(1.6rem, 3vw, 2.4rem)',
-                  fontWeight: 800,
-                  color: '#f8fafc',
-                  margin: '0 0 0.5rem',
-                  letterSpacing: '-0.02em',
-                  lineHeight: 1.2,
-                }}
-              >
-                Assalamu Alaikum,{' '}
-                <span className="gold-text">{user?.name ?? 'Student'}</span>
+              <h1 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f8fafc', margin: '0 0 0.5rem', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+                Assalamu Alaikum, <span className="gold-text">{user.name}</span>
               </h1>
-
-              <p
-                style={{
-                  color: '#94a3b8',
-                  fontSize: '1rem',
-                  margin: '0 0 1.75rem',
-                  fontWeight: 400,
-                }}
-              >
-                Your Quran learning journey continues. Keep going!
+              <p style={{ color: '#94a3b8', fontSize: '1rem', margin: '0 0 1.75rem', fontWeight: 400 }}>
+                May Allah guide you and grant you success in your learning.
               </p>
-
-              {/* Verse banner */}
               <div className="verse-banner" style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                <BookOpen style={{ width: 20, height: 20, color: '#34d399', flexShrink: 0, marginTop: '2px' }} />
-                <p
-                  style={{
-                    color: '#a7f3d0',
-                    fontSize: '0.95rem',
-                    fontStyle: 'italic',
-                    margin: 0,
-                    lineHeight: 1.6,
-                  }}
-                >
+                <BookOpen style={{ width: 20, height: 20, color: '#C9A84C', flexShrink: 0, marginTop: '2px' }} />
+                <p style={{ color: '#ecdcb5', fontSize: '0.95rem', fontStyle: 'italic', margin: 0, lineHeight: 1.6 }}>
                   &ldquo;Read in the name of your Lord who created.&rdquo;
-                  <span style={{ color: '#6ee7b7', fontWeight: 600, fontStyle: 'normal' }}>
-                    {' '}— Al-Alaq 96:1
-                  </span>
+                  <span style={{ color: '#C9A84C', fontWeight: 600, fontStyle: 'normal' }}> — Al-Alaq 96:1</span>
                 </p>
               </div>
             </div>
-
-            {/* Decorative element */}
-            <div
-              style={{
-                flexShrink: 0,
-                width: 120,
-                height: 120,
-                borderRadius: '50%',
-                background: 'linear-gradient(135deg,rgba(59,130,246,0.25),rgba(99,102,241,0.15))',
-                border: '1px solid rgba(96,165,250,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <GraduationCap style={{ width: 52, height: 52, color: '#60a5fa' }} />
+            <div style={{ flexShrink: 0, width: 120, height: 120, borderRadius: '50%', background: 'linear-gradient(135deg,rgba(201,168,76,0.2),rgba(201,168,76,0.05))', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'center' }}>
+              <GraduationCap style={{ width: 52, height: 52, color: '#C9A84C' }} />
             </div>
           </div>
         </section>
 
-        {/* ── STATS ROW ── */}
-        <section
-          className="stats-grid"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: '1rem',
-            marginBottom: '2rem',
-          }}
-        >
-          {/* Classes Attended */}
+        {/* STATS ROW */}
+        <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
           <div className="stat-card" style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div
-                style={{
-                  background: 'rgba(59,130,246,0.15)',
-                  borderRadius: '0.75rem',
-                  padding: '0.6rem',
-                  display: 'flex',
-                }}
-              >
-                <CheckCircle style={{ width: 22, height: 22, color: '#60a5fa' }} />
+              <div style={{ background: 'rgba(201,168,76,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
+                <CheckCircle style={{ width: 22, height: 22, color: '#C9A84C' }} />
               </div>
-              <TrendingUp style={{ width: 16, height: 16, color: '#22c55e' }} />
             </div>
-            <p
-              style={{
-                fontSize: 'clamp(1.8rem, 3vw, 2.4rem)',
-                fontWeight: 800,
-                color: '#f1f5f9',
-                margin: '0 0 0.25rem',
-                lineHeight: 1,
-              }}
-            >
-              {dataLoading ? (
-                <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#60a5fa' }} />
-              ) : (
-                completedSessions.length
-              )}
+            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
+              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#C9A84C' }} /> : completedSessions.length}
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>
-              Classes Attended
-            </p>
+            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Classes Attended</p>
           </div>
 
-          {/* Upcoming Classes */}
           <div className="stat-card" style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div
-                style={{
-                  background: 'rgba(16,185,129,0.15)',
-                  borderRadius: '0.75rem',
-                  padding: '0.6rem',
-                  display: 'flex',
-                }}
-              >
+              <div style={{ background: 'rgba(16,185,129,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
                 <Calendar style={{ width: 22, height: 22, color: '#34d399' }} />
               </div>
-              <TrendingUp style={{ width: 16, height: 16, color: '#22c55e' }} />
             </div>
-            <p
-              style={{
-                fontSize: 'clamp(1.8rem, 3vw, 2.4rem)',
-                fontWeight: 800,
-                color: '#f1f5f9',
-                margin: '0 0 0.25rem',
-                lineHeight: 1,
-              }}
-            >
-              {dataLoading ? (
-                <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#34d399' }} />
-              ) : (
-                scheduledSessions.length
-              )}
+            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
+              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#34d399' }} /> : upcomingSessions.length}
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>
-              Upcoming Classes
-            </p>
+            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Upcoming Classes</p>
           </div>
 
-          {/* Learning Hours */}
           <div className="stat-card" style={{ padding: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div
-                style={{
-                  background: 'rgba(201,168,76,0.15)',
-                  borderRadius: '0.75rem',
-                  padding: '0.6rem',
-                  display: 'flex',
-                }}
-              >
+              <div style={{ background: 'rgba(201,168,76,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
                 <Clock style={{ width: 22, height: 22, color: '#C9A84C' }} />
               </div>
-              <TrendingUp style={{ width: 16, height: 16, color: '#22c55e' }} />
             </div>
-            <p
-              style={{
-                fontSize: 'clamp(1.8rem, 3vw, 2.4rem)',
-                fontWeight: 800,
-                color: '#f1f5f9',
-                margin: '0 0 0.25rem',
-                lineHeight: 1,
-              }}
-            >
+            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
+              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#C9A84C' }} /> : (stats?.totalHours ?? 0).toFixed(1)}
+            </p>
+            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Learning Hours</p>
+          </div>
+
+          <div className="stat-card" style={{ padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
+                <BookOpen style={{ width: 22, height: 22, color: '#60a5fa' }} />
+              </div>
+            </div>
+            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
+              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#60a5fa' }} /> : (stats?.enrolledCourses ?? 0)}
+            </p>
+            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Enrolled Courses</p>
+          </div>
+        </section>
+
+        {activeTab === 'learning' ? (
+          <>
+            {/* UPCOMING CLASSES */}
+            <section className="glass-card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <h2 className="section-heading">
+                  <Video style={{ width: 20, height: 20, color: '#C9A84C' }} />
+                  Upcoming Classes
+                </h2>
+              </div>
+
               {dataLoading ? (
-                <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#C9A84C' }} />
-              ) : (
-                totalHours.toFixed(1)
-              )}
-            </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>
-              Total Learning Hours
-            </p>
-          </div>
-        </section>
-
-        {/* ── UPCOMING CLASSES ── */}
-        <section className="glass-card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <h2 className="section-heading">
-              <Video style={{ width: 20, height: 20, color: '#60a5fa' }} />
-              Upcoming Classes
-            </h2>
-            {upcomingSessions.length > 0 && (
-              <span
-                style={{
-                  background: 'rgba(59,130,246,0.15)',
-                  border: '1px solid rgba(96,165,250,0.2)',
-                  borderRadius: '999px',
-                  padding: '0.2rem 0.75rem',
-                  fontSize: '0.75rem',
-                  color: '#60a5fa',
-                  fontWeight: 600,
-                }}
-              >
-                {upcomingSessions.length} session{upcomingSessions.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          {dataLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem 0' }}>
-              <Loader2 style={{ width: 28, height: 28, color: '#60a5fa', animation: 'spin 1s linear infinite' }} />
-            </div>
-          ) : upcomingSessions.length === 0 ? (
-            <div className="empty-state">
-              <Calendar style={{ width: 40, height: 40, margin: '0 auto 1rem', color: '#334155' }} />
-              <p style={{ fontSize: '0.95rem', marginBottom: '0.25rem' }}>No upcoming classes</p>
-              <p style={{ fontSize: '0.82rem', color: '#475569' }}>
-                Ask your academy to enroll you in a course.
-              </p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-              {upcomingSessions.map((session) => (
-                <SessionCard key={session.id} session={session} router={router} />
-              ))}
-            </div>
-          )}
-        </section>
-
-        {/* ── ENROLLED COURSES ── */}
-        <section className="glass-card" style={{ padding: '1.75rem', marginBottom: '2.5rem' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: '1.5rem',
-            }}
-          >
-            <h2 className="section-heading">
-              <BookOpen style={{ width: 20, height: 20, color: '#C9A84C' }} />
-              <span className="gold-text">Enrolled Courses</span>
-            </h2>
-            {courses.length > 0 && (
-              <span
-                style={{
-                  background: 'rgba(201,168,76,0.1)',
-                  border: '1px solid rgba(201,168,76,0.2)',
-                  borderRadius: '999px',
-                  padding: '0.2rem 0.75rem',
-                  fontSize: '0.75rem',
-                  color: '#C9A84C',
-                  fontWeight: 600,
-                }}
-              >
-                {courses.length} course{courses.length !== 1 ? 's' : ''}
-              </span>
-            )}
-          </div>
-
-          {dataLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem 0' }}>
-              <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
-            </div>
-          ) : courses.length === 0 ? (
-            <div className="empty-state">
-              <BookOpen style={{ width: 40, height: 40, margin: '0 auto 1rem', color: '#334155' }} />
-              <p style={{ fontSize: '0.95rem', marginBottom: '0.25rem' }}>
-                You are not enrolled in any courses yet.
-              </p>
-              <p style={{ fontSize: '0.82rem', color: '#475569' }}>
-                Contact your academy administrator to get started.
-              </p>
-            </div>
-          ) : (
-            <div
-              className="courses-grid"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-                gap: '1rem',
-              }}
-            >
-              {courses.map((course) => (
-                <div key={course.id} className="course-card" style={{ padding: '1.25rem' }}>
-                  {/* Icon strip */}
-                  <div
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: '0.625rem',
-                      background: 'linear-gradient(135deg,rgba(59,130,246,0.2),rgba(99,102,241,0.1))',
-                      border: '1px solid rgba(96,165,250,0.2)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginBottom: '0.875rem',
-                    }}
-                  >
-                    <BookOpen style={{ width: 18, height: 18, color: '#60a5fa' }} />
-                  </div>
-
-                  <h3
-                    style={{
-                      color: '#f1f5f9',
-                      fontWeight: 700,
-                      fontSize: '0.95rem',
-                      margin: '0 0 0.4rem',
-                      lineHeight: 1.35,
-                    }}
-                  >
-                    {course.title}
-                  </h3>
-
-                  {course.teacher && (
-                    <p style={{ color: '#64748b', fontSize: '0.8rem', margin: '0 0 0.75rem' }}>
-                      {course.teacher.name}
-                    </p>
-                  )}
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      marginTop: 'auto',
-                    }}
-                  >
-                    <CourseTypeBadge type={course.type} />
-                    <button
-                      className="btn-primary"
-                      onClick={() => router.push(`/student/courses/${course.id}`)}
-                      style={{ padding: '0.4rem 0.875rem', fontSize: '0.8rem' }}
-                    >
-                      View
-                      <ChevronRight style={{ width: 13, height: 13 }} />
-                    </button>
-                  </div>
+                <div style={{ display: 'flex', justifyBox: 'center', justifyContent: 'center', padding: '2.5rem 0' }}>
+                  <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+              ) : upcomingSessions.length === 0 ? (
+                <div className="empty-state">
+                  <Calendar style={{ width: 40, height: 40, margin: '0 auto 1rem', color: '#334155' }} />
+                  <p style={{ fontSize: '0.95rem', marginBottom: '0.25rem' }}>No upcoming classes</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                  {upcomingSessions.map((session) => (
+                    <div key={session.id} className="session-card" style={{ padding: '1.125rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                      <div style={{ width: 44, height: 44, borderRadius: '0.75rem', background: session.status === 'LIVE' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.12)', border: `1px solid ${session.status === 'LIVE' ? '#10b981' : 'rgba(96,165,250,0.2)'}`, display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {session.status === 'LIVE' ? <PlayCircle style={{ width: 20, height: 20, color: '#34d399' }} /> : <Video style={{ width: 20, height: 20, color: '#60a5fa' }} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.9rem', margin: '0 0 0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {session.course.title}
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <CourseTypeBadge type={session.course.type} />
+                          <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
+                            {formatDate(session.scheduledAt)} · {formatTime(session.scheduledAt)}
+                          </span>
+                        </div>
+                      </div>
+                      <div style={{ flexShrink: 0 }}>
+                        {session.status === 'LIVE' ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+                            <span className="pulse-live" />
+                            <button className="btn-live" onClick={() => router.push(`/classroom/${session.id}`)}>
+                              <PlayCircle style={{ width: 15, height: 15 }} /> Join Now
+                            </button>
+                          </div>
+                        ) : (
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ display: 'inline-block', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '999px', padding: '0.25rem 0.75rem', fontSize: '0.75rem', color: '#60a5fa', fontWeight: 600, marginBottom: '0.25rem' }}>
+                              Upcoming
+                            </span>
+                            <p style={{ color: '#64748b', fontSize: '0.75rem', margin: 0 }}>
+                              {getCountdown(session.scheduledAt)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
 
-        {/* ── FOOTER QUOTE ── */}
-        <footer
-          style={{
-            textAlign: 'center',
-            padding: '1.5rem',
-            borderTop: '1px solid rgba(51,65,85,0.4)',
-          }}
-        >
-          <p
-            style={{
-              fontStyle: 'italic',
-              color: '#475569',
-              fontSize: '0.9rem',
-              letterSpacing: '0.02em',
-              margin: '0 0 0.3rem',
-            }}
-          >
+            {/* ENROLLED COURSES */}
+            <section className="glass-card" style={{ padding: '1.75rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                <h2 className="section-heading">
+                  <BookOpen style={{ width: 20, height: 20, color: '#C9A84C' }} />
+                  <span className="gold-text">Enrolled Courses</span>
+                </h2>
+              </div>
+
+              {dataLoading ? (
+                <div style={{ display: 'flex', justifyBox: 'center', justifyContent: 'center', padding: '2.5rem 0' }}>
+                  <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : courses.length === 0 ? (
+                <div className="empty-state">
+                  <p>No enrolled courses.</p>
+                </div>
+              ) : (
+                <div className="courses-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+                  {courses.map((course) => (
+                    <div key={course.id} className="course-card" style={{ padding: '1.25rem' }}>
+                      <div style={{ width: 40, height: 40, borderRadius: '0.625rem', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'center', marginBottom: '0.875rem' }}>
+                        <BookOpen style={{ width: 18, height: 18, color: '#C9A84C' }} />
+                      </div>
+                      <h3 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.95rem', margin: '0 0 0.4rem', lineHeight: 1.35 }}>
+                        {course.title}
+                      </h3>
+                      {course.teacher && <p style={{ color: '#64748b', fontSize: '0.8rem', margin: '0 0 0.75rem' }}>{course.teacher.name}</p>}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+                        <CourseTypeBadge type={course.type} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        ) : (
+          /* ATTENDANCE & RECORDINGS TAB */
+          <section className="glass-card" style={{ padding: '1.75rem' }}>
+            <h2 className="section-heading mb-6">
+              <CheckCircle style={{ width: 20, height: 20, color: '#C9A84C' }} />
+              Class Attendance & Recording History
+            </h2>
+
+            {dataLoading ? (
+              <div style={{ display: 'flex', justifyBox: 'center', justifyContent: 'center', padding: '2.5rem 0' }}>
+                <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
+              </div>
+            ) : completedSessions.length === 0 ? (
+              <div className="empty-state">
+                <p>No completed class records found.</p>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                {completedSessions.map((session) => (
+                  <div key={session.id} className="session-card animate-fadeIn" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.95rem', margin: '0 0 0.25rem' }}>{session.course.title}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                          <CourseTypeBadge type={session.course.type} />
+                          <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                            {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)}
+                          </span>
+                        </div>
+                      </div>
+                      <span style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '999px', padding: '0.3rem 0.875rem', fontSize: '0.75rem', color: '#34d399', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <CheckCircle style={{ width: 13, height: 13 }} /> Attended
+                      </span>
+                    </div>
+
+                    {/* Recording section */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(148,163,184,0.1)', pt: '0.75rem', paddingTop: '0.75rem' }}>
+                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                        Recording:{' '}
+                        <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-400' : 'text-slate-500'}`}>
+                          {session.recording?.status || 'PROCESSING'}
+                        </span>
+                      </span>
+                      {session.recording?.driveUrl ? (
+                        <a
+                          href={session.recording.driveUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn-primary"
+                          style={{ padding: '0.35rem 0.9rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                        >
+                          <ExternalLink style={{ width: 12, height: 12 }} /> Watch Recording
+                        </a>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
+                          Processing upload to Google Drive...
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* FOOTER */}
+        <footer style={{ textAlign: 'center', padding: '1.5rem', borderTop: '1px solid rgba(51,65,85,0.4)', marginTop: '3rem' }}>
+          <p style={{ fontStyle: 'italic', color: '#475569', fontSize: '0.9rem', margin: '0 0 0.3rem' }}>
             &ldquo;Seek knowledge from the cradle to the grave.&rdquo;
           </p>
-          <p style={{ color: '#334155', fontSize: '0.75rem', margin: 0 }}>
-            — Prophet Muhammad (PBUH)
-          </p>
+          <p style={{ color: '#334155', fontSize: '0.75rem', margin: 0 }}>— Prophet Muhammad (PBUH)</p>
         </footer>
       </main>
-    </div>
-  );
-}
-
-/* ─── Session Card (extracted for clarity) ─── */
-function SessionCard({
-  session,
-  router,
-}: {
-  session: SessionItem;
-  router: ReturnType<typeof useRouter>;
-}) {
-  const isLive = session.status === 'LIVE';
-  const isScheduled = session.status === 'SCHEDULED';
-  const isCompleted = session.status === 'COMPLETED';
-  const isCancelled = session.status === 'CANCELLED';
-
-  return (
-    <div
-      className="session-card"
-      style={{
-        padding: '1.125rem 1.25rem',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem',
-        flexWrap: 'wrap',
-      }}
-    >
-      {/* Icon */}
-      <div
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: '0.75rem',
-          background: isLive
-            ? 'rgba(16,185,129,0.15)'
-            : isCompleted
-            ? 'rgba(20,184,166,0.12)'
-            : isCancelled
-            ? 'rgba(239,68,68,0.1)'
-            : 'rgba(59,130,246,0.12)',
-          border: `1px solid ${
-            isLive
-              ? 'rgba(16,185,129,0.3)'
-              : isCompleted
-              ? 'rgba(20,184,166,0.25)'
-              : isCancelled
-              ? 'rgba(239,68,68,0.2)'
-              : 'rgba(96,165,250,0.2)'
-          }`,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}
-      >
-        {isLive ? (
-          <PlayCircle style={{ width: 20, height: 20, color: '#34d399' }} />
-        ) : isCompleted ? (
-          <CheckCircle style={{ width: 20, height: 20, color: '#2dd4bf' }} />
-        ) : (
-          <Video
-            style={{
-              width: 20,
-              height: 20,
-              color: isCancelled ? '#f87171' : '#60a5fa',
-            }}
-          />
-        )}
-      </div>
-
-      {/* Info */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p
-          style={{
-            color: '#e2e8f0',
-            fontWeight: 600,
-            fontSize: '0.9rem',
-            margin: '0 0 0.25rem',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-          }}
-        >
-          {session.course.title}
-        </p>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.75rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <CourseTypeBadge type={session.course.type} />
-          <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
-            {formatDate(session.scheduledAt)} · {formatTime(session.scheduledAt)}
-          </span>
-          <span style={{ color: '#475569', fontSize: '0.78rem' }}>
-            {session.durationMinutes}min
-          </span>
-        </div>
-      </div>
-
-      {/* Status / Action */}
-      <div style={{ flexShrink: 0 }}>
-        {isLive && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <span className="pulse-live" />
-            <button
-              className="btn-live"
-              onClick={() => router.push(`/classroom/${session.id}`)}
-            >
-              <PlayCircle style={{ width: 15, height: 15 }} />
-              Join Now
-            </button>
-          </div>
-        )}
-
-        {isScheduled && (
-          <div style={{ textAlign: 'right' }}>
-            <span
-              style={{
-                display: 'inline-block',
-                background: 'rgba(59,130,246,0.12)',
-                border: '1px solid rgba(96,165,250,0.25)',
-                borderRadius: '999px',
-                padding: '0.25rem 0.75rem',
-                fontSize: '0.75rem',
-                color: '#60a5fa',
-                fontWeight: 600,
-                marginBottom: '0.25rem',
-              }}
-            >
-              Upcoming
-            </span>
-            <p style={{ color: '#64748b', fontSize: '0.75rem', margin: 0, textAlign: 'center' }}>
-              {getCountdown(session.scheduledAt)}
-            </p>
-          </div>
-        )}
-
-        {isCompleted && (
-          <span
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              background: 'rgba(20,184,166,0.12)',
-              border: '1px solid rgba(45,212,191,0.25)',
-              borderRadius: '999px',
-              padding: '0.3rem 0.875rem',
-              fontSize: '0.75rem',
-              color: '#2dd4bf',
-              fontWeight: 600,
-            }}
-          >
-            <CheckCircle style={{ width: 13, height: 13 }} />
-            Attended
-          </span>
-        )}
-
-        {isCancelled && (
-          <span
-            style={{
-              display: 'inline-block',
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: '999px',
-              padding: '0.3rem 0.875rem',
-              fontSize: '0.75rem',
-              color: '#f87171',
-              fontWeight: 600,
-            }}
-          >
-            Cancelled
-          </span>
-        )}
-      </div>
     </div>
   );
 }
