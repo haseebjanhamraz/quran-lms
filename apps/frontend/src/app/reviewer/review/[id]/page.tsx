@@ -36,12 +36,12 @@ interface ReviewData {
     course: {
       title: string;
       type: string;
+      teacher: {
+        name: string;
+      };
     };
     recording?: {
       driveUrl?: string;
-    };
-    teacher: {
-      name: string;
     };
   };
 }
@@ -247,7 +247,7 @@ export default function ReviewPage() {
           
           <div className="text-center">
             <h1 className="font-bold text-base md:text-lg font-display">{review.session.course.title}</h1>
-            <p className="text-xs text-muted-foreground">Teacher: {review.session.teacher.name}</p>
+            <p className="text-xs text-muted-foreground">Teacher: {review.session.course.teacher?.name}</p>
           </div>
 
           <div className="flex items-center gap-3">

@@ -13,8 +13,6 @@ export default function TeacherSchedule() {
 
   // Form state
   const [courseId, setCourseId] = useState('');
-  const [title, setTitle] = useState('');
-  const [type, setType] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [duration, setDuration] = useState(60);
   const [loading, setLoading] = useState(false);
@@ -53,8 +51,6 @@ export default function TeacherSchedule() {
     try {
       const payload = {
         courseId,
-        title,
-        type,
         scheduledAt: new Date(scheduledAt).toISOString(),
         durationMinutes: Number(duration),
       };
@@ -128,32 +124,6 @@ export default function TeacherSchedule() {
                   ))}
                 </select>
               )}
-            </div>
-
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Class Title</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                placeholder="e.g., Surah Al-Fatiha Review"
-                className="w-full bg-background border border-border rounded-lg py-2 px-3 text-sm outline-none focus:border-primary transition-colors"
-              />
-            </div>
-
-            {/* Type */}
-            <div>
-              <label className="block text-sm font-medium text-muted-foreground mb-1">Class Type</label>
-              <input
-                type="text"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-                required
-                placeholder="e.g., Tajweed, Memorization"
-                className="w-full bg-background border border-border rounded-lg py-2 px-3 text-sm outline-none focus:border-primary transition-colors"
-              />
             </div>
 
             {/* Date & Time */}

@@ -17,7 +17,9 @@ import {
   ChevronRight,
   Activity,
   Flag,
+  Sparkles,
 } from 'lucide-react';
+import NotificationsDropdown from '@/components/NotificationsDropdown';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
@@ -26,6 +28,7 @@ const NAV_ITEMS = [
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
   { label: 'Reviewer Assignments', icon: ShieldCheck, href: '/admin/reviewer-assignments' },
+  { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports' },
   { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs' },
 ];
@@ -202,18 +205,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           isCollapsed ? 'md:ml-20' : 'md:ml-64'
         }`}
       >
-        {/* Mobile Navbar */}
-        <header className="flex h-16 items-center justify-between border-b border-slate-800/40 bg-slate-900/60 px-4 md:hidden">
-          <button
-            onClick={() => setIsMobileOpen(true)}
-            className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-slate-100"
-          >
-            <Menu size={20} />
-          </button>
-          <span className="font-display font-bold text-sm tracking-wide text-slate-200">
-            Quran LMS Admin
-          </span>
-          <div className="w-10" />
+        {/* Global Top Header Bar */}
+        <header className="flex h-16 items-center justify-between border-b border-slate-800/40 bg-slate-900/60 px-6">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMobileOpen(true)}
+              className="rounded-lg p-2 text-slate-400 hover:bg-white/5 hover:text-slate-100 md:hidden"
+              title="Open Navigation"
+            >
+              <Menu size={20} />
+            </button>
+            <span className="font-display font-bold text-sm tracking-wide text-slate-200 hidden md:inline">
+              Compliance Administration Dashboard
+            </span>
+            <span className="font-display font-bold text-sm tracking-wide text-slate-200 md:hidden">
+              Quran LMS Admin
+            </span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <NotificationsDropdown />
+            <div className="hidden text-right md:block">
+              <p className="text-xs font-semibold text-slate-200 leading-none">{user?.name}</p>
+              <p className="mt-0.5 text-[10px] text-slate-500">Administrator</p>
+            </div>
+          </div>
         </header>
 
         {/* Main Content Area */}

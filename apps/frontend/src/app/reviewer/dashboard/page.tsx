@@ -20,6 +20,7 @@ import {
   Plus,
   Star,
 } from 'lucide-react';
+import PipelineMonitorModal from '../../../components/PipelineMonitorModal';
 
 interface SessionItem {
   id: string;
@@ -89,6 +90,7 @@ export default function ReviewerDashboardPage() {
   const [stats, setStats] = useState<ReviewerStats | null>(null);
 
   const [loadingData, setLoadingData] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
 
   const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
 
@@ -501,9 +503,17 @@ export default function ReviewerDashboardPage() {
                               <span>Instructor: {session.course.teacher?.name || 'N/A'}</span>
                             </div>
                             <div className="flex items-center justify-between pt-2">
-                              {!hasSubmittedReview(session) && (
-                                <span className="qa-badge qa-badge-amber">Needs Review</span>
-                              )}
+                              <div className="flex items-center gap-3">
+                                {!hasSubmittedReview(session) && (
+                                  <span className="qa-badge qa-badge-amber">Needs Review</span>
+                                )}
+                                <button
+                                  onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
+                                  className="text-[11px] text-amber-500 hover:text-amber-400 hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                                >
+                                  Track Upload Process
+                                </button>
+                              </div>
                               <button
                                 className="qa-btn-primary"
                                 onClick={() => router.push(`/reviewer/review/${session.id}`)}
@@ -628,6 +638,15 @@ export default function ReviewerDashboardPage() {
           </div>
         </main>
       </div>
+
+      {selectedSession && (
+        <PipelineMonitorModal
+          sessionId={selectedSession.id}
+          courseTitle={selectedSession.title}
+          isOpen={!!selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
+      )}
     </>
   );
 }

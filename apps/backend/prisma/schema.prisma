@@ -70,6 +70,8 @@ model User {
   reviewerAssignments ReviewerAssignment[] @relation("ReviewerAssignments")
   classReviews        ClassReview[]        @relation("ReviewerReviews")
   auditLogs           AuditLog[]
+  aiReports           AIReport[]
+  notifications       Notification[]
 }
 
 model Course {
@@ -113,10 +115,28 @@ model ClassSession {
   updatedAt       DateTime      @updatedAt
 
   // Relations
-  course          Course        @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  attendances     Attendance[]
-  recording       Recording?
-  classReviews    ClassReview[]
+  course             Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  attendances        Attendance[]
+  recording          Recording?
+  classReviews       ClassReview[]
+  transcriptSegments TranscriptSegment[]
+  aiReport           AIReport?
+  pipelineLogs       PipelineLog[]
+}
+
+model TranscriptSegment {
+  id              String       @id @default(uuid()) @db.Uuid
+  sessionId       String       @db.Uuid
+  startTime       Float        // segment start time in seconds
+  endTime         Float        // segment end time in seconds
+  text            String
+  speakerLabel    String?
+  confidence      Float        @default(1.0)
+  language        String       @default("en")
+  createdAt       DateTime     @default(now())
+
+  // Relations
+  session         ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }
 
 model Attendance {
@@ -211,4 +231,85 @@ model AuditLog {
 
   // Relations
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+enum ViolationType {
+  PHONE_NUMBER
+  EMAIL
+  WHATSAPP
+  SOCIAL_MEDIA
+  OFF_TOPIC
+  INAPPROPRIATE_LANGUAGE
+  MISSING_CONTENT
+  EXCESSIVE_NON_ACADEMIC
+}
+
+model AIReport {
+  id                      String      @id @default(uuid()) @db.Uuid
+  sessionId               String      @unique @db.Uuid
+  teacherId               String      @db.Uuid
+  riskScore               Float       @default(0.0)
+  teachingQualityScore    Float       @default(5.0)
+  topicRelevanceScore     Float       @default(5.0)
+  summary                 String
+  mainTopics              Json        // array of topics
+  offTopicAnalysis        String
+  contactSharingDetection Json      // details of contact sharing
+  complianceFindings    String
+  teachingAssessment    String
+  engagementAssessment  String
+  recommendations       String
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  // Relations
+  session               ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  teacher               User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  violations            Violation[]
+}
+
+model Violation {
+  id            String        @id @default(uuid()) @db.Uuid
+  reportId      String        @db.Uuid
+  type          ViolationType
+  evidence      String        // quote or context
+  severity      FlagSeverity  @default(MEDIUM)
+  createdAt     DateTime      @default(now())
+
+  // Relations
+  report        AIReport      @relation(fields: [reportId], references: [id], onDelete: Cascade)
+}
+
+enum NotificationType {
+  CLASS_STARTING
+  REPORT_READY
+  RECORDING_READY
+  FLAG_RAISED
+  SYSTEM
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @db.Uuid
+  title     String
+  message   String
+  type      NotificationType
+  isRead    Boolean          @default(false)
+  metadata  Json?            // details like sessionId, courseId, reviewId
+  createdAt DateTime         @default(now())
+
+  // Relations
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PipelineLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  sessionId String   @db.Uuid
+  step      String   // "RECORDING", "UPLOAD", "TRANSCRIPTION", "AI_AUDIT"
+  status    String   // "STARTED", "SUCCESS", "FAILED"
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  // Relations
+  session   ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 }

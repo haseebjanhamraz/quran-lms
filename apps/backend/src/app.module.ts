@@ -16,6 +16,12 @@ import { RecordingsModule } from './recordings/recordings.module';
 import { GoogleDriveModule } from './google-drive/google-drive.module';
 import { ClassReviewsModule } from './class-reviews/class-reviews.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
+import { TranscriptModule } from './transcript/transcript.module';
+import { AIAnalysisModule } from './ai-analysis/ai-analysis.module';
+import { ReportsModule } from './reports/reports.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 
 @Module({
   imports: [
@@ -29,6 +35,10 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
         port: Number(process.env.REDIS_PORT) || 6379,
       },
     }),
+    ThrottlerModule.forRoot([{
+      ttl: 60000,
+      limit: 120,
+    }]),
     PrismaModule,
     UsersModule,
     AuthModule,
@@ -41,8 +51,18 @@ import { AuditLogsModule } from './audit-logs/audit-logs.module';
     GoogleDriveModule,
     ClassReviewsModule,
     AuditLogsModule,
+    TranscriptModule,
+    AIAnalysisModule,
+    ReportsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { Shield, ArrowLeft, Plus, Calendar, Trash2, Loader2, Video, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
+import PipelineMonitorModal from '../../../components/PipelineMonitorModal';
 
 interface SessionItem {
   id: string;
@@ -103,8 +104,14 @@ export default function ScheduleManagement() {
     }
   };
 
-  const handleCancelSession = async (id: string) => {
-    if (!confirm('Are you sure you want to cancel this scheduled class session?')) {
+  const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
+
+  const handleCancelSession = async (id: string, isCompleted = false) => {
+    const promptMsg = isCompleted
+      ? 'Are you sure you want to permanently delete this recorded class? This will delete the Google Drive recording, transcript database entries, compliance reports, and pipeline logs.'
+      : 'Are you sure you want to cancel this scheduled class session?';
+
+    if (!confirm(promptMsg)) {
       return;
     }
 
@@ -117,10 +124,10 @@ export default function ScheduleManagement() {
       if (res.ok) {
         fetchData();
       } else {
-        alert('Failed to cancel session.');
+        alert(isCompleted ? 'Failed to delete class recording.' : 'Failed to cancel session.');
       }
     } catch (err) {
-      console.error('Error cancelling session:', err);
+      console.error('Error deleting session:', err);
     }
   };
 
@@ -203,10 +210,32 @@ export default function ScheduleManagement() {
                         {getStatusBadge(s.status)}
                       </td>
                       <td className="py-4 px-6 text-right">
-                        {s.status === 'SCHEDULED' ? (
+                        {s.status === 'COMPLETED' ? (
+                          <div className="flex gap-2 justify-end items-center">
+                            <button
+                              onClick={() => setSelectedSession({ id: s.id, title: s.course.title })}
+                              className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-semibold"
+                            >
+                              Track Process
+                            </button>
+                            <Link
+                              href={`/admin/transcripts/${s.id}`}
+                              className="inline-flex items-center gap-1 text-[#C9A84C] hover:text-[#e0bc5c] hover:underline text-xs font-semibold py-1 px-2.5 rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/25 transition"
+                            >
+                              <span>Transcript</span>
+                            </Link>
+                            <button
+                              onClick={() => handleCancelSession(s.id, true)}
+                              className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
+                              title="Delete Recorded Class"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : s.status === 'SCHEDULED' ? (
                           <button
-                            onClick={() => handleCancelSession(s.id)}
-                            className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
+                            onClick={() => handleCancelSession(s.id, false)}
+                            className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
                             title="Cancel Class Session"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -222,6 +251,15 @@ export default function ScheduleManagement() {
             </div>
           )}
         </div>
+
+        {selectedSession && (
+          <PipelineMonitorModal
+            sessionId={selectedSession.id}
+            courseTitle={selectedSession.title}
+            isOpen={!!selectedSession}
+            onClose={() => setSelectedSession(null)}
+          />
+        )}
 
 
       {/* Schedule Session Modal */}

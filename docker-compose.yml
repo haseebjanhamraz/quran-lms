@@ -33,6 +33,52 @@ services:
       - "7881:7881"
       - "7882:7882/udp"
 
+  nestjs:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: quran-lms-nestjs
+    restart: always
+    environment:
+      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/quran_lms?schema=public
+      JWT_SECRET: your-secret-jwt-key-change-in-prod
+      JWT_REFRESH_SECRET: your-refresh-secret-jwt-key-change-in-prod
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: secret
+      LIVEKIT_HOST: http://livekit:7880
+      JWT_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY: 7d
+    depends_on:
+      - postgres
+      - redis
+      - livekit
+
+  nextjs:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+    container_name: quran-lms-nextjs
+    restart: always
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:80/api/v1
+    depends_on:
+      - nestjs
+
+  nginx:
+    image: nginx:alpine
+    container_name: quran-lms-nginx
+    restart: always
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - nextjs
+      - nestjs
+      - livekit
+
 volumes:
   postgres_data:
   redis_data:

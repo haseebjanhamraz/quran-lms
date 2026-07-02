@@ -4,8 +4,9 @@ import { ConfigService } from '@nestjs/config';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
 import { UpdateClassSessionDto } from './dto/update-class-session.dto';
 import { ClassStatus, Role } from '@prisma/client';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { RecordingsService } from '../recordings/recordings.service';
+import { GoogleDriveService } from '../google-drive/google-drive.service';
 
 @Injectable()
 export class ClassSessionsService {
@@ -13,6 +14,7 @@ export class ClassSessionsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly recordingsService: RecordingsService,
+    private readonly googleDriveService: GoogleDriveService,
   ) {}
 
   async checkTeacherConflict(
@@ -174,6 +176,18 @@ export class ClassSessionsService {
       } catch (err: any) {
         Logger.error(`Failed to queue upload job when ending class: ${err.message}`, 'ClassSessionsService');
       }
+
+      // Close the LiveKit room and kick out all remaining participants (students, reviewers)
+      try {
+        const livekitHost = this.configService.getOrThrow<string>('LIVEKIT_HOST');
+        const apiKey = this.configService.getOrThrow<string>('LIVEKIT_API_KEY');
+        const apiSecret = this.configService.getOrThrow<string>('LIVEKIT_API_SECRET');
+        const roomService = new RoomServiceClient(livekitHost, apiKey, apiSecret);
+        await roomService.deleteRoom(`room-${id}`);
+        Logger.log(`Successfully deleted LiveKit room room-${id} and disconnected all participants`, 'ClassSessionsService');
+      } catch (err: any) {
+        Logger.error(`Failed to delete LiveKit room room-${id}: ${err.message}`, 'ClassSessionsService');
+      }
     }
 
     return this.prisma.classSession.update({
@@ -194,16 +208,43 @@ export class ClassSessionsService {
   async remove(id: string) {
     const session = await this.prisma.classSession.findUnique({
       where: { id },
+      include: { recording: true },
     });
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
 
-    // Instead of raw deletion, mark status as CANCELLED to preserve calendar logs
-    return this.prisma.classSession.update({
+    // If there is a recording on Google Drive, delete it
+    if (session.recording?.driveFileId) {
+      try {
+        await this.googleDriveService.deleteFile(session.recording.driveFileId);
+        Logger.log(`Successfully deleted Google Drive file for session: ${id}`, 'ClassSessionsService');
+      } catch (err: any) {
+        Logger.error(`Failed to delete Google Drive file for session ${id}: ${err.message}`, 'ClassSessionsService');
+      }
+    }
+
+    // Delete class session entirely (cascades to recording, transcript, report, log)
+    return this.prisma.classSession.delete({
       where: { id },
-      data: { status: ClassStatus.CANCELLED },
     });
+  }
+
+  async getPipelineLogs(sessionId: string) {
+    return this.prisma.pipelineLog.findMany({
+      where: { sessionId },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async logPipelineStep(sessionId: string, step: string, status: string, message: string) {
+    try {
+      await this.prisma.pipelineLog.create({
+        data: { sessionId, step, status, message }
+      });
+    } catch (err: any) {
+      Logger.error(`Failed to create pipeline log for session ${sessionId}: ${err.message}`, 'ClassSessionsService');
+    }
   }
 
   async findTeacherCalendar(teacherId: string) {

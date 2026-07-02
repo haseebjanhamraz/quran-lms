@@ -18,6 +18,7 @@ import {
   PlayCircle,
   ExternalLink,
 } from 'lucide-react';
+import PipelineMonitorModal from '../../../components/PipelineMonitorModal';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -108,6 +109,7 @@ export default function StudentDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
+  const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -635,24 +637,44 @@ export default function StudentDashboard() {
                     <div style={{ display: 'flex', alignItems: 'center', justifyBox: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(148,163,184,0.1)', pt: '0.75rem', paddingTop: '0.75rem' }}>
                       <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                         Recording:{' '}
-                        <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        <button
+                          onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
+                          className={`font-semibold bg-transparent border-none cursor-pointer underline ${session.recording?.status === 'READY' ? 'text-emerald-400' : 'text-slate-500'}`}
+                          title="Click to view realtime execution logs"
+                        >
                           {session.recording?.status || 'PROCESSING'}
-                        </span>
+                        </button>
                       </span>
                       {session.recording?.driveUrl ? (
-                        <a
-                          href={session.recording.driveUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn-primary"
-                          style={{ padding: '0.35rem 0.9rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
-                        >
-                          <ExternalLink style={{ width: 12, height: 12 }} /> Watch Recording
-                        </a>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <button
+                            onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
+                            className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                          >
+                            Track Process
+                          </button>
+                          <a
+                            href={session.recording.driveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn-primary"
+                            style={{ padding: '0.35rem 0.9rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                          >
+                            <ExternalLink style={{ width: 12, height: 12 }} /> Watch Recording
+                          </a>
+                        </div>
                       ) : (
-                        <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
-                          Processing upload to Google Drive...
-                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                          <button
+                            onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
+                            className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                          >
+                            Track Process
+                          </button>
+                          <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
+                            Processing upload...
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -660,6 +682,15 @@ export default function StudentDashboard() {
               </div>
             )}
           </section>
+        )}
+
+        {selectedSession && (
+          <PipelineMonitorModal
+            sessionId={selectedSession.id}
+            courseTitle={selectedSession.title}
+            isOpen={!!selectedSession}
+            onClose={() => setSelectedSession(null)}
+          />
         )}
 
         {/* FOOTER */}

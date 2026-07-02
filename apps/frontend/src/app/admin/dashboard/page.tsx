@@ -349,7 +349,13 @@ export default function AdminDashboardPage() {
                       recentSessions.map((s, i) => (
                         <tr
                           key={s.id}
-                          onClick={() => router.push(`/admin/schedule`)}
+                          onClick={() => {
+                            if (s.status === 'COMPLETED') {
+                              router.push(`/admin/transcripts/${s.id}`);
+                            } else {
+                              router.push(`/admin/schedule`);
+                            }
+                          }}
                           className={`cursor-pointer transition-colors hover:bg-white/[0.03] ${
                             i !== recentSessions.length - 1 ? 'border-b border-slate-700/40' : ''
                           }`}

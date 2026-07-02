@@ -93,4 +93,9 @@ export class ClassSessionsController {
   ) {
     return this.classSessionsService.generateLivekitToken(id, user);
   }
+
+  @Get(':id/pipeline-logs')
+  async getPipelineLogs(@Param('id') id: string) {
+    return this.classSessionsService.getPipelineLogs(id);
+  }
 }
