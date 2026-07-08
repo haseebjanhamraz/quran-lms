@@ -42,6 +42,18 @@ class EnvironmentVariables {
 
   @IsString()
   LIVEKIT_HOST: string;
+
+  @IsString()
+  @IsOptional()
+  RECORDINGS_DIR: string = './recordings';
+
+  @IsString()
+  @IsOptional()
+  SPEECH_TO_TEXT_API_KEY?: string;
+
+  @IsString()
+  @IsOptional()
+  GEMINI_API_KEY?: string;
 }
 
 export function validate(config: Record<string, any>) {

@@ -18,6 +18,7 @@ import {
   Activity,
   Flag,
   Sparkles,
+  Settings,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 
@@ -31,6 +32,7 @@ const NAV_ITEMS = [
   { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports' },
   { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs' },
+  { label: 'Settings', icon: Settings, href: '/admin/settings' },
 ];
 
 function getInitials(name: string): string {

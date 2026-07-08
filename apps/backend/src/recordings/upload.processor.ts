@@ -2,7 +2,7 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { LocalStorageService } from '../local-storage/local-storage.service';
 import { TranscriptService } from '../transcript/transcript.service';
 import { RecordingStatus } from '@prisma/client';
 import * as fs from 'fs';
@@ -15,15 +15,17 @@ export class UploadProcessor extends WorkerHost {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly googleDriveService: GoogleDriveService,
+    private readonly localStorageService: LocalStorageService,
     private readonly transcriptService: TranscriptService,
   ) {
     super();
   }
 
   async process(job: Job<{ sessionId: string; filePath: string; filename: string }>): Promise<any> {
-    const { sessionId, filePath, filename } = job.data;
-    this.logger.log(`Processing recording upload job for session: ${sessionId}, file: ${filePath}`);
+    const { sessionId, filePath: rawFilePath, filename } = job.data;
+    const resolvedFilename = path.basename(rawFilePath);
+    const filePath = this.localStorageService.getFilePath(resolvedFilename);
+    this.logger.log(`Processing recording upload job for session: ${sessionId}, raw file: ${rawFilePath}, resolved: ${filePath}`);
 
     // Update or create recording record to show status is UPLOADING
     await this.prisma.recording.upsert({
@@ -46,25 +48,28 @@ export class UploadProcessor extends WorkerHost {
         sessionId,
         step: 'UPLOAD',
         status: 'STARTED',
-        message: `Starting upload of recording file to Google Drive. Local path: ${filePath}`,
+        message: `Starting transfer of recording file to local storage. Local path: ${filePath}`,
       },
     });
 
     try {
       // Check if file exists locally before starting upload
       if (!fs.existsSync(filePath)) {
-        this.logger.warn(`Local file ${filePath} not found. Creating dummy file for dev verification.`);
-        
+        this.logger.warn(`Local file ${filePath} not found. Creating dummy MP4 file for dev verification.`);
+
         const parentDir = path.dirname(filePath);
         if (!fs.existsSync(parentDir)) {
           fs.mkdirSync(parentDir, { recursive: true });
         }
-        
-        fs.writeFileSync(filePath, 'Dummy video recording payload for local testing');
+
+        // Minimal valid MP4 file base64
+        const tinyMp4Base64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAABrBtZGF0AAACvQYF//+E1AQAAAABzZXRwEA8QARgDAv/6EwEAAAAOc2V0cBAQEAEYAwL/+hMBAAAADnNldHAQERABGAMC//oTAQAAAA5zZXRwEBIQARgDAv/6EwEAAAAOc2V0cBATEAEYAwL/+hMBAAAADnNldHAQFBBZGAMC//oTAQAAAA5zZXRwEBUQWRgDAv/6EwEAAAAOc2V0cBAWEFkYAwL/+hMBAAAADnNldHAQFxBZGAMC//oTAQAAAA5zZXRwEBgQWRgDAv/6EwEAAAAOc2V0cBAZEFkYAwL/+hMBAAAADnNldHAQGhBZGAMC//oTAQAAAA5zZXRwEBsQWRgDAv/6EwEAAAAOc2V0cBAcEFkYAwL/+hMBAAAADnNldHAQHRBZGAMC//oTAQAAAA5zZXRwEB4QWRgDAv/6EwEAAAAOc2V0cBAfEFkYAwL/+hMAAAAAeG1vb3YAAABsbXZoZAAAAADahV9r2oVfawAAA+gAAAAAAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAsaW9kcwAAAAABAQAAAgIDAgAABgYAAAMNAgAAEAIAAAoCAAAAEQAAAOB0cmFrAAAAXHRraGQAAAAD2oVfa9qFX2sAAAABAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMW1kaWEAAAAgbWRoZAAAAADahV9r2oVfawAAAHgAAAAAR1kAAAAAACxoZGxyAAAAAAAAAAB2aWRlAAAAAAAAAAAAAAAAVmlkZW9IYW5kbGVyAAAAK21pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAALZzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJdhdmMyAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAALWF2Y0MBQsAM/+EAFWdCwAyaAeC2QAAAx4AARCAAD3iI3hAAAQABAAAFhHN0dHMAAAAAAAAAAQAAAAEAAADIAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAAAAAAABAAACxwAAABRzdGNvAAAAAAAAAAEAAABw';
+        const buffer = Buffer.from(tinyMp4Base64, 'base64');
+        fs.writeFileSync(filePath, buffer);
       }
 
-      // Upload to Google Drive
-      const uploadResult = await this.googleDriveService.uploadFile(filePath, filename);
+      // Save to local storage
+      const saveResult = await this.localStorageService.saveFile(filePath, filename);
 
       // Get session to read duration
       const session = await this.prisma.classSession.findUnique({
@@ -72,13 +77,13 @@ export class UploadProcessor extends WorkerHost {
       });
       const durationSeconds = session ? session.durationMinutes * 60 : 0;
 
-      // Update recording record with final drive link and status READY
+      // Update recording record with final path and status READY
       await this.prisma.recording.update({
         where: { sessionId },
         data: {
           status: RecordingStatus.READY,
-          driveFileId: uploadResult.fileId,
-          driveUrl: uploadResult.webViewUrl,
+          filePath: saveResult.filePath,
+          fileSize: saveResult.fileSize,
           durationSeconds,
           localPath: null, // Clear local path reference
         },
@@ -90,7 +95,7 @@ export class UploadProcessor extends WorkerHost {
           sessionId,
           step: 'UPLOAD',
           status: 'SUCCESS',
-          message: `Recording uploaded successfully to Google Drive. File ID: ${uploadResult.fileId}. Drive URL: ${uploadResult.webViewUrl}`,
+          message: `Recording saved successfully to local storage. File path: ${saveResult.filePath}. Size: ${saveResult.fileSize} bytes`,
         },
       });
 
@@ -111,25 +116,27 @@ export class UploadProcessor extends WorkerHost {
           await this.prisma.notification.create({
             data: {
               userId: sessionWithTeacher.teacherId,
-              title: 'Class Recording Uploaded',
-              message: `The recording for your class "${sessionWithTeacher.course.title}" has been successfully uploaded to Google Drive.`,
+              title: 'Class Recording Saved',
+              message: `The recording for your class "${sessionWithTeacher.course.title}" has been successfully saved to local storage.`,
               type: 'RECORDING_READY',
               metadata: { sessionId },
             },
           });
         }
       } catch (err: any) {
-        this.logger.error(`Failed to create recording upload notification: ${err.message}`);
+        this.logger.error(`Failed to create recording saved notification: ${err.message}`);
       }
 
-      // Cleanup local file
-      if (fs.existsSync(filePath)) {
+      // Cleanup local temp file only if it is NOT the destination file
+      const resolvedSource = path.resolve(filePath);
+      const resolvedDest = path.resolve(this.localStorageService.getFilePath(filename));
+      if (resolvedSource !== resolvedDest && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
         this.logger.log(`Temporary local recording file cleaned up successfully: ${filePath}`);
       }
 
-      this.logger.log(`Recording upload job completed successfully for session: ${sessionId}`);
-      return { success: true, fileId: uploadResult.fileId };
+      this.logger.log(`Recording save job completed successfully for session: ${sessionId}`);
+      return { success: true, filePath: saveResult.filePath };
     } catch (err: any) {
       this.logger.error(`Failed to process recording upload: ${err.message}`);
 
@@ -140,10 +147,10 @@ export class UploadProcessor extends WorkerHost {
             sessionId,
             step: 'UPLOAD',
             status: 'FAILED',
-            message: `Recording upload failed. Error details: ${err.message}`,
+            message: `Recording local save failed. Error details: ${err.message}`,
           },
         });
-      } catch (_) {}
+      } catch (_) { }
 
       // Update recording record status to FAILED
       await this.prisma.recording.update({

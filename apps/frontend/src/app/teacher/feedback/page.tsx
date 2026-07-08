@@ -26,7 +26,7 @@ interface ReviewItem {
       type: string;
     };
     recording: {
-      driveUrl: string | null;
+      filePath: string | null;
     } | null;
   };
   reviewer: {
@@ -186,9 +186,9 @@ export default function TeacherFeedbackIndex() {
 
                 {/* Actions */}
                 <div className="flex items-center justify-between pt-2">
-                  {review.session.recording?.driveUrl ? (
+                  {review.session.recording?.filePath ? (
                     <a
-                      href={review.session.recording.driveUrl}
+                      href={`${API_URL}/recordings/${review.session.id}/stream`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-xs text-emerald-400 hover:text-emerald-300 transition-colors flex items-center gap-1 font-semibold"

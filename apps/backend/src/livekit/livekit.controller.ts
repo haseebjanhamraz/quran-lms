@@ -1,7 +1,11 @@
-import { Controller, Post, Headers, Body, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Headers, Body, UseGuards, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LivekitService } from './livekit.service';
 import { WebhookReceiver } from 'livekit-server-sdk';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller('livekit')
 export class LivekitController {
@@ -33,5 +37,16 @@ export class LivekitController {
     } catch (err: any) {
       throw new UnauthorizedException(`Webhook signature verification failed: ${err.message}`);
     }
+  }
+
+  @Post('mute')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.TEACHER, Role.ADMIN)
+  @HttpCode(HttpStatus.OK)
+  async muteParticipant(
+    @Body() body: { roomName: string; identity: string; trackSid: string; muted: boolean }
+  ) {
+    await this.livekitService.muteParticipant(body.roomName, body.identity, body.trackSid, body.muted);
+    return { status: 'success' };
   }
 }

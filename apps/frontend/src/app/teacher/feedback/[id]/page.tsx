@@ -31,7 +31,7 @@ interface ReviewData {
       type: string;
     };
     recording?: {
-      driveUrl?: string;
+      filePath?: string;
     };
   };
 }
@@ -130,7 +130,9 @@ export default function TeacherFeedbackPage() {
     );
   }
 
-  const videoStreamUrl = review.session.recording?.driveUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  const videoStreamUrl = review.session.recording?.filePath 
+    ? `${API_URL}/recordings/${id}/stream`
+    : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
   return (
     <div className="min-h-screen bg-background animate-fadeIn">
@@ -164,6 +166,7 @@ export default function TeacherFeedbackPage() {
               ref={videoRef}
               src={videoStreamUrl}
               controls
+              crossOrigin="use-credentials"
               className="w-full aspect-video bg-black"
             />
             <div className="p-4 bg-card/30 flex items-center justify-between border-t border-border/40">

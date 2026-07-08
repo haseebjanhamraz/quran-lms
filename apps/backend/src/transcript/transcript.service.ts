@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { LocalStorageService } from '../local-storage/local-storage.service';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -13,7 +13,7 @@ export class TranscriptService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly googleDriveService: GoogleDriveService,
+    private readonly localStorageService: LocalStorageService,
     private readonly configService: ConfigService,
     @InjectQueue('transcript-generation') private readonly transcriptQueue: Queue,
   ) {}
@@ -57,14 +57,14 @@ export class TranscriptService {
       return this.createMockTranscript(sessionId);
     }
 
-    if (!recording.driveFileId) {
-      this.logger.warn(`Recording exists but lacks driveFileId for session: ${sessionId}. Generating fallback mock transcript.`);
+    if (!recording.filePath) {
+      this.logger.warn(`Recording exists but lacks filePath for session: ${sessionId}. Generating fallback mock transcript.`);
       await this.prisma.pipelineLog.create({
         data: {
           sessionId,
           step: 'TRANSCRIPTION',
           status: 'FAILED',
-          message: 'Recording exists but lacks Google Drive file ID. Generating mock transcript fallback.',
+          message: 'Recording exists but lacks local file path. Generating mock transcript fallback.',
         },
       });
       return this.createMockTranscript(sessionId);
@@ -76,7 +76,7 @@ export class TranscriptService {
       fs.mkdirSync(tempDir, { recursive: true });
     }
 
-    const videoPath = path.join(tempDir, `${sessionId}.mp4`);
+    const videoPath = this.localStorageService.getFilePath(recording.filePath);
     const audioPath = path.join(tempDir, `${sessionId}.mp3`);
 
     // Log Start of Transcription
@@ -85,34 +85,36 @@ export class TranscriptService {
         sessionId,
         step: 'TRANSCRIPTION',
         status: 'STARTED',
-        message: `Beginning transcript generation. Downloading file from Google Drive (ID: ${recording.driveFileId})...`,
+        message: `Beginning transcript generation. Locating local file at: ${videoPath}...`,
       },
     });
 
     try {
-      // 1. Download file from Google Drive
-      await this.googleDriveService.downloadFile(recording.driveFileId, videoPath);
+      if (!fs.existsSync(videoPath)) {
+        throw new Error(`Recording file not found on local storage: ${videoPath}`);
+      }
+
       await this.prisma.pipelineLog.create({
         data: {
           sessionId,
           step: 'TRANSCRIPTION',
           status: 'IN_PROGRESS',
-          message: `Download complete. Extracting audio track from video stream...`,
+          message: `Local file located. Extracting audio track from video stream...`,
         },
       });
 
-      // 2. Perform FFmpeg Audio Extraction (or mock fallback if ffmpeg is missing)
+      // 1. Perform FFmpeg Audio Extraction (or mock fallback if ffmpeg is missing)
       await this.extractAudio(videoPath, audioPath);
       await this.prisma.pipelineLog.create({
         data: {
           sessionId,
           step: 'TRANSCRIPTION',
           status: 'IN_PROGRESS',
-          message: `Audio extraction successful. Initiating Speech-to-Text translation (Whisper)...`,
+          message: `Audio extraction successful. Initiating Speech-to-Text translation (Vosk)...`,
         },
       });
 
-      // 3. Speech to Text API Call (Whisper / Google STT or Mock if not configured)
+      // 2. Speech to Text API Call (Vosk)
       const segments = await this.speechToText(audioPath, sessionId);
 
       await this.prisma.pipelineLog.create({
@@ -124,8 +126,8 @@ export class TranscriptService {
         },
       });
 
-      // Clean up temp files
-      this.cleanupFiles([videoPath, audioPath]);
+      // Clean up temp audio file
+      this.cleanupFiles([audioPath]);
 
       return segments;
     } catch (err: any) {
@@ -142,7 +144,7 @@ export class TranscriptService {
         });
       } catch (_) {}
 
-      this.cleanupFiles([videoPath, audioPath]);
+      this.cleanupFiles([audioPath]);
       return this.createMockTranscript(sessionId);
     }
   }
@@ -175,15 +177,70 @@ export class TranscriptService {
   }
 
   private async speechToText(audioPath: string, sessionId: string): Promise<any[]> {
-    const sttApiKey = this.configService.get<string>('SPEECH_TO_TEXT_API_KEY');
-    if (!sttApiKey) {
-      this.logger.log('Speech to Text API Key not configured. Generating standard rich mock transcript segments.');
+    this.logger.log('Attempting to use Vosk AI for Speech-to-Text...');
+    try {
+      const vosk = require('vosk');
+      const fs = require('fs');
+      
+      // Look for a model directory (e.g., 'model' in the root)
+      const modelPath = this.configService.get<string>('VOSK_MODEL_PATH') || './model';
+      if (!fs.existsSync(modelPath)) {
+        this.logger.warn(`Vosk model not found at ${modelPath}. Please download a Vosk model (e.g., vosk-model-small-en-us) and place it there. Generating mock transcript.`);
+        return this.createMockTranscript(sessionId);
+      }
+
+      vosk.setLogLevel(-1);
+      const model = new vosk.Model(modelPath);
+      const rec = new vosk.Recognizer({model: model, sampleRate: 16000});
+
+      return new Promise((resolve, reject) => {
+        const results: any[] = [];
+        const stream = fs.createReadStream(audioPath, { highWaterMark: 4096 });
+        let currentTime = 0.0;
+
+        stream.on('data', (data: any) => {
+          if (rec.acceptWaveform(data)) {
+            const res = rec.result();
+            if (res.text) {
+              results.push({
+                startTime: currentTime,
+                endTime: currentTime + 5.0, // estimate
+                text: res.text,
+                speakerLabel: 'Speaker',
+                confidence: 0.9,
+                language: 'en',
+              });
+              currentTime += 5.0;
+            }
+          }
+        });
+
+        stream.on('end', () => {
+          const res = rec.finalResult();
+          if (res.text) {
+             results.push({
+                startTime: currentTime,
+                endTime: currentTime + 5.0,
+                text: res.text,
+                speakerLabel: 'Speaker',
+                confidence: 0.9,
+                language: 'en',
+              });
+          }
+          rec.free();
+          model.free();
+          resolve(results.length > 0 ? results : this.createMockTranscript(sessionId));
+        });
+
+        stream.on('error', (err: any) => {
+          this.logger.error(`Vosk transcription stream error: ${err.message}`);
+          resolve(this.createMockTranscript(sessionId));
+        });
+      });
+    } catch (err: any) {
+      this.logger.warn(`Vosk AI module not available or failed to load: ${err.message}. Ensure 'vosk' is installed and C++ build tools are present. Generating standard mock transcript.`);
       return this.createMockTranscript(sessionId);
     }
-
-    this.logger.log('Calling Whisper/STT API wrapper...');
-    // Real call would be here, but we also include mock fallback for ease of testing:
-    return this.createMockTranscript(sessionId);
   }
 
   async createMockTranscript(sessionId: string): Promise<any[]> {

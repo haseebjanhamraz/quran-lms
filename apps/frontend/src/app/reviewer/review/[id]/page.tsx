@@ -41,7 +41,7 @@ interface ReviewData {
       };
     };
     recording?: {
-      driveUrl?: string;
+      filePath?: string;
     };
   };
 }
@@ -230,7 +230,9 @@ export default function ReviewPage() {
   if (!review) return null;
 
   // Stream URL fallback for local development testing
-  const videoStreamUrl = review.session.recording?.driveUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
+  const videoStreamUrl = review.session.recording?.filePath 
+    ? `${API_URL}/recordings/${id}/stream`
+    : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
   return (
     <div className="min-h-screen bg-background">
@@ -280,11 +282,12 @@ export default function ReviewPage() {
               ref={videoRef}
               src={videoStreamUrl}
               controls
+              crossOrigin="use-credentials"
               className="w-full aspect-video bg-black"
             />
             <div className="p-4 bg-card/30 flex items-center justify-between border-t border-border/40">
               <span className="text-xs text-muted-foreground font-semibold">
-                Class recording stream (Google Drive authorized)
+                Class recording stream (Local storage)
               </span>
               <span className="text-xs bg-primary/10 text-primary py-0.5 px-2 rounded-full font-semibold">
                 {review.reviewMode.replace('_', ' ')}

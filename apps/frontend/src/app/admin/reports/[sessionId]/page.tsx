@@ -55,7 +55,7 @@ interface ReportDetail {
       email: string;
     };
     recording?: {
-      driveUrl: string | null;
+      filePath: string | null;
     };
   };
 }
@@ -352,15 +352,15 @@ export default function AIReportDetailPage() {
               <FileText size={14} className="text-amber-500" />
               <span>Analyze Transcript Segments</span>
             </Link>
-            {report.session.recording?.driveUrl && (
+            {report.session.recording?.filePath && (
               <a
-                href={report.session.recording.driveUrl}
+                href={`${API_URL}/recordings/${sessionId}/stream`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center justify-center gap-2 bg-slate-950 border border-slate-800 hover:border-slate-700 text-slate-200 text-xs font-bold py-2.5 px-4 rounded-xl transition w-full shadow-sm"
               >
                 <ExternalLink size={14} className="text-blue-500" />
-                <span>Open Google Drive Recording</span>
+                <span>Stream Recording File</span>
               </a>
             )}
           </div>

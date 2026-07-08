@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
-import { Calendar as CalendarIcon, Clock, Plus, Loader2, BookOpen } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, Plus, Loader2, BookOpen, Edit } from 'lucide-react';
 
-export default function TeacherSchedule() {
+function ScheduleForm() {
   const { user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionId = searchParams.get('id');
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
@@ -17,10 +19,19 @@ export default function TeacherSchedule() {
   const [duration, setDuration] = useState(60);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [sessionLoading, setSessionLoading] = useState(false);
 
   // Load teacher's courses for dropdown (simple fetch)
   const [courses, setCourses] = useState([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
+
+  // Format date for datetime-local input (YYYY-MM-DDTHH:MM)
+  const formatToLocalDatetime = (isoString: string) => {
+    const date = new Date(isoString);
+    const offset = date.getTimezoneOffset();
+    const localDate = new Date(date.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 16);
+  };
 
   const fetchCourses = async () => {
     try {
@@ -40,38 +51,94 @@ export default function TeacherSchedule() {
     }
   };
 
+  // Fetch session info if editing
+  const fetchSessionInfo = async () => {
+    if (!sessionId) return;
+    setSessionLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/class-sessions/${sessionId}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCourseId(data.courseId);
+        setScheduledAt(formatToLocalDatetime(data.scheduledAt));
+        setDuration(data.durationMinutes);
+      } else {
+        setError('Failed to load session details.');
+      }
+    } catch (e) {
+      console.error('Unable to fetch session details', e);
+      setError('Error loading session details.');
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
   useEffect(() => {
-    if (user?.id) fetchCourses();
+    if (user?.id) {
+      fetchCourses();
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    if (sessionId) {
+      fetchSessionInfo();
+    }
+  }, [sessionId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const payload = {
-        courseId,
+      const payload: any = {
         scheduledAt: new Date(scheduledAt).toISOString(),
         durationMinutes: Number(duration),
       };
-      const res = await fetch(`${API_URL}/class-sessions`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+
+      let res;
+      if (sessionId) {
+        // Edit mode (PUT)
+        res = await fetch(`${API_URL}/class-sessions/${sessionId}`, {
+          method: 'PUT',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        // Create mode (POST)
+        payload.courseId = courseId;
+        res = await fetch(`${API_URL}/class-sessions`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+      }
+
       if (res.ok) {
         router.push('/teacher/dashboard');
       } else {
         const err = await res.json();
-        setError(err.message || 'Failed to create class');
+        setError(err.message || `Failed to ${sessionId ? 'update' : 'create'} class`);
       }
     } catch (e) {
-      setError('Network error while creating class');
+      setError(`Network error while ${sessionId ? 'updating' : 'creating'} class`);
     } finally {
       setLoading(false);
     }
   };
+
+  if (sessionLoading) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -85,7 +152,7 @@ export default function TeacherSchedule() {
             <CalendarIcon className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </button>
-          <h1 className="font-display font-bold text-lg">Create New Class</h1>
+          <h1 className="font-display font-bold text-lg">{sessionId ? 'Edit Class Session' : 'Create New Class'}</h1>
           <div />
         </div>
       </header>
@@ -93,8 +160,8 @@ export default function TeacherSchedule() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="glass-panel p-8 rounded-2xl border border-border/50">
           <h2 className="text-2xl font-bold font-display mb-6 flex items-center gap-2">
-            <Plus className="h-6 w-6 text-primary" />
-            <span>Schedule a Class Session</span>
+            {sessionId ? <Edit className="h-6 w-6 text-primary" /> : <Plus className="h-6 w-6 text-primary" />}
+            <span>{sessionId ? 'Update Class Details' : 'Schedule a Class Session'}</span>
           </h2>
 
           {error && (
@@ -113,8 +180,9 @@ export default function TeacherSchedule() {
                 <select
                   value={courseId}
                   onChange={(e) => setCourseId(e.target.value)}
+                  disabled={!!sessionId} // Course is read-only when editing
                   required
-                  className="w-full bg-background border border-border rounded-lg py-2 px-3 text-sm outline-none focus:border-primary transition-colors"
+                  className="w-full bg-background border border-border rounded-lg py-2 px-3 text-sm outline-none focus:border-primary disabled:opacity-60 transition-colors"
                 >
                   <option value="" disabled>Select a course</option>
                   {courses.map((c: any) => (
@@ -160,7 +228,7 @@ export default function TeacherSchedule() {
               >
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>
                   <BookOpen className="h-4 w-4" />
-                  <span>Create Class</span>
+                  <span>{sessionId ? 'Save Changes' : 'Create Class'}</span>
                 </>}
               </button>
             </div>
@@ -168,5 +236,17 @@ export default function TeacherSchedule() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function TeacherSchedule() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen w-full flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <ScheduleForm />
+    </Suspense>
   );
 }

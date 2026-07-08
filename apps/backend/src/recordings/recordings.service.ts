@@ -68,7 +68,7 @@ export class RecordingsService {
   }
 
   async queueUploadJob(sessionId: string, filePath: string, filename: string) {
-    this.logger.log(`Queueing Google Drive upload job for session: ${sessionId}`);
+    this.logger.log(`Queueing local storage save job for session: ${sessionId}`);
     await this.uploadQueue.add('upload', { sessionId, filePath, filename });
   }
 

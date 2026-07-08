@@ -38,7 +38,8 @@ interface SessionDetail {
     };
   };
   recording?: {
-    driveUrl: string | null;
+    filePath: string | null;
+    status: string;
   };
 }
 
@@ -180,15 +181,15 @@ export default function TranscriptViewerPage() {
               <h1 className="text-sm font-bold text-slate-200">Transcript Analysis Dashboard</h1>
             </div>
           </div>
-          {session.recording?.driveUrl && (
+          {session.recording?.status === 'READY' && (
             <a
-              href={session.recording.driveUrl}
+              href={`${API_URL}/recordings/${session.id}/stream`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-850 border border-slate-800 text-slate-200 text-xs font-semibold py-2 px-4 rounded-xl transition"
             >
               <ExternalLink size={12} />
-              <span className="hidden sm:inline">Google Drive Link</span>
+              <span className="hidden sm:inline">Stream Link</span>
             </a>
           )}
         </div>
@@ -223,31 +224,26 @@ export default function TranscriptViewerPage() {
           {/* Simple Player Placeholder or Video Link */}
           <div className="rounded-2xl border border-slate-855 bg-slate-900/60 p-5 backdrop-blur-md">
             <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Recording Media File</h3>
-            {session.recording?.driveUrl ? (
+            {session.recording?.status === 'READY' ? (
               <div className="space-y-4">
                 <div className="bg-slate-950 rounded-xl overflow-hidden aspect-video border border-slate-850 flex items-center justify-center relative">
-                  {/* Using standard HTML5 video tag if a direct streamable file is set, otherwise showing standard placeholder */}
                   <video 
                     ref={videoRef}
                     onTimeUpdate={handleTimeUpdate}
-                    src="" // In production this would be Google Drive direct link / local path if available
+                    src={`${API_URL}/recordings/${session.id}/stream`}
                     controls 
+                    crossOrigin="use-credentials"
                     className="w-full h-full object-cover"
                   />
-                  <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center z-10 pointer-events-none">
-                    <Volume2 size={36} className="text-amber-500/80 animate-pulse mb-3" />
-                    <p className="text-xs text-slate-350 max-w-xs font-medium">Google Drive streamable player is enabled.</p>
-                    <p className="text-[10px] text-slate-500 mt-1.5 max-w-[240px]">Clicking on transcripts triggers local seeking actions for timestamps.</p>
-                  </div>
                 </div>
                 <a
-                  href={session.recording.driveUrl}
+                  href={`${API_URL}/recordings/${session.id}/stream`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold py-2.5 px-4 rounded-xl transition w-full shadow-lg shadow-amber-500/5"
                 >
                   <ExternalLink size={14} />
-                  <span>Open Video in Google Drive</span>
+                  <span>Open Video in New Tab</span>
                 </a>
               </div>
             ) : (

@@ -111,6 +111,7 @@ model ClassSession {
   durationMinutes Int
   status          ClassStatus   @default(SCHEDULED)
   livekitRoomId   String?       @unique
+  startedAt       DateTime?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
@@ -159,8 +160,8 @@ model Recording {
   id              String          @id @default(uuid()) @db.Uuid
   sessionId       String          @unique @db.Uuid
   localPath       String?
-  driveFileId     String?
-  driveUrl        String?
+  filePath        String?
+  fileSize        Int?
   durationSeconds Int             @default(0)
   status          RecordingStatus @default(PROCESSING)
   createdAt       DateTime        @default(now())
@@ -312,4 +313,13 @@ model PipelineLog {
 
   // Relations
   session   ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       String   // stored as JSON string or plain text
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

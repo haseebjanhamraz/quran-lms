@@ -13,7 +13,7 @@ import { ReviewerAssignmentsModule } from './reviewer-assignments/reviewer-assig
 import { LivekitModule } from './livekit/livekit.module';
 import { BullModule } from '@nestjs/bullmq';
 import { RecordingsModule } from './recordings/recordings.module';
-import { GoogleDriveModule } from './google-drive/google-drive.module';
+import { LocalStorageModule } from './local-storage/local-storage.module';
 import { ClassReviewsModule } from './class-reviews/class-reviews.module';
 import { AuditLogsModule } from './audit-logs/audit-logs.module';
 import { TranscriptModule } from './transcript/transcript.module';
@@ -48,7 +48,7 @@ import { APP_GUARD } from '@nestjs/core';
     ReviewerAssignmentsModule,
     LivekitModule,
     RecordingsModule,
-    GoogleDriveModule,
+    LocalStorageModule,
     ClassReviewsModule,
     AuditLogsModule,
     TranscriptModule,

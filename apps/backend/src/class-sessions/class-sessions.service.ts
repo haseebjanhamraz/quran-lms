@@ -6,7 +6,7 @@ import { UpdateClassSessionDto } from './dto/update-class-session.dto';
 import { ClassStatus, Role } from '@prisma/client';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { RecordingsService } from '../recordings/recordings.service';
-import { GoogleDriveService } from '../google-drive/google-drive.service';
+import { LocalStorageService } from '../local-storage/local-storage.service';
 
 @Injectable()
 export class ClassSessionsService {
@@ -14,7 +14,7 @@ export class ClassSessionsService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     private readonly recordingsService: RecordingsService,
-    private readonly googleDriveService: GoogleDriveService,
+    private readonly localStorageService: LocalStorageService,
   ) {}
 
   async checkTeacherConflict(
@@ -214,13 +214,13 @@ export class ClassSessionsService {
       throw new NotFoundException('Class session not found');
     }
 
-    // If there is a recording on Google Drive, delete it
-    if (session.recording?.driveFileId) {
+    // If there is a recording in local storage, delete it
+    if (session.recording?.filePath) {
       try {
-        await this.googleDriveService.deleteFile(session.recording.driveFileId);
-        Logger.log(`Successfully deleted Google Drive file for session: ${id}`, 'ClassSessionsService');
+        await this.localStorageService.deleteFile(session.recording.filePath);
+        Logger.log(`Successfully deleted local recording file for session: ${id}`, 'ClassSessionsService');
       } catch (err: any) {
-        Logger.error(`Failed to delete Google Drive file for session ${id}: ${err.message}`, 'ClassSessionsService');
+        Logger.error(`Failed to delete local recording file for session ${id}: ${err.message}`, 'ClassSessionsService');
       }
     }
 
@@ -417,6 +417,12 @@ export class ClassSessionsService {
       grants.canPublishData = false;
       grants.canSubscribe = true;
       grants.hidden = true;
+    } else if (user.role === Role.STUDENT) {
+      grants.canPublish = true;
+      grants.canPublishData = true;
+      grants.canSubscribe = true;
+      grants.hidden = false;
+      grants.canPublishSources = [1, 2]; // 1 = CAMERA, 2 = MICROPHONE
     } else {
       grants.canPublish = true;
       grants.canPublishData = true;
@@ -429,7 +435,10 @@ export class ClassSessionsService {
     if (session.status === ClassStatus.SCHEDULED && user.role === Role.TEACHER) {
       await this.prisma.classSession.update({
         where: { id: sessionId },
-        data: { status: ClassStatus.LIVE },
+        data: { 
+          status: ClassStatus.LIVE,
+          startedAt: new Date(),
+        },
       });
       await this.recordingsService.startRoomRecording(sessionId);
     }

@@ -1,29 +1,21 @@
-FROM node:20-alpine AS base
+FROM node:24-alpine AS builder
 
-# Install dependencies only when needed
-FROM base AS deps
 WORKDIR /app
+
 COPY package*.json ./
-COPY apps/frontend/package*.json ./apps/frontend/
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
-# Rebuild the source code only when needed
-FROM base AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/apps/frontend/node_modules ./apps/frontend/node_modules
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build:frontend
+RUN npm run build
 
-# Production image, copy all the files and run next
-FROM base AS runner
+FROM node:24-alpine
+
 WORKDIR /app
-ENV NODE_ENV=production
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/apps/frontend ./apps/frontend
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/next.config.ts ./
+
 EXPOSE 3000
-CMD ["npm", "run", "start", "-w", "apps/frontend"]
+CMD ["npm", "run", "start"]

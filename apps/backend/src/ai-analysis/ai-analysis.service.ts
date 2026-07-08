@@ -6,6 +6,8 @@ import { Queue } from 'bullmq';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { ViolationType, FlagSeverity } from '@prisma/client';
 
+import { SystemSettingsService } from '../system-settings/system-settings.service';
+
 @Injectable()
 export class AIAnalysisService {
   private readonly logger = new Logger(AIAnalysisService.name);
@@ -14,6 +16,7 @@ export class AIAnalysisService {
     private readonly prisma: PrismaService,
     private readonly configService: ConfigService,
     @InjectQueue('ai-analysis') private readonly aiAnalysisQueue: Queue,
+    private readonly systemSettingsService: SystemSettingsService,
   ) {}
 
   async queueAnalysisJob(sessionId: string) {
@@ -36,7 +39,7 @@ export class AIAnalysisService {
               },
             },
             recording: {
-              select: { driveUrl: true },
+              select: { filePath: true },
             },
           },
         },
@@ -97,6 +100,20 @@ export class AIAnalysisService {
 
     if (!session) {
       throw new NotFoundException('Class session not found');
+    }
+
+    const aiEnabled = await this.systemSettingsService.isAiAnalysisEnabled();
+    if (!aiEnabled) {
+      this.logger.log(`AI Analysis is disabled globally. Skipping for session: ${sessionId}`);
+      await this.prisma.pipelineLog.create({
+        data: {
+          sessionId,
+          step: 'AI_AUDIT',
+          status: 'SUCCESS',
+          message: 'AI compliance audit skipped because AI Mode is disabled in system settings.',
+        },
+      });
+      return this.generateMockReport(sessionId, session.teacherId);
     }
 
     const segments = session.transcriptSegments;

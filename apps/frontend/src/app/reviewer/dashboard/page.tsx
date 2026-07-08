@@ -19,8 +19,81 @@ import {
   BookOpen,
   Plus,
   Star,
+  Save,
 } from 'lucide-react';
-import PipelineMonitorModal from '../../../components/PipelineMonitorModal';
+
+function ReviewerSettingsTab() {
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+        const res = await fetch(`${API_URL}/system-settings/ai_analysis_enabled`, {
+          credentials: 'include',
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setAiEnabled(data.value === 'true');
+        }
+      } catch (err) {}
+      setLoading(false);
+    }
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+      await fetch(`${API_URL}/system-settings/ai_analysis_enabled`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ value: aiEnabled ? 'true' : 'false' }),
+      });
+      alert('Settings saved successfully!');
+    } catch (err) {
+      alert('Failed to save settings.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="qa-loader"><Loader2 size={24} className="qa-spin" /></div>;
+
+  return (
+    <div className="qa-card" style={{ maxWidth: 600 }}>
+      <h2 className="qa-card-title text-xl mb-2">Platform Settings</h2>
+      <p className="text-sm text-slate-400 mb-6">Configure AI automation for compliance reviews.</p>
+      
+      <div className="flex items-center justify-between mb-6 border border-slate-700/50 p-4 rounded-xl bg-slate-800/30">
+        <div>
+          <label className="text-sm font-semibold text-slate-200">Enable AI Analysis</label>
+          <p className="text-xs text-slate-400 mt-1">If enabled, transcripts are auto-analyzed for compliance.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setAiEnabled(!aiEnabled)}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+            aiEnabled ? 'bg-[#C9A84C]' : 'bg-slate-700'
+          }`}
+        >
+          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+            aiEnabled ? 'translate-x-5' : 'translate-x-0'
+          }`} />
+        </button>
+      </div>
+
+      <button onClick={handleSave} disabled={saving} className="qa-btn-primary self-start">
+        {saving ? <Loader2 className="qa-spin" size={14} /> : <Save size={14} />}
+        Save Settings
+      </button>
+    </div>
+  );
+}
 
 interface SessionItem {
   id: string;
@@ -82,7 +155,7 @@ export default function ReviewerDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'pending' | 'flagged' | 'history' | 'assignments'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'flagged' | 'history' | 'assignments' | 'settings'>('pending');
   const [pendingSessions, setPendingSessions] = useState<SessionItem[]>([]);
   const [flaggedReviews, setFlaggedReviews] = useState<FlaggedReview[]>([]);
   const [historyReviews, setHistoryReviews] = useState<ReviewHistoryItem[]>([]);
@@ -478,6 +551,9 @@ export default function ReviewerDashboardPage() {
             <button onClick={() => setActiveTab('assignments')} className={`qa-tab-btn ${activeTab === 'assignments' ? 'active' : ''}`}>
               Assigned Courses ({assignments.length})
             </button>
+            <button onClick={() => setActiveTab('settings')} className={`qa-tab-btn ${activeTab === 'settings' ? 'active' : ''}`}>
+              System Settings
+            </button>
           </div>
 
           <div className="qa-panel">
@@ -507,12 +583,6 @@ export default function ReviewerDashboardPage() {
                                 {!hasSubmittedReview(session) && (
                                   <span className="qa-badge qa-badge-amber">Needs Review</span>
                                 )}
-                                <button
-                                  onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
-                                  className="text-[11px] text-amber-500 hover:text-amber-400 hover:underline font-semibold bg-transparent border-none cursor-pointer"
-                                >
-                                  Track Upload Process
-                                </button>
                               </div>
                               <button
                                 className="qa-btn-primary"
@@ -632,6 +702,11 @@ export default function ReviewerDashboardPage() {
                       )}
                     </div>
                   )}
+
+                  {/* SETTINGS TAB */}
+                  {activeTab === 'settings' && (
+                    <ReviewerSettingsTab />
+                  )}
                 </>
               )}
             </div>
@@ -639,14 +714,6 @@ export default function ReviewerDashboardPage() {
         </main>
       </div>
 
-      {selectedSession && (
-        <PipelineMonitorModal
-          sessionId={selectedSession.id}
-          courseTitle={selectedSession.title}
-          isOpen={!!selectedSession}
-          onClose={() => setSelectedSession(null)}
-        />
-      )}
     </>
   );
 }

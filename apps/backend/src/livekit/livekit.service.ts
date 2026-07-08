@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ClassStatus, Role, RecordingStatus } from '@prisma/client';
 import { RecordingsService } from '../recordings/recordings.service';
+import { ConfigService } from '@nestjs/config';
+import { RoomServiceClient } from 'livekit-server-sdk';
 
 @Injectable()
 export class LivekitService {
@@ -10,6 +12,7 @@ export class LivekitService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly recordingsService: RecordingsService,
+    private readonly configService: ConfigService,
   ) {}
 
   async handleWebhookEvent(event: any) {
@@ -143,6 +146,20 @@ export class LivekitService {
       }
     } catch (err: any) {
       this.logger.error(`Error updating leave attendance: ${err.message}`);
+    }
+  }
+
+  async muteParticipant(roomName: string, identity: string, trackSid: string, muted: boolean) {
+    try {
+      const livekitHost = this.configService.getOrThrow<string>('LIVEKIT_HOST');
+      const apiKey = this.configService.getOrThrow<string>('LIVEKIT_API_KEY');
+      const apiSecret = this.configService.getOrThrow<string>('LIVEKIT_API_SECRET');
+      const roomService = new RoomServiceClient(livekitHost, apiKey, apiSecret);
+      await roomService.mutePublishedTrack(roomName, identity, trackSid, muted);
+      this.logger.log(`Successfully remote-muted track ${trackSid} of participant ${identity} in room ${roomName}`);
+    } catch (err: any) {
+      this.logger.error(`Failed to remote-mute participant ${identity} in room ${roomName}: ${err.message}`);
+      throw err;
     }
   }
 }

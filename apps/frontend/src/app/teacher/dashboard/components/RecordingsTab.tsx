@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
-import { Calendar, Loader2, ExternalLink } from 'lucide-react';
-import PipelineMonitorModal from '../../../../components/PipelineMonitorModal';
+import { Calendar, Loader2, PlayCircle, X } from 'lucide-react';
+import { VideoPlayerModal } from '@/components/VideoPlayerModal';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
 
 interface SessionItem {
   id: string;
@@ -9,7 +11,7 @@ interface SessionItem {
   durationMinutes: number;
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
   livekitRoomId?: string;
-  recording?: { driveUrl: string | null; status: string } | null;
+  recording?: { filePath: string | null; status: string } | null;
 }
 
 interface RecordingsTabProps {
@@ -35,7 +37,7 @@ export default function RecordingsTab({
   handleRetryUpload,
 }: RecordingsTabProps) {
   const completedRecordings = sessions.filter((s) => s.status === 'COMPLETED');
-  const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
+  const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
   return (
     <section className="space-y-5">
@@ -75,53 +77,41 @@ export default function RecordingsTab({
                 <div className="flex items-center justify-between border-t border-slate-800/60 pt-3">
                   <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-500">Status:</span>
-                    <button
-                      onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
-                      className={`inline-flex items-center gap-1.5 font-semibold text-xs rounded-full px-2 py-0.5 hover:scale-105 transition cursor-pointer ${
+                    <span
+                      className={`inline-flex items-center gap-1.5 font-semibold text-xs rounded-full px-2 py-0.5 ${
                         isReady
                           ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                           : isFailed
                           ? 'bg-red-500/10 text-red-400 border border-red-500/20'
                           : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                       }`}
-                      title="Click to view realtime execution logs"
                     >
                       {isProcessing && <Loader2 size={10} className="animate-spin" />}
                       {status}
-                    </button>
+                    </span>
                   </div>
-                  {isReady && session.recording?.driveUrl ? (
-                    <a
-                      href={session.recording.driveUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold py-1.5 px-4 rounded-xl transition-all"
+                  {isReady ? (
+                    <button
+                      onClick={() => {
+                        const previewUrl = `${API_URL}/recordings/${session.id}/stream`;
+                        setActiveVideoUrl(previewUrl);
+                      }}
+                      className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold py-1.5 px-4 rounded-xl transition-all border-none cursor-pointer outline-none"
                     >
-                      <ExternalLink size={12} />
+                      <PlayCircle size={12} />
                       <span>Watch recording</span>
-                    </a>
+                    </button>
                   ) : isFailed ? (
                     <div className="flex gap-2">
                       <button
-                        onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
-                        className="text-[10px] text-slate-400 hover:text-slate-200 hover:underline px-2"
-                      >
-                        Inspect Error
-                      </button>
-                      <button
                         onClick={() => handleRetryUpload(session.id)}
-                        className="flex items-center gap-1.5 bg-red-500/20 border border-red-500/35 hover:bg-red-500/30 text-red-300 text-xs font-semibold py-1.5 px-4 rounded-xl transition-all"
+                        className="flex items-center gap-1.5 bg-red-500/20 border border-red-500/35 hover:bg-red-500/30 text-red-300 text-xs font-semibold py-1.5 px-4 rounded-xl transition-all cursor-pointer outline-none"
                       >
                         <span>Retry Upload</span>
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => setSelectedSession({ id: session.id, title: session.course.title })}
-                      className="text-xs text-[#C9A84C] hover:underline"
-                    >
-                      Track process...
-                    </button>
+                    <span className="text-xs text-slate-500 italic">Processing upload...</span>
                   )}
                 </div>
               </div>
@@ -130,14 +120,10 @@ export default function RecordingsTab({
         </div>
       )}
 
-      {selectedSession && (
-        <PipelineMonitorModal
-          sessionId={selectedSession.id}
-          courseTitle={selectedSession.title}
-          isOpen={!!selectedSession}
-          onClose={() => setSelectedSession(null)}
-        />
-      )}
+      <VideoPlayerModal 
+        url={activeVideoUrl} 
+        onClose={() => setActiveVideoUrl(null)} 
+      />
     </section>
   );
 }
