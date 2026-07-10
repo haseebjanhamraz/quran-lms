@@ -21,17 +21,21 @@ services:
     volumes:
       - redis_data:/data
 
-  livekit:
-    image: livekit/livekit-server:latest
-    container_name: quran-lms-livekit
+  egress:
+    image: livekit/egress:latest
+    container_name: quran-lms-egress
     restart: always
-    command: [ "--dev", "--keys", "devkey: secret" ]
-    ports:
-      - "7880:7880"
-      - "7881:7881"
-      - "7882:7882/udp"
+    environment:
+      - EGRESS_CONFIG_FILE=/etc/egress/config.yaml
     volumes:
+      - ./egress.yaml:/etc/egress/config.yaml
       - ./apps/backend/recordings:/recordings
+    cap_add:
+      - SYS_ADMIN
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
 
   nestjs:
     build:
@@ -39,6 +43,8 @@ services:
       dockerfile: Dockerfile
     container_name: quran-lms-nestjs
     restart: always
+    ports:
+      - "4000:4000"
     environment:
       DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/quran_lms?schema=public
       JWT_SECRET: your-secret-jwt-key-change-in-prod
@@ -47,16 +53,19 @@ services:
       REDIS_PORT: 6379
       LIVEKIT_API_KEY: devkey
       LIVEKIT_API_SECRET: secret
-      LIVEKIT_HOST: http://livekit:7880
+      LIVEKIT_HOST: http://host.docker.internal:7880
+      LIVEKIT_PUBLIC_URL: http://localhost:7880
       JWT_EXPIRY: 15m
       JWT_REFRESH_EXPIRY: 7d
       RECORDINGS_DIR: /app/recordings
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./apps/backend/recordings:/app/recordings
+      - ./apps/backend/model:/app/model
     depends_on:
       - postgres
       - redis
-      - livekit
 
   nextjs:
     build:
@@ -64,23 +73,12 @@ services:
       dockerfile: Dockerfile
     container_name: quran-lms-nextjs
     restart: always
-    environment:
-      NEXT_PUBLIC_API_URL: http://localhost:80/api/v1
-    depends_on:
-      - nestjs
-
-  nginx:
-    image: nginx:alpine
-    container_name: quran-lms-nginx
-    restart: always
     ports:
-      - "80:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
     depends_on:
-      - nextjs
       - nestjs
-      - livekit
 
 volumes:
   postgres_data:

@@ -100,7 +100,7 @@ interface SessionItem {
   status: string;
   scheduledAt: string;
   durationMinutes: number;
-  course: { title: string; type: string };
+  course: { title: string; type: string; teacher?: { name: string; email?: string } };
   classReviews: Array<{ status: string; id: string }>;
 }
 

@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { EgressClient, EncodedFileOutput } from 'livekit-server-sdk';
+import { EgressClient, EncodedFileOutput, RoomServiceClient } from 'livekit-server-sdk';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { RecordingStatus } from '@prisma/client';
@@ -24,11 +24,26 @@ export class RecordingsService {
 
   async startRoomRecording(sessionId: string) {
     const roomName = `room-${sessionId}`;
-    this.logger.log(`Triggering LiveKit Room Composite Egress for room: ${roomName}`);
+    this.logger.log(`Pre-creating LiveKit room and starting Composite Egress for room: ${roomName}`);
+
+    // Pre-create the room explicitly so Egress does not fail with "requested room does not exist"
+    try {
+      const host = this.configService.get<string>('LIVEKIT_HOST') || 'http://localhost:7880';
+      const apiKey = this.configService.get<string>('LIVEKIT_API_KEY') || 'devkey';
+      const apiSecret = this.configService.get<string>('LIVEKIT_API_SECRET') || 'secret';
+      const roomService = new RoomServiceClient(host, apiKey, apiSecret);
+      await roomService.createRoom({
+        name: roomName,
+        emptyTimeout: 300, // keep alive for 5 minutes if empty
+      });
+      this.logger.log(`LiveKit room ${roomName} pre-created successfully.`);
+    } catch (err: any) {
+      this.logger.error(`Failed to pre-create LiveKit room: ${err.message}`);
+    }
 
     try {
       const fileOutput = new EncodedFileOutput({
-        filepath: `recordings/${roomName}.mp4`,
+        filepath: `/recordings/${roomName}.mp4`,
       });
 
       const egressInfo = await this.egressClient.startRoomCompositeEgress(roomName, fileOutput);

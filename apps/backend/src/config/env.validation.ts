@@ -45,6 +45,10 @@ class EnvironmentVariables {
 
   @IsString()
   @IsOptional()
+  LIVEKIT_PUBLIC_URL?: string;
+
+  @IsString()
+  @IsOptional()
   RECORDINGS_DIR: string = './recordings';
 
   @IsString()

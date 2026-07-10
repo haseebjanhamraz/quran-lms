@@ -161,6 +161,18 @@ export class ClassSessionsService {
       }
     }
 
+    let startedAt = session.startedAt;
+
+    // If status changes from SCHEDULED to LIVE, trigger Egress recording
+    if (updateClassSessionDto.status === ClassStatus.LIVE && session.status === ClassStatus.SCHEDULED) {
+      startedAt = new Date();
+      try {
+        await this.recordingsService.startRoomRecording(id);
+      } catch (err: any) {
+        Logger.error(`Failed to start room recording when transitioning to LIVE: ${err.message}`, 'ClassSessionsService');
+      }
+    }
+
     // If status changes from LIVE to COMPLETED, calculate actual duration and trigger recording upload
     if (updateClassSessionDto.status === ClassStatus.COMPLETED && session.status === ClassStatus.LIVE) {
       const elapsed = Math.round((Date.now() - session.updatedAt.getTime()) / 60000);
@@ -196,6 +208,7 @@ export class ClassSessionsService {
         scheduledAt: newScheduledAt,
         durationMinutes: newDuration,
         status: updateClassSessionDto.status,
+        startedAt,
       },
       include: {
         course: {
@@ -446,7 +459,7 @@ export class ClassSessionsService {
     return {
       token: await token.toJwt(),
       roomName,
-      serverUrl: this.configService.get<string>('LIVEKIT_HOST'),
+      serverUrl: this.configService.get<string>('LIVEKIT_PUBLIC_URL') || this.configService.get<string>('LIVEKIT_HOST'),
     };
   }
 

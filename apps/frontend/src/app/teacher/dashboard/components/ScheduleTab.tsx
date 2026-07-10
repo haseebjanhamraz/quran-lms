@@ -1,5 +1,5 @@
-import React from 'react';
-import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award } from 'lucide-react';
+import React, { useState } from 'react';
+import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 
 interface SessionItem {
@@ -64,6 +64,16 @@ export default function ScheduleTab({
   handleStartClass,
   router,
 }: ScheduleTabProps) {
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+
+  const handleCopyLink = (sessionId: string) => {
+    const link = `${window.location.origin}/classroom/${sessionId}`;
+    navigator.clipboard.writeText(link).then(() => {
+      setCopiedSessionId(sessionId);
+      setTimeout(() => setCopiedSessionId(null), 2000);
+    });
+  };
+
   return (
     <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       {/* Class schedule */}
@@ -124,10 +134,20 @@ export default function ScheduleTab({
                       </div>
                     </div>
                   </div>
-
                   <div className="flex flex-shrink-0 items-center gap-2 self-end sm:self-auto">
                     {session.status === 'SCHEDULED' && (
                       <>
+                        <button
+                          onClick={() => handleCopyLink(session.id)}
+                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${
+                            copiedSessionId === session.id
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'border-slate-700/60 bg-slate-800/40 text-slate-350 hover:border-slate-600 hover:text-slate-100'
+                          }`}
+                        >
+                          {copiedSessionId === session.id ? <Check size={13} /> : <Copy size={13} />}
+                          <span>{copiedSessionId === session.id ? 'Copied!' : 'Copy Link'}</span>
+                        </button>
                         <button
                           onClick={() => router.push(`/teacher/schedule?id=${session.id}`)}
                           className="rounded-xl border border-slate-600/50 px-3 py-1.5 text-xs font-medium text-slate-350 hover:border-slate-500 hover:text-slate-100"
@@ -144,13 +164,26 @@ export default function ScheduleTab({
                       </>
                     )}
                     {session.status === 'LIVE' && (
-                      <button
-                        onClick={() => router.push(`/classroom/${session.id}`)}
-                        className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-200 hover:bg-emerald-400"
-                      >
-                        <MonitorPlay size={14} />
-                        Enter Classroom
-                      </button>
+                      <>
+                        <button
+                          onClick={() => handleCopyLink(session.id)}
+                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${
+                            copiedSessionId === session.id
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                              : 'border-slate-700/60 bg-slate-800/40 text-slate-350 hover:border-slate-600 hover:text-slate-100'
+                          }`}
+                        >
+                          {copiedSessionId === session.id ? <Check size={13} /> : <Copy size={13} />}
+                          <span>{copiedSessionId === session.id ? 'Copied!' : 'Copy Link'}</span>
+                        </button>
+                        <button
+                          onClick={() => router.push(`/classroom/${session.id}`)}
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-500 px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-200 hover:bg-emerald-400"
+                        >
+                          <MonitorPlay size={14} />
+                          Enter Classroom
+                        </button>
+                      </>
                     )}
                     {session.status === 'COMPLETED' && (
                       <button

@@ -169,7 +169,7 @@ export default function PipelineMonitorModal({
                       log.status === 'FAILED' ? 'text-red-400' :
                       'text-amber-400'
                     }`}>
-                      {log.step} -> {log.status}
+                      {log.step} {'->'} {log.status}
                     </span>
                     <span className="text-slate-200 break-words flex-1">{log.message}</span>
                   </div>

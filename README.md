@@ -1,183 +1,298 @@
 # Quran LMS — Online Class Recording & AI Evaluation Platform
 
-An enterprise-grade Learning Management System (LMS) designed for online Quran education. Featuring roll-based dashboards, live video classrooms (via LiveKit), automated session recording, secure cloud backups (Google Drive), speech-to-text transcription, and post-class AI evaluation.
+An enterprise-grade Learning Management System (LMS) designed for online Quran education. Featuring role-based dashboards, live video classrooms (via LiveKit), automated session recording, secure cloud backups (Google Drive), speech-to-text transcription, and post-class AI evaluation.
 
 ---
 
 ## Architecture Overview
 
 The project is structured as an npm workspaces monorepo:
-- **`apps/backend/`**: A NestJS API server built with Prisma ORM (PostgreSQL), Passport JWT, BullMQ background job queues (Redis), and LiveKit integrations. Runs on port `4000`.
-- **`apps/frontend/`**: A Next.js 15 client dashboard built with React 19, Tailwind CSS, and LiveKit audio/video components. Runs on port `3000`.
-- **`nginx/`**: Reverse proxy mapping port `80` to Next.js (`/`), NestJS API (`/api/v1/`), and LiveKit WebSockets (`/livekit/`).
+
+| Service | Description | Port |
+|---|---|---|
+| **`apps/backend/`** | NestJS API — Prisma ORM (PostgreSQL), Passport JWT, BullMQ (Redis), LiveKit SDK | `4000` |
+| **`apps/frontend/`** | Next.js 15 — React 19, Tailwind CSS, LiveKit video components | `3000` |
+| **PostgreSQL** | Relational database for all application data | `5432` |
+| **Redis** | Message broker for BullMQ background job queues | `6379` |
+| **LiveKit** | WebRTC media server for live video classrooms | `7880` / `7882` |
+| **LiveKit Egress** | Session recording service (MP4 output) | — |
+
+> **Note:** Nginx is intentionally excluded from Docker Compose. Configure your own reverse proxy on the host server (Nginx, Caddy, etc.) pointing to ports `3000` (frontend) and `4000` (backend).
 
 ---
 
 ## Key Features
 
-1. **Role-Based Portals**: Custom dashboards tailored for Admin, Teacher, Student, and Compliance Reviewer roles.
-2. **Google Meet Classroom Style**: Responsive audio/video conferencing layout with screen sharing, participant trays, and hover-expandable bubbles.
-3. **Automated Recording & Cloud Upload**: Sessions auto-record and upload to Google Drive via background queues (BullMQ) upon completion, with failure-retry monitoring.
-4. **Speech-to-Text Pipeline**: Extracts audio from class recordings and utilizes Speech-to-Text translation to index timestamped dialogue segments.
-5. **AI Evaluation Scorecard**: Evaluates transcripts using Google Gemini (`gemini-1.5-flash`) for teaching quality, relevance, and policy violations (e.g. contact sharing, inappropriate language, off-topic discussions).
-6. **Unified Notifications & Audit Trail**: Realtime user alerts for ready reports/recordings and a paginated audit logging feed for system administrators.
-7. **Production Containerization**: Multi-container Docker configuration with pre-built production Nginx reverse proxy routes.
+1. **Role-Based Portals** — Custom dashboards for Admin, Teacher, Student, and Compliance Reviewer roles.
+2. **Live Video Classrooms** — Google Meet-style audio/video conferencing with screen sharing and participant management.
+3. **Automated Recording & Cloud Upload** — Sessions auto-record and upload to Google Drive via BullMQ background queues upon completion.
+4. **Speech-to-Text Pipeline** — FFmpeg extracts audio; STT parses timestamped dialogue segments.
+5. **AI Evaluation Scorecard** — Evaluates transcripts via Google Gemini (`gemini-1.5-flash`) for teaching quality, relevance, and policy violations.
+6. **Unified Notifications & Audit Trail** — Realtime user alerts and a paginated audit logging feed for administrators.
 
 ---
 
 ## Getting Started: Local Development
 
-### 1. Prerequisites
-- **Node.js**: v20 or higher.
-- **Docker & Docker Compose**: Installed and running.
-- **Google Drive OAuth API credentials**: Optional for mock fallback, required for real drive uploads.
+### Prerequisites
 
-### 2. Environment Variables Configuration
-Create a `.env` file in `apps/backend/.env` with the following configuration:
+- **Node.js** v20+
+- **Docker & Docker Compose** installed and running
+- **npm** v9+
+
+### 1. Clone & Install Dependencies
+
+```bash
+git clone <repo-url>
+cd quran-lms
+npm install
+```
+
+### 2. Configure Environment Variables
+
+**Backend** — create `apps/backend/.env`:
 
 ```env
-# Database Configuration
+# Database
 DATABASE_URL="postgresql://postgres:postgrespassword@localhost:5432/quran_lms?schema=public"
 
-# JWT Auth Keys
-JWT_SECRET="your_secure_development_jwt_token_secret_key"
-JWT_REFRESH_SECRET="your_secure_development_jwt_refresh_token_secret_key"
+# JWT Auth
+JWT_SECRET="your_secure_development_jwt_secret"
+JWT_REFRESH_SECRET="your_secure_development_jwt_refresh_secret"
 JWT_EXPIRY="15m"
 JWT_REFRESH_EXPIRY="7d"
 
-# Redis Server Configuration (for BullMQ)
+# Redis (for BullMQ)
 REDIS_HOST="localhost"
 REDIS_PORT=6379
 
-# LiveKit WebRTC Configuration
+# LiveKit WebRTC
 LIVEKIT_API_KEY="devkey"
 LIVEKIT_API_SECRET="secret"
 LIVEKIT_HOST="http://localhost:7880"
+LIVEKIT_PUBLIC_URL="http://localhost:7880" # Optional in dev, required when dockerized or in prod
 
-# Google Gemini API Key (for Compliance Audits)
-GEMINI_API_KEY="your-gemini-api-key-here"
+# Google Gemini (AI evaluation)
+GEMINI_API_KEY="your-gemini-api-key"
 
-# Google Drive Cloud Storage (Optional - falls back to local temp files if not set)
+# Google Drive (optional — falls back to local storage if omitted)
 GOOGLE_DRIVE_CLIENT_ID="your-client-id"
 GOOGLE_DRIVE_CLIENT_SECRET="your-client-secret"
-GOOGLE_DRIVE_REDIRECT_URI="your-redirect-uri"
+GOOGLE_DRIVE_REDIRECT_URI="https://developers.google.com/oauthplayground"
 GOOGLE_DRIVE_REFRESH_TOKEN="your-refresh-token"
 ```
 
-Configure `apps/frontend/.env.local` to point to the backend API:
+**Frontend** — create `apps/frontend/.env.local`:
+
 ```env
 NEXT_PUBLIC_API_URL="http://localhost:4000/api/v1"
 ```
 
-### 3. Google Drive API Setup Guide 🛠️
+### 3. Spin Up Infrastructure (DB, Redis, LiveKit)
 
-To configure the Google Drive integration, you must generate OAuth 2.0 credentials from the Google Cloud Console. Follow this step-by-step process:
+```bash
+docker compose up -d postgres redis livekit
+```
 
-#### Step 1: Create a Google Cloud Project
-1. Go to the [Google Cloud Console](https://console.cloud.google.com/).
-2. Click on the project dropdown at the top navigation bar and select **New Project**.
-3. Name your project (e.g., `Quran LMS Storage`) and click **Create**.
+### 4. Initialize the Database
 
-#### Step 2: Enable the Google Drive API
-1. In the sidebar menu, navigate to **APIs & Services** > **Library**.
-2. Search for `Google Drive API` in the search bar.
-3. Click on the **Google Drive API** result and click the **Enable** button.
+```bash
+# Generate Prisma client
+npm run db:generate
 
-#### Step 3: Configure the OAuth Consent Screen
-1. Navigate to **APIs & Services** > **OAuth consent screen**.
-2. Select **External** User Type (if you are not using Google Workspace) and click **Create**.
-3. Fill in the required App Information:
-   - **App name**: `Quran LMS`
-   - **User support email**: *Your email*
-   - **Developer contact information**: *Your email*
-4. Click **Save and Continue** through the Scopes and Test Users screens.
-   - *Note: On the Test Users screen, make sure to add the Google account you wish to connect as a test user.*
-5. Return to the dashboard and click **Publish App** to move it out of testing (this prevents authorization tokens from expiring quickly).
+# Push schema to the database
+npx prisma db push --schema=apps/backend/prisma/schema.prisma
+```
 
-#### Step 4: Create OAuth 2.0 Credentials
-1. Navigate to **APIs & Services** > **Credentials**.
-2. Click **+ Create Credentials** at the top and select **OAuth client ID**.
-3. Select **Web application** as the Application type.
-4. Set the name to `Quran LMS Credentials`.
-5. Under **Authorized redirect URIs**, add:
-   - `https://developers.google.com/oauthplayground` (highly recommended for generating the refresh token).
-6. Click **Create**.
-7. Copy the generated **Client ID** and **Client Secret** values. These correspond to:
-   - `GOOGLE_DRIVE_CLIENT_ID`
-   - `GOOGLE_DRIVE_CLIENT_SECRET`
-   - `GOOGLE_DRIVE_REDIRECT_URI="https://developers.google.com/oauthplayground"`
+### 5. Start Dev Servers
 
-#### Step 5: Generate the Google Drive Refresh Token
-1. Go to the [Google OAuth 2.0 Playground](https://developers.google.com/oauthplayground).
-2. Click the **Gear Icon** (OAuth 2.0 configuration) in the top-right corner.
-3. Check the box **Use own OAuth credentials**.
-4. Enter your **OAuth Client ID** and **OAuth Client Secret** copied in Step 4.
-5. In the left panel (Step 1 - Select & authorize APIs), scroll down to **Drive API v3**.
-6. Expand it and select the scope: `https://www.googleapis.com/auth/drive` (allows file creation and sharing).
-7. Click the blue **Authorize APIs** button. You will be redirected to log in with your Google account.
-   - *If you see an "unverified app" screen, click Advanced > Go to Quran LMS (unsafe).*
-8. Once authorized, click the **Exchange authorization code for tokens** button.
-9. Copy the generated **Refresh Token** from the text field. This corresponds to:
-   - `GOOGLE_DRIVE_REFRESH_TOKEN`
+```bash
+npm run dev
+```
 
-### 4. Step-by-Step Installation & Dev Start
-
-1. **Install Monorepo Dependencies**:
-   ```bash
-   npm install
-   ```
-
-2. **Spin up Infrastructure Containers (PostgreSQL, Redis, LiveKit)**:
-   ```bash
-   docker compose up -d postgres redis livekit
-   ```
-
-3. **Initialize Database Schema & Client**:
-   ```bash
-   # Generate Prisma Client
-   npm run db:generate
-   
-   # Push schema tables directly to DB
-   npx prisma db push --schema=apps/backend/prisma/schema.prisma
-   ```
-
-4. **Launch Dev Servers (Backend + Frontend concurrently)**:
-   ```bash
-   npm run dev
-   ```
-   - **Frontend**: Access at `http://localhost:3000`
-   - **Backend API**: Running at `http://localhost:4000/api/v1`
+- **Frontend**: `http://localhost:3000`
+- **Backend API**: `http://localhost:4000/api/v1`
+- **LiveKit**: `ws://localhost:7880`
 
 ---
 
-## Production Deployment: Multi-Container Setup
+## Google Drive API Setup
 
-To build and run the entire application (including frontend, backend, database, queue, and Nginx proxy) in production container mode:
+### Step 1: Create a Google Cloud Project
 
-1. **Configure Environment Variables**:
-   Update `docker-compose.yml` environment values with production secrets (stronger JWT passwords, real DB passwords, valid Gemini key).
+1. Go to [Google Cloud Console](https://console.cloud.google.com/).
+2. Click the project dropdown → **New Project** → Name it (e.g. `Quran LMS`) → **Create**.
 
-2. **Build and Run All Services**:
-   ```bash
-   docker compose up --build -d
-   ```
+### Step 2: Enable the Google Drive API
 
-3. **Database Migration Inside Docker**:
-   Once database container is up, synchronize tables inside the NestJS container:
-   ```bash
-   docker exec -it quran-lms-nestjs npx prisma db push --schema=apps/backend/prisma/schema.prisma
-   ```
+1. Navigate to **APIs & Services** → **Library**.
+2. Search for `Google Drive API` and click **Enable**.
 
-4. **Access the System**:
-   Open `http://localhost:80` (or your production domain mapped to port 80). Nginx automatically forwards:
-   - `/` to Next.js client
-   - `/api/v1/*` to NestJS API
-   - `/livekit/*` to LiveKit WebSockets
+### Step 3: Configure OAuth Consent Screen
+
+1. Navigate to **APIs & Services** → **OAuth consent screen**.
+2. Select **External** user type → **Create**.
+3. Fill in App name (`Quran LMS`), support email, and developer contact.
+4. Click **Save and Continue** through Scopes and Test Users.
+5. On the Test Users screen, add the Google account you'll use for Drive access.
+
+### Step 4: Create OAuth 2.0 Credentials
+
+1. Navigate to **APIs & Services** → **Credentials** → **+ Create Credentials** → **OAuth client ID**.
+2. Select **Web application** as the type.
+3. Under **Authorized redirect URIs**, add: `https://developers.google.com/oauthplayground`
+4. Click **Create**. Copy the **Client ID** and **Client Secret**.
+
+### Step 5: Generate Refresh Token
+
+1. Go to [OAuth 2.0 Playground](https://developers.google.com/oauthplayground).
+2. Click the **Gear icon** → check **Use your own OAuth credentials** → enter your Client ID and Secret.
+3. In Step 1, expand **Drive API v3** and select `https://www.googleapis.com/auth/drive`.
+4. Click **Authorize APIs** → log in → click **Exchange authorization code for tokens**.
+5. Copy the **Refresh Token** into `GOOGLE_DRIVE_REFRESH_TOKEN`.
 
 ---
 
-## QA Compliance Flow Details
+## Production Deployment (Docker)
 
-1. **Recording READY Trigger**: Class completed → bullmq uploads MP4 to Google Drive.
-2. **STT Pipeline Trigger**: Google Drive upload finished → bullmq downloads audio stream → FFmpeg extracts MP3 → Whisper/Mock STT parses timestamped segment dialogues.
-3. **AI Evaluation Trigger**: STT finished → Gemini scans segments → logs violations → calculates risk score (e.g. 80%) → sends notifications to Admin dashboard.
+### 1. Update Secrets in `docker-compose.yml`
+
+Edit the `nestjs` service environment block with strong production values:
+
+```yaml
+JWT_SECRET: "a-long-random-production-secret"
+JWT_REFRESH_SECRET: "another-long-random-production-secret"
+POSTGRES_PASSWORD: "strong-db-password"
+GEMINI_API_KEY: "your-real-gemini-key"
+LIVEKIT_PUBLIC_URL: "https://your.livekit.domain.com"
+```
+
+Also update `NEXT_PUBLIC_API_URL` in the `nextjs` service to your real domain:
+
+```yaml
+NEXT_PUBLIC_API_URL: "https://api.yourdomain.com/api/v1"
+```
+
+### 2. Update `livekit.yaml` for Production
+
+```yaml
+keys:
+  your_production_key: your_production_secret
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  use_external_ip: true   # set to true in production with a real public IP
+
+turn:
+  enabled: true
+  domain: your.livekit.domain.com
+  tls_port: 5349
+  udp_port: 3478
+```
+
+### 3. Build & Start All Containers
+
+```bash
+docker compose up -d --build
+```
+
+This starts:
+- `quran-lms-postgres` on port `5432`
+- `quran-lms-redis` on port `6379`
+- `quran-lms-livekit` on ports `7880`, `7881`, `7882/udp`, `3478/udp`
+- `quran-lms-egress` (internal)
+- `quran-lms-nestjs` on port `4000`
+- `quran-lms-nextjs` on port `3000`
+
+### 4. Run Database Migrations
+
+```bash
+docker exec -it quran-lms-nestjs npx prisma db push --schema=apps/backend/prisma/schema.prisma
+```
+
+Or using Prisma migrate in production:
+
+```bash
+docker exec -it quran-lms-nestjs npx prisma migrate deploy --schema=apps/backend/prisma/schema.prisma
+```
+
+### 5. Configure Your Host Nginx (Ubuntu)
+
+Install Nginx on your Ubuntu host and create a site config at `/etc/nginx/sites-available/quran-lms`:
+
+```nginx
+server {
+    listen 80;
+    server_name yourdomain.com;
+
+    # Frontend (Next.js)
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # Backend API (NestJS)
+    location /api/ {
+        proxy_pass http://localhost:4000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+```
+
+Enable the site and reload:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/quran-lms /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+For HTTPS, use Certbot:
+
+```bash
+sudo apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com
+```
+
+---
+
+## QA Compliance Flow
+
+```
+Class Ends
+    ↓
+LiveKit Egress saves MP4 → /recordings/
+    ↓
+BullMQ uploads MP4 to Google Drive
+    ↓
+BullMQ downloads audio stream → FFmpeg extracts MP3
+    ↓
+Speech-to-Text parses timestamped dialogue
+    ↓
+Gemini scans transcript → calculates risk score → flags violations
+    ↓
+Notification sent to Admin dashboard
+```
+
+---
+
+## Port Reference
+
+| Port | Service | Protocol |
+|---|---|---|
+| `3000` | Next.js Frontend | HTTP |
+| `4000` | NestJS Backend API | HTTP |
+| `5432` | PostgreSQL | TCP |
+| `6379` | Redis | TCP |
+| `7880` | LiveKit Signaling | HTTP/WS |
+| `7881` | LiveKit ICE-TCP | TCP |
+| `7882` | LiveKit Media | UDP |
+| `3478` | LiveKit TURN | UDP |

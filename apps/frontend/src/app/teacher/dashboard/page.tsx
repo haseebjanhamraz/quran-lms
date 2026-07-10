@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { useRouter } from 'next/navigation';
-import { LogOut, BookOpen, Plus, Loader2 } from 'lucide-react';
+import { LogOut, BookOpen, Plus, Loader2, PlayCircle } from 'lucide-react';
 import Link from 'next/link';
 
 // Import Modular Components
@@ -13,6 +13,7 @@ import CoursesTab from './components/CoursesTab';
 import StudentsTab from './components/StudentsTab';
 import RecordingsTab from './components/RecordingsTab';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
+import InstantClassModal from './components/InstantClassModal';
 
 // Interfaces
 interface SessionItem {
@@ -22,7 +23,7 @@ interface SessionItem {
   durationMinutes: number;
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
   livekitRoomId?: string;
-  recording?: { driveUrl: string | null; status: string } | null;
+  recording?: { filePath: string | null; status: string } | null;
 }
 
 interface Course {
@@ -84,6 +85,34 @@ export default function TeacherDashboard() {
   const [studentsLoading, setStudentsLoading] = useState(false);
   const [reviewsLoading, setReviewsLoading] = useState(false);
   const [startingId, setStartingId] = useState<string | null>(null);
+
+  const [isInstantModalOpen, setIsInstantModalOpen] = useState(false);
+
+  const handleOpenInstantModal = () => {
+    setIsInstantModalOpen(true);
+    fetchCourses();
+  };
+
+  const handleStartInstantClass = async (courseId: string, durationMinutes: number) => {
+    const res = await fetch(`${API_URL}/class-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        courseId,
+        scheduledAt: new Date().toISOString(),
+        durationMinutes,
+      }),
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'Failed to create instant class session.');
+    }
+
+    const newSession = await res.json();
+    await handleStartClass(newSession.id);
+  };
 
   // Fetch sessions
   const fetchSessions = async () => {
@@ -359,13 +388,22 @@ export default function TeacherDashboard() {
               </h1>
               <p className="mt-2 text-slate-400">May Allah bless your teaching efforts and your students.</p>
             </div>
-            <button
-              onClick={() => router.push('/teacher/schedule')}
-              className="group flex w-fit items-center gap-2 rounded-2xl bg-emerald-500 px-6 py-3 font-semibold text-white shadow-xl shadow-emerald-500/25 transition-all duration-200 hover:scale-105 hover:bg-emerald-400"
-            >
-              <Plus size={18} className="transition-transform duration-200 group-hover:rotate-90" />
-              Create New Class
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={handleOpenInstantModal}
+                className="group flex w-fit items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3 font-bold text-white shadow-xl shadow-amber-500/20 transition-all duration-200 hover:scale-105 hover:from-amber-400 hover:to-orange-500 border border-amber-400/20"
+              >
+                <PlayCircle size={18} className="text-white animate-pulse" />
+                Instant Class
+              </button>
+              <button
+                onClick={() => router.push('/teacher/schedule')}
+                className="group flex w-fit items-center gap-2 rounded-2xl bg-slate-800 border border-slate-700/60 px-6 py-3 font-semibold text-slate-200 shadow-xl transition-all duration-200 hover:scale-105 hover:bg-slate-700/80"
+              >
+                <Plus size={18} className="transition-transform duration-200 group-hover:rotate-90 text-emerald-400" />
+                Schedule Class
+              </button>
+            </div>
           </div>
         </section>
 
@@ -407,6 +445,14 @@ export default function TeacherDashboard() {
           />
         )}
       </main>
+
+      <InstantClassModal
+        isOpen={isInstantModalOpen}
+        onClose={() => setIsInstantModalOpen(false)}
+        courses={courses}
+        coursesLoading={coursesLoading}
+        onStartInstantClass={handleStartInstantClass}
+      />
     </div>
   );
 }
