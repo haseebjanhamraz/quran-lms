@@ -103,7 +103,7 @@ export class TranscriptService {
         },
       });
 
-      // 1. Perform FFmpeg Audio Extraction (or mock fallback if ffmpeg is missing)
+      // 1. Perform FFmpeg Audio Extraction
       await this.extractAudio(videoPath, audioPath);
       await this.prisma.pipelineLog.create({
         data: {
@@ -117,20 +117,54 @@ export class TranscriptService {
       // 2. Speech to Text API Call (Vosk)
       const segments = await this.speechToText(audioPath, sessionId);
 
+      // If Vosk completed successfully but found no speech (silence)
+      if (segments.length === 0) {
+        this.logger.log(`No speech detected in audio file for session: ${sessionId}. Saving "No Audio" label.`);
+        await this.prisma.pipelineLog.create({
+          data: {
+            sessionId,
+            step: 'TRANSCRIPTION',
+            status: 'SUCCESS',
+            message: 'Speech-to-Text completed with no speech detected. Saved "No Audio" label.',
+          },
+        });
+        this.cleanupFiles([audioPath]);
+        return this.saveNoAudioTranscript(sessionId);
+      }
+
+      // Save real Vosk segments to the database
+      const savedSegments = await this.saveTranscriptSegments(sessionId, segments);
+
       await this.prisma.pipelineLog.create({
         data: {
           sessionId,
           step: 'TRANSCRIPTION',
           status: 'SUCCESS',
-          message: `Transcript generation completed successfully. Extracted ${segments.length} segment utterances.`,
+          message: `Transcript generation completed successfully. Extracted and saved ${savedSegments.length} segment utterances.`,
         },
       });
 
       // Clean up temp audio file
       this.cleanupFiles([audioPath]);
 
-      return segments;
+      return savedSegments;
     } catch (err: any) {
+      this.cleanupFiles([audioPath]);
+
+      // If explicitly thrown due to missing audio stream
+      if (err.message === 'NO_AUDIO') {
+        this.logger.warn(`No audio track found in the recording for session: ${sessionId}. Saving "No Audio" label.`);
+        await this.prisma.pipelineLog.create({
+          data: {
+            sessionId,
+            step: 'TRANSCRIPTION',
+            status: 'SUCCESS',
+            message: 'No audio track detected in video file. Saved "No Audio" label.',
+          },
+        });
+        return this.saveNoAudioTranscript(sessionId);
+      }
+
       this.logger.error(`Failed to generate transcript: ${err.message}. Generating mock fallback.`);
       
       try {
@@ -144,9 +178,44 @@ export class TranscriptService {
         });
       } catch (_) {}
 
-      this.cleanupFiles([audioPath]);
       return this.createMockTranscript(sessionId);
     }
+  }
+
+  async saveTranscriptSegments(sessionId: string, segments: any[]): Promise<any[]> {
+    // Clear existing transcript segments for this session first
+    await this.prisma.transcriptSegment.deleteMany({
+      where: { sessionId },
+    });
+
+    const createdSegments = [];
+    for (const segment of segments) {
+      const dbSegment = await this.prisma.transcriptSegment.create({
+        data: {
+          sessionId,
+          startTime: segment.startTime,
+          endTime: segment.endTime,
+          text: segment.text,
+          speakerLabel: segment.speakerLabel || 'Speaker',
+          confidence: segment.confidence || 1.0,
+          language: segment.language || 'en',
+        },
+      });
+      createdSegments.push(dbSegment);
+    }
+    return createdSegments;
+  }
+
+  async saveNoAudioTranscript(sessionId: string): Promise<any[]> {
+    const noAudioSegment = [{
+      startTime: 0,
+      endTime: 0,
+      text: 'No Audio',
+      speakerLabel: 'System',
+      confidence: 1.0,
+      language: 'en',
+    }];
+    return this.saveTranscriptSegments(sessionId, noAudioSegment);
   }
 
   private async extractAudio(videoPath: string, audioPath: string): Promise<void> {
@@ -166,7 +235,16 @@ export class TranscriptService {
           })
           .on('error', (err: any) => {
             this.logger.error(`FFmpeg error: ${err.message}`);
-            reject(err);
+            // Check if error is due to lack of audio stream in the video file
+            if (err.message && (
+              err.message.includes('Output file does not contain any stream') || 
+              err.message.includes('does not contain any stream') ||
+              err.message.includes('no audio')
+            )) {
+              reject(new Error('NO_AUDIO'));
+            } else {
+              reject(err);
+            }
           })
           .save(audioPath);
       });
@@ -178,69 +256,64 @@ export class TranscriptService {
 
   private async speechToText(audioPath: string, sessionId: string): Promise<any[]> {
     this.logger.log('Attempting to use Vosk AI for Speech-to-Text...');
-    try {
-      const vosk = require('vosk');
-      const fs = require('fs');
-      
-      // Look for a model directory (e.g., 'model' in the root)
-      const modelPath = this.configService.get<string>('VOSK_MODEL_PATH') || './model';
-      if (!fs.existsSync(modelPath)) {
-        this.logger.warn(`Vosk model not found at ${modelPath}. Please download a Vosk model (e.g., vosk-model-small-en-us) and place it there. Generating mock transcript.`);
-        return this.createMockTranscript(sessionId);
-      }
-
-      vosk.setLogLevel(-1);
-      const model = new vosk.Model(modelPath);
-      const rec = new vosk.Recognizer({model: model, sampleRate: 16000});
-
-      return new Promise((resolve, reject) => {
-        const results: any[] = [];
-        const stream = fs.createReadStream(audioPath, { highWaterMark: 4096 });
-        let currentTime = 0.0;
-
-        stream.on('data', (data: any) => {
-          if (rec.acceptWaveform(data)) {
-            const res = rec.result();
-            if (res.text) {
-              results.push({
-                startTime: currentTime,
-                endTime: currentTime + 5.0, // estimate
-                text: res.text,
-                speakerLabel: 'Speaker',
-                confidence: 0.9,
-                language: 'en',
-              });
-              currentTime += 5.0;
-            }
-          }
-        });
-
-        stream.on('end', () => {
-          const res = rec.finalResult();
-          if (res.text) {
-             results.push({
-                startTime: currentTime,
-                endTime: currentTime + 5.0,
-                text: res.text,
-                speakerLabel: 'Speaker',
-                confidence: 0.9,
-                language: 'en',
-              });
-          }
-          rec.free();
-          model.free();
-          resolve(results.length > 0 ? results : this.createMockTranscript(sessionId));
-        });
-
-        stream.on('error', (err: any) => {
-          this.logger.error(`Vosk transcription stream error: ${err.message}`);
-          resolve(this.createMockTranscript(sessionId));
-        });
-      });
-    } catch (err: any) {
-      this.logger.warn(`Vosk AI module not available or failed to load: ${err.message}. Ensure 'vosk' is installed and C++ build tools are present. Generating standard mock transcript.`);
-      return this.createMockTranscript(sessionId);
+    
+    const vosk = require('vosk');
+    const fs = require('fs');
+    
+    // Look for a model directory (e.g., 'model' in the root)
+    const modelPath = this.configService.get<string>('VOSK_MODEL_PATH') || './model';
+    if (!fs.existsSync(modelPath)) {
+      throw new Error(`Vosk model directory not found at: ${modelPath}`);
     }
+
+    vosk.setLogLevel(-1);
+    const model = new vosk.Model(modelPath);
+    const rec = new vosk.Recognizer({model: model, sampleRate: 16000});
+
+    return new Promise((resolve, reject) => {
+      const results: any[] = [];
+      const stream = fs.createReadStream(audioPath, { highWaterMark: 4096 });
+      let currentTime = 0.0;
+
+      stream.on('data', (data: any) => {
+        if (rec.acceptWaveform(data)) {
+          const res = rec.result();
+          if (res.text) {
+            results.push({
+              startTime: currentTime,
+              endTime: currentTime + 5.0, // estimate
+              text: res.text,
+              speakerLabel: 'Speaker',
+              confidence: 0.9,
+              language: 'en',
+            });
+            currentTime += 5.0;
+          }
+        }
+      });
+
+      stream.on('end', () => {
+        const res = rec.finalResult();
+        if (res.text) {
+           results.push({
+              startTime: currentTime,
+              endTime: currentTime + 5.0,
+              text: res.text,
+              speakerLabel: 'Speaker',
+              confidence: 0.9,
+              language: 'en',
+            });
+        }
+        rec.free();
+        model.free();
+        resolve(results);
+      });
+
+      stream.on('error', (err: any) => {
+        this.logger.error(`Vosk transcription stream error: ${err.message}`);
+        reject(err);
+      });
+    });
   }
 
   async createMockTranscript(sessionId: string): Promise<any[]> {
@@ -338,29 +411,7 @@ export class TranscriptService {
       },
     ];
 
-    // Clear existing transcript segments for this session first
-    await this.prisma.transcriptSegment.deleteMany({
-      where: { sessionId },
-    });
-
-    // Create segments in DB
-    const createdSegments = [];
-    for (const segment of mockSegments) {
-      const dbSegment = await this.prisma.transcriptSegment.create({
-        data: {
-          sessionId,
-          startTime: segment.startTime,
-          endTime: segment.endTime,
-          text: segment.text,
-          speakerLabel: segment.speakerLabel,
-          confidence: segment.confidence,
-          language: segment.language,
-        },
-      });
-      createdSegments.push(dbSegment);
-    }
-
-    return createdSegments;
+    return this.saveTranscriptSegments(sessionId, mockSegments);
   }
 
   private cleanupFiles(filePaths: string[]) {

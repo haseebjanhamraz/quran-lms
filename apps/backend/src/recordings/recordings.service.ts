@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
-import { EgressClient, EncodedFileOutput, RoomServiceClient } from 'livekit-server-sdk';
+import { EgressClient, EncodedFileOutput, RoomServiceClient, EncodingOptionsPreset } from 'livekit-server-sdk';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { RecordingStatus } from '@prisma/client';
@@ -46,7 +46,12 @@ export class RecordingsService {
         filepath: `/recordings/${roomName}.mp4`,
       });
 
-      const egressInfo = await this.egressClient.startRoomCompositeEgress(roomName, fileOutput);
+      const egressInfo = await this.egressClient.startRoomCompositeEgress(
+        roomName,
+        fileOutput,
+        undefined,
+        EncodingOptionsPreset.H264_720P_30,
+      );
 
       const egressId = egressInfo.egressId;
 
@@ -84,7 +89,17 @@ export class RecordingsService {
 
   async queueUploadJob(sessionId: string, filePath: string, filename: string) {
     this.logger.log(`Queueing local storage save job for session: ${sessionId}`);
-    await this.uploadQueue.add('upload', { sessionId, filePath, filename });
+    await this.uploadQueue.add(
+      'upload',
+      { sessionId, filePath, filename },
+      {
+        attempts: 10,
+        backoff: {
+          type: 'fixed',
+          delay: 5000, // Retry every 5 seconds
+        },
+      }
+    );
   }
 
   async getRecordingBySession(sessionId: string) {

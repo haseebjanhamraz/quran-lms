@@ -27,6 +27,15 @@ export class UploadProcessor extends WorkerHost {
     const filePath = this.localStorageService.getFilePath(resolvedFilename);
     this.logger.log(`Processing recording upload job for session: ${sessionId}, raw file: ${rawFilePath}, resolved: ${filePath}`);
 
+    // Check if recording is already successfully processed/uploaded
+    const existingRec = await this.prisma.recording.findUnique({
+      where: { sessionId },
+    });
+    if (existingRec && existingRec.status === RecordingStatus.READY) {
+      this.logger.log(`Recording for session ${sessionId} is already successfully uploaded and READY. Skipping duplicate job.`);
+      return { success: true, message: 'Already completed' };
+    }
+
     // Update or create recording record to show status is UPLOADING
     await this.prisma.recording.upsert({
       where: { sessionId },
@@ -55,6 +64,15 @@ export class UploadProcessor extends WorkerHost {
     try {
       // Check if file exists locally before starting upload
       if (!fs.existsSync(filePath)) {
+        // If it's not the final attempt yet, throw an error to trigger BullMQ retry
+        const maxAttempts = job.opts.attempts || 1;
+        this.logger.log(`Recording file not found at ${filePath}. attemptsMade=${job.attemptsMade}, maxAttempts=${maxAttempts}`);
+        if (job.attemptsMade < maxAttempts - 1) {
+          throw new Error(`Recording file not ready yet at: ${filePath}. Egress is likely still writing it.`);
+        }
+
+        // Final attempt fallback: clone the dev sample video
+        this.logger.warn(`Recording file still not found after all retries. Falling back to dev sample.`);
         const samplePath = path.join(path.dirname(filePath), 'sample.mp4');
         if (fs.existsSync(samplePath)) {
           this.logger.log(`Local file ${filePath} not found. Cloning dev sample video from ${samplePath}`);
@@ -146,25 +164,29 @@ export class UploadProcessor extends WorkerHost {
     } catch (err: any) {
       this.logger.error(`Failed to process recording upload: ${err.message}`);
 
-      // Write error log to PipelineLog table
-      try {
-        await this.prisma.pipelineLog.create({
+      // Only update database to FAILED on the final attempt
+      const maxAttempts = job.opts.attempts || 1;
+      if (job.attemptsMade >= maxAttempts - 1) {
+        // Write error log to PipelineLog table
+        try {
+          await this.prisma.pipelineLog.create({
+            data: {
+              sessionId,
+              step: 'UPLOAD',
+              status: 'FAILED',
+              message: `Recording local save failed after all retries. Error details: ${err.message}`,
+            },
+          });
+        } catch (_) { }
+
+        // Update recording record status to FAILED
+        await this.prisma.recording.update({
+          where: { sessionId },
           data: {
-            sessionId,
-            step: 'UPLOAD',
-            status: 'FAILED',
-            message: `Recording local save failed. Error details: ${err.message}`,
+            status: RecordingStatus.FAILED,
           },
         });
-      } catch (_) { }
-
-      // Update recording record status to FAILED
-      await this.prisma.recording.update({
-        where: { sessionId },
-        data: {
-          status: RecordingStatus.FAILED,
-        },
-      });
+      }
 
       throw err;
     }

@@ -16,3 +16,9 @@ turn:
   domain: localhost
   tls_port: 0
   udp_port: 3478
+
+webhook:
+  api_key: devkey
+  urls:
+    - http://localhost:4000/api/v1/livekit/webhook
+
