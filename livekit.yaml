@@ -7,9 +7,8 @@ redis:
 rtc:
   tcp_port: 7881
   udp_port: 7882
-  use_external_ip: false
-  node_ip: 127.0.0.1
-  enable_loopback_candidate: true
+  use_external_ip: true
+  enable_loopback_candidate: false
 
 turn:
   enabled: true

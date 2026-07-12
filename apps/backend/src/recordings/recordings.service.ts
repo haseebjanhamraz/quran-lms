@@ -23,6 +23,13 @@ export class RecordingsService {
   }
 
   async startRoomRecording(sessionId: string) {
+    // Guard: skip if recording already exists and is not failed
+    const existing = await this.prisma.recording.findUnique({ where: { sessionId } });
+    if (existing && (existing.status === RecordingStatus.PROCESSING || existing.status === RecordingStatus.READY || existing.status === RecordingStatus.UPLOADING)) {
+      this.logger.log(`Recording already ${existing.status} for session ${sessionId}. Skipping duplicate egress start.`);
+      return { egressId: 'already-running' };
+    }
+
     const roomName = `room-${sessionId}`;
     this.logger.log(`Pre-creating LiveKit room and starting Composite Egress for room: ${roomName}`);
 
@@ -87,16 +94,17 @@ export class RecordingsService {
     }
   }
 
-  async queueUploadJob(sessionId: string, filePath: string, filename: string) {
-    this.logger.log(`Queueing local storage save job for session: ${sessionId}`);
+  async queueUploadJob(sessionId: string, filePath: string, filename: string, delay = 0) {
+    this.logger.log(`Queueing local storage save job for session: ${sessionId}${delay ? ` (delayed ${delay}ms)` : ''}`);
     await this.uploadQueue.add(
       'upload',
       { sessionId, filePath, filename },
       {
         attempts: 10,
+        delay,
         backoff: {
           type: 'fixed',
-          delay: 5000, // Retry every 5 seconds
+          delay: 5000,
         },
       }
     );

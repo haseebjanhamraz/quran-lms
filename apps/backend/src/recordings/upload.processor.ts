@@ -27,13 +27,13 @@ export class UploadProcessor extends WorkerHost {
     const filePath = this.localStorageService.getFilePath(resolvedFilename);
     this.logger.log(`Processing recording upload job for session: ${sessionId}, raw file: ${rawFilePath}, resolved: ${filePath}`);
 
-    // Check if recording is already successfully processed/uploaded
+    // Check if recording is already successfully processed or currently being processed
     const existingRec = await this.prisma.recording.findUnique({
       where: { sessionId },
     });
-    if (existingRec && existingRec.status === RecordingStatus.READY) {
-      this.logger.log(`Recording for session ${sessionId} is already successfully uploaded and READY. Skipping duplicate job.`);
-      return { success: true, message: 'Already completed' };
+    if (existingRec && (existingRec.status === RecordingStatus.READY || existingRec.status === RecordingStatus.UPLOADING)) {
+      this.logger.log(`Recording for session ${sessionId} is already ${existingRec.status}. Skipping duplicate job.`);
+      return { success: true, message: 'Already completed or in progress' };
     }
 
     // Update or create recording record to show status is UPLOADING
@@ -61,34 +61,56 @@ export class UploadProcessor extends WorkerHost {
       },
     });
 
+    // Wait for the file to be ready (Egress might still be writing it after room deletion)
+    let fileExists = fs.existsSync(filePath);
+    if (!fileExists) {
+      this.logger.log(`Recording file not found at ${filePath}. Polling for file readiness (up to 90s)...`);
+      // Poll every 3 seconds for up to 90 seconds (30 attempts)
+      for (let i = 0; i < 30; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        if (fs.existsSync(filePath)) {
+          fileExists = true;
+          this.logger.log(`Recording file found at ${filePath} after ${(i + 1) * 3}s.`);
+          break;
+        }
+      }
+    }
+
     try {
       // Check if file exists locally before starting upload
-      if (!fs.existsSync(filePath)) {
-        // If it's not the final attempt yet, throw an error to trigger BullMQ retry
-        const maxAttempts = job.opts.attempts || 1;
-        this.logger.log(`Recording file not found at ${filePath}. attemptsMade=${job.attemptsMade}, maxAttempts=${maxAttempts}`);
-        if (job.attemptsMade < maxAttempts - 1) {
-          throw new Error(`Recording file not ready yet at: ${filePath}. Egress is likely still writing it.`);
-        }
-
-        // Final attempt fallback: clone the dev sample video
-        this.logger.warn(`Recording file still not found after all retries. Falling back to dev sample.`);
+      if (!fileExists) {
+        // If not found, check if we can run fallback in dev environment immediately
+        const isDev = process.env.NODE_ENV !== 'production';
         const samplePath = path.join(path.dirname(filePath), 'sample.mp4');
-        if (fs.existsSync(samplePath)) {
+        const hasSample = fs.existsSync(samplePath);
+
+        if (isDev && hasSample) {
+          this.logger.warn(`Recording file still not found at ${filePath}. Dev Mode detected: Falling back to dev sample.`);
           this.logger.log(`Local file ${filePath} not found. Cloning dev sample video from ${samplePath}`);
           fs.copyFileSync(samplePath, filePath);
         } else {
-          this.logger.warn(`Local file ${filePath} not found and sample.mp4 not found at ${samplePath}. Creating dummy MP4 file for dev verification.`);
-
-          const parentDir = path.dirname(filePath);
-          if (!fs.existsSync(parentDir)) {
-            fs.mkdirSync(parentDir, { recursive: true });
+          // In production or if no sample is available, retry via BullMQ
+          const maxAttempts = job.opts.attempts || 1;
+          this.logger.log(`Recording file not found at ${filePath}. attemptsMade=${job.attemptsMade}, maxAttempts=${maxAttempts}`);
+          if (job.attemptsMade < maxAttempts - 1) {
+            throw new Error(`Recording file not ready yet at: ${filePath}. Egress is likely still writing it.`);
           }
 
-          // Minimal valid MP4 file base64
-          const tinyMp4Base64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAABrBtZGF0AAACvQYF//+E1AQAAAABzZXRwEA8QARgDAv/6EwEAAAAOc2V0cBAQEAEYAwL/+hMBAAAADnNldHAQERABGAMC//oTAQAAAA5zZXRwEBIQARgDAv/6EwEAAAAOc2V0cBATEAEYAwL/+hMBAAAADnNldHAQFBBZGAMC//oTAQAAAA5zZXRwEBUQWRgDAv/6EwEAAAAOc2V0cBAZEFkYAwL/+hMBAAAADnNldHAQChBZGAMC//oTAQAAAA5zZXRwEBsQWRgDAv/6EwEAAAAOc2V0cBAcEFkYAwL/+hMBAAAADnNldHAQHRBZGAMC//oTAQAAAA5zZXRwEB4QWRgDAv/6EwEAAAAOc2V0cBAfEFkYAwL/+hMAAAAAeG1vb3YAAABsbXZoZAAAAADahV9r2oVfawAAA+gAAAAAAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAsaW9kcwAAAAABAQAAAgIDAgAABgYAAAMNAgAAEAIAAAoCAAAAEQAAAOB0cmFrAAAAXHRraGQAAAAD2oVfa9qFX2sAAAABAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMW1kaWEAAAAgbWRoZAAAAADahV9r2oVfawAAAHgAAAAAR1kAAAAAACxoZGxyAAAAAAAAAAB2aWRlAAAAAAAAAAAAAAAAVmlkZW9IYW5kbGVyAAAAK21pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAALZzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJdhdmMyAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAALWF2Y0MBQsAM/+EAFWdCwAyaAeC2QAAAx4AARCAAD3iI3hAAAQABAAAFhHN0dHMAAAAAAAAAAQAAAAEAAADIAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAAAAAAABAAACxwAAABRzdGNvAAAAAAAAAAEAAABw';
-          const buffer = Buffer.from(tinyMp4Base64, 'base64');
-          fs.writeFileSync(filePath, buffer);
+          // Final attempt fallback: clone sample if available, or create dummy file as last resort
+          this.logger.warn(`Recording file still not found after all retries. Falling back to dev sample or dummy file.`);
+          if (hasSample) {
+            this.logger.log(`Cloning dev sample video from ${samplePath}`);
+            fs.copyFileSync(samplePath, filePath);
+          } else {
+            this.logger.warn(`Creating dummy MP4 file for verification.`);
+            const parentDir = path.dirname(filePath);
+            if (!fs.existsSync(parentDir)) {
+              fs.mkdirSync(parentDir, { recursive: true });
+            }
+            const tinyMp4Base64 = 'AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAAIZnJlZQAABrBtZGF0AAACvQYF//+E1AQAAAABzZXRwEA8QARgDAv/6EwEAAAAOc2V0cBAQEAEYAwL/+hMBAAAADnNldHAQERABGAMC//oTAQAAAA5zZXRwEBIQARgDAv/6EwEAAAAOc2V0cBATEAEYAwL/+hMBAAAADnNldHAQFBBZGAMC//oTAQAAAA5zZXRwEBUQWRgDAv/6EwEAAAAOc2V0cBAZEFkYAwL/+hMBAAAADnNldHAQChBZGAMC//oTAQAAAA5zZXRwEBsQWRgDAv/6EwEAAAAOc2V0cBAcEFkYAwL/+hMBAAAADnNldHAQHRBZGAMC//oTAQAAAA5zZXRwEB4QWRgDAv/6EwEAAAAOc2V0cBAfEFkYAwL/+hMAAAAAeG1vb3YAAABsbXZoZAAAAADahV9r2oVfawAAA+gAAAAAAAEAAAEAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIAAAAsaW9kcwAAAAABAQAAAgIDAgAABgYAAAMNAgAAEAIAAAoCAAAAEQAAAOB0cmFrAAAAXHRraGQAAAAD2oVfa9qFX2sAAAABAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMW1kaWEAAAAgbWRoZAAAAADahV9r2oVfawAAAHgAAAAAR1kAAAAAACxoZGxyAAAAAAAAAAB2aWRlAAAAAAAAAAAAAAAAVmlkZW9IYW5kbGVyAAAAK21pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAALZzdGJsAAAAp3N0c2QAAAAAAAAAAQAAAJdhdmMyAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAALWF2Y0MBQsAM/+EAFWdCwAyaAeC2QAAAx4AARCAAD3iI3hAAAQABAAAFhHN0dHMAAAAAAAAAAQAAAAEAAADIAAAAHHN0c2MAAAAAAAAAAQAAAAEAAAABAAAAAQAAABRzdHN6AAAAAAAAAAAAAAABAAACxwAAABRzdGNvAAAAAAAAAAEAAABw';
+            const buffer = Buffer.from(tinyMp4Base64, 'base64');
+            fs.writeFileSync(filePath, buffer);
+          }
         }
       }
 

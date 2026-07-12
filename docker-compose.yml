@@ -57,11 +57,11 @@ services:
       LIVEKIT_PUBLIC_URL: http://localhost:7880
       JWT_EXPIRY: 15m
       JWT_REFRESH_EXPIRY: 7d
-      RECORDINGS_DIR: /app/recordings
+      RECORDINGS_DIR: /recordings
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
-      - ./apps/backend/recordings:/app/recordings
+      - ./apps/backend/recordings:/recordings
       - ./apps/backend/model:/app/model
     depends_on:
       - postgres

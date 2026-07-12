@@ -163,33 +163,20 @@ export class ClassSessionsService {
 
     let startedAt = session.startedAt;
 
-    // If status changes from SCHEDULED to LIVE, trigger Egress recording
+    // If status changes from SCHEDULED to LIVE, set startedAt
+    // Recording is started in generateLivekitToken() when the teacher actually joins the room
     if (updateClassSessionDto.status === ClassStatus.LIVE && session.status === ClassStatus.SCHEDULED) {
       startedAt = new Date();
-      try {
-        await this.recordingsService.startRoomRecording(id);
-      } catch (err: any) {
-        Logger.error(`Failed to start room recording when transitioning to LIVE: ${err.message}`, 'ClassSessionsService');
-      }
     }
 
-    // If status changes from LIVE to COMPLETED, calculate actual duration and trigger recording upload
+    // If status changes from LIVE to COMPLETED, calculate actual duration and close the room.
+    // Upload is triggered by the egress_ended webhook (after the file is written to disk),
+    // NOT here, to avoid a race condition where the processor looks for the file before egress finishes.
     if (updateClassSessionDto.status === ClassStatus.COMPLETED && session.status === ClassStatus.LIVE) {
       const elapsed = Math.round((Date.now() - session.updatedAt.getTime()) / 60000);
       newDuration = Math.max(1, elapsed);
-      
-      // Trigger recording upload
-      try {
-        await this.recordingsService.queueUploadJob(
-          id,
-          `recordings/room-${id}.mp4`,
-          `room-${id}.mp4`
-        );
-      } catch (err: any) {
-        Logger.error(`Failed to queue upload job when ending class: ${err.message}`, 'ClassSessionsService');
-      }
 
-      // Close the LiveKit room and kick out all remaining participants (students, reviewers)
+      // Close the LiveKit room — this triggers room_finished and egress_ended webhooks
       try {
         const livekitHost = this.configService.getOrThrow<string>('LIVEKIT_HOST');
         const apiKey = this.configService.getOrThrow<string>('LIVEKIT_API_KEY');
@@ -445,15 +432,21 @@ export class ClassSessionsService {
 
     token.addGrant(grants);
 
-    if (session.status === ClassStatus.SCHEDULED && user.role === Role.TEACHER) {
-      await this.prisma.classSession.update({
-        where: { id: sessionId },
-        data: { 
-          status: ClassStatus.LIVE,
-          startedAt: new Date(),
-        },
-      });
-      await this.recordingsService.startRoomRecording(sessionId);
+    // When teacher joins, ensure session is LIVE and start recording
+    if (user.role === Role.TEACHER && session.status !== ClassStatus.COMPLETED && session.status !== ClassStatus.CANCELLED) {
+      if (session.status === ClassStatus.SCHEDULED) {
+        await this.prisma.classSession.update({
+          where: { id: sessionId },
+          data: { 
+            status: ClassStatus.LIVE,
+            startedAt: new Date(),
+          },
+        });
+      }
+      // Egress recording is NOT started here. It is started in the
+      // participant_joined webhook handler after the teacher actually connects
+      // to the LiveKit room. This avoids the egress timing out with
+      // "Start signal not received" when no media arrives in time.
     }
 
     return {

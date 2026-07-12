@@ -1,4 +1,4 @@
-import { Controller, Post, Headers, Body, UseGuards, UnauthorizedException, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Headers, Body, UseGuards, UnauthorizedException, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LivekitService } from './livekit.service';
 import { WebhookReceiver } from 'livekit-server-sdk';
@@ -10,6 +10,7 @@ import { Role } from '@prisma/client';
 @Controller('livekit')
 export class LivekitController {
   private receiver: WebhookReceiver;
+  private readonly logger = new Logger(LivekitController.name);
 
   constructor(
     private readonly configService: ConfigService,
@@ -27,14 +28,17 @@ export class LivekitController {
     @Body() body: any,
   ) {
     if (!authHeader) {
+      this.logger.warn('Webhook received without Authorization header');
       throw new UnauthorizedException('Authorization header is missing');
     }
 
     try {
       const event = await this.receiver.receive(JSON.stringify(body), authHeader);
+      this.logger.log(`Webhook event: ${event.event} for room ${event.room?.name || event.egressInfo?.roomName || 'unknown'}`);
       await this.livekitService.handleWebhookEvent(event);
       return { status: 'success' };
     } catch (err: any) {
+      this.logger.error(`Webhook verification failed: ${err.message}`);
       throw new UnauthorizedException(`Webhook signature verification failed: ${err.message}`);
     }
   }
