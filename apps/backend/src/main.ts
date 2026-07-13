@@ -14,8 +14,10 @@ async function bootstrap() {
 
   // Global prefixes and settings
   app.setGlobalPrefix('api/v1');
+
+  const corsOrigin = configService.get<string>('CORS_ORIGIN');
   app.enableCors({
-    origin: true, // Allow all origins for dev; can be tightened later
+    origin: corsOrigin ? corsOrigin.split(',').map(o => o.trim()) : true,
     credentials: true,
   });
   
@@ -24,6 +26,9 @@ async function bootstrap() {
     transform: true,
     forbidNonWhitelisted: true,
   }));
+
+  // Enable graceful shutdown hooks
+  app.enableShutdownHooks();
 
   await app.listen(port);
   console.log(`Application is running on: http://localhost:${port}/api/v1`);

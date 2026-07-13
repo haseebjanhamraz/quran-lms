@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+.next/
+**/dist/
+dist/
+out/
+
+# Recordings and local files
+recordings/
+**/recordings/
+temp-transcripts/
+**/temp-transcripts/
+
+# Media / ML models
+model.zip
+model/
+**/model/
+
+# Git and OS
+.git/
+.gitignore
+.DS_Store
+Thumbs.db
+
+# Environments and IDEs
+.env
+.env*.local
+.env.production
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Documentation
+*.pdf
+*.docx
+*.txt
+projectPlan.md
+PROJECT_MEMORY.md
+walkthrough.md
+implementation_plan.md
+task.md

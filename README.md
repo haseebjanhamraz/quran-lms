@@ -153,114 +153,44 @@ npm run dev
 
 ---
 
-## Production Deployment (Docker)
+## Production Deployment (Ubuntu LTS)
 
-### 1. Update Secrets in `docker-compose.yml`
+A comprehensive, production-grade guide for deploying this monorepo on an Ubuntu LTS server using Cloudflare, Docker Compose, and host-level Nginx/LiveKit is available in the **[DEPLOYMENT.md](file:///d:/projects/quran-lms/DEPLOYMENT.md)** file.
 
-Edit the `nestjs` service environment block with strong production values:
+### Production Quick Start
 
-```yaml
-JWT_SECRET: "a-long-random-production-secret"
-JWT_REFRESH_SECRET: "another-long-random-production-secret"
-POSTGRES_PASSWORD: "strong-db-password"
-GEMINI_API_KEY: "your-real-gemini-key"
-LIVEKIT_PUBLIC_URL: "https://your.livekit.domain.com"
-```
+1. **Configure DNS (Cloudflare)**:
+   - `quran-lms.kpcybers.com` → Proxied (Orange cloud)
+   - `livekit.kpcybers.com` → DNS-only (Grey cloud)
+2. **Clone & Environment**:
+   ```bash
+   git clone <repo> /var/www/quran-lms
+   cd /var/www/quran-lms
+   cp .env.example .env # Configure your secrets
+   ```
+3. **Install LiveKit on Host**:
+   ```bash
+   curl -sSL https://get.livekit.io | bash
+   cp livekit-prod.yaml /etc/livekit.yaml
+   # Start as systemd service
+   ```
+4. **Deploy Containers**:
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+   ```
+5. **Database Setup**:
+   ```bash
+   docker exec -it quran-lms-nestjs npx prisma migrate deploy
+   ```
+6. **Configure Nginx & SSL**:
+   ```bash
+   sudo cp nginx.conf /etc/nginx/sites-available/quran-lms
+   sudo ln -s /etc/nginx/sites-available/quran-lms /etc/nginx/sites-enabled/
+   sudo certbot certonly --nginx -d quran-lms.kpcybers.com
+   sudo systemctl reload nginx
+   ```
 
-Also update `NEXT_PUBLIC_API_URL` in the `nextjs` service to your real domain:
-
-```yaml
-NEXT_PUBLIC_API_URL: "https://api.yourdomain.com/api/v1"
-```
-
-### 2. Update `livekit.yaml` for Production
-
-```yaml
-keys:
-  your_production_key: your_production_secret
-
-rtc:
-  tcp_port: 7881
-  udp_port: 7882
-  use_external_ip: true   # set to true in production with a real public IP
-
-turn:
-  enabled: true
-  domain: your.livekit.domain.com
-  tls_port: 5349
-  udp_port: 3478
-```
-
-### 3. Build & Start All Containers
-
-```bash
-docker compose up -d --build
-```
-
-This starts:
-- `quran-lms-postgres` on port `5432`
-- `quran-lms-redis` on port `6379`
-- `quran-lms-livekit` on ports `7880`, `7881`, `7882/udp`, `3478/udp`
-- `quran-lms-egress` (internal)
-- `quran-lms-nestjs` on port `4000`
-- `quran-lms-nextjs` on port `3000`
-
-### 4. Run Database Migrations
-
-```bash
-docker exec -it quran-lms-nestjs npx prisma db push --schema=apps/backend/prisma/schema.prisma
-```
-
-Or using Prisma migrate in production:
-
-```bash
-docker exec -it quran-lms-nestjs npx prisma migrate deploy --schema=apps/backend/prisma/schema.prisma
-```
-
-### 5. Configure Your Host Nginx (Ubuntu)
-
-Install Nginx on your Ubuntu host and create a site config at `/etc/nginx/sites-available/quran-lms`:
-
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
-
-    # Frontend (Next.js)
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-    }
-
-    # Backend API (NestJS)
-    location /api/ {
-        proxy_pass http://localhost:4000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-}
-```
-
-Enable the site and reload:
-
-```bash
-sudo ln -s /etc/nginx/sites-available/quran-lms /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-For HTTPS, use Certbot:
-
-```bash
-sudo apt install certbot python3-certbot-nginx
-sudo certbot --nginx -d yourdomain.com
-```
+For detailed troubleshooting, backups, and zero-downtime updates, please refer directly to the **[Deployment Guide](file:///d:/projects/quran-lms/DEPLOYMENT.md)**.
 
 ---
 

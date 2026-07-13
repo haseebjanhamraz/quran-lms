@@ -31,6 +31,13 @@ Thumbs.db
 *.sln
 *.sw?
 
-# Temporary files
+# Temporary & Runtime files
 srs_content.txt
 .gemini/
+recordings/
+temp-transcripts/
+model/
+model.zip
+livekit-server
+*.pem
+*.key

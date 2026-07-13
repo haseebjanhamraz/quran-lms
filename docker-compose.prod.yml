@@ -1,0 +1,93 @@
+# ==============================================================================
+# Quran LMS Production Docker Compose Override File
+# ==============================================================================
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  egress:
+    # Uses internal host gateway to talk to LiveKit running on the host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./egress.yaml:/etc/egress/config.yaml
+      - recordings_data:/recordings
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  nestjs:
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+      PORT: ${PORT}
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_EXPIRY: ${JWT_EXPIRY}
+      JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      REDIS_HOST: ${REDIS_HOST}
+      REDIS_PORT: ${REDIS_PORT}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_HOST: ${LIVEKIT_HOST}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL}
+      RECORDINGS_DIR: ${RECORDINGS_DIR}
+      VOSK_SERVER_URL: ${VOSK_SERVER_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_DRIVE_CLIENT_ID: ${GOOGLE_DRIVE_CLIENT_ID}
+      GOOGLE_DRIVE_CLIENT_SECRET: ${GOOGLE_DRIVE_CLIENT_SECRET}
+      GOOGLE_DRIVE_REDIRECT_URI: ${GOOGLE_DRIVE_REDIRECT_URI}
+      GOOGLE_DRIVE_REFRESH_TOKEN: ${GOOGLE_DRIVE_REFRESH_TOKEN}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - recordings_data:/app/recordings
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      vosk:
+        condition: service_started
+
+  nextjs:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      args:
+        # Next.js environment variables must be passed as build arguments
+        # so they are baked into the static bundle during compilation
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+      NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+      NODE_ENV: production
+    depends_on:
+      nestjs:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:
+  # Persistent volume for recording files shared between NestJS and Egress
+  recordings_data:

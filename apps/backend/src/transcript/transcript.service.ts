@@ -6,6 +6,16 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import * as fs from 'fs';
 import * as path from 'path';
+// Dynamically require ws to avoid TypeScript compile-time missing types when @types/ws is not installed
+// and to allow the package to be optional at runtime.
+const WebSocket: any = (() => {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    return require('ws');
+  } catch (_) {
+    return null;
+  }
+})();
 
 @Injectable()
 export class TranscriptService {
@@ -77,7 +87,7 @@ export class TranscriptService {
     }
 
     const videoPath = this.localStorageService.getFilePath(recording.filePath);
-    const audioPath = path.join(tempDir, `${sessionId}.mp3`);
+    const audioPath = path.join(tempDir, `${sessionId}.wav`);
 
     // Log Start of Transcription
     await this.prisma.pipelineLog.create({
@@ -219,8 +229,7 @@ export class TranscriptService {
   }
 
   private async extractAudio(videoPath: string, audioPath: string): Promise<void> {
-    this.logger.log(`Extracting audio from ${videoPath} to ${audioPath}`);
-    // Check if ffmpeg-installer is available, else mock
+    this.logger.log(`Extracting WAV audio from ${videoPath} to ${audioPath}`);
     try {
       const ffmpeg = require('fluent-ffmpeg');
       const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
@@ -228,14 +237,16 @@ export class TranscriptService {
 
       return new Promise((resolve, reject) => {
         ffmpeg(videoPath)
-          .toFormat('mp3')
+          .toFormat('wav')
+          .audioChannels(1)
+          .audioFrequency(16000)
+          .audioCodec('pcm_s16le')
           .on('end', () => {
             this.logger.log('Audio extraction completed successfully.');
             resolve();
           })
           .on('error', (err: any) => {
             this.logger.error(`FFmpeg error: ${err.message}`);
-            // Check if error is due to lack of audio stream in the video file
             if (err.message && (
               err.message.includes('Output file does not contain any stream') || 
               err.message.includes('does not contain any stream') ||
@@ -255,62 +266,90 @@ export class TranscriptService {
   }
 
   private async speechToText(audioPath: string, sessionId: string): Promise<any[]> {
-    this.logger.log('Attempting to use Vosk AI for Speech-to-Text...');
-    
-    const vosk = require('vosk');
-    const fs = require('fs');
-    
-    // Look for a model directory (e.g., 'model' in the root)
-    const modelPath = this.configService.get<string>('VOSK_MODEL_PATH') || './model';
-    if (!fs.existsSync(modelPath)) {
-      throw new Error(`Vosk model directory not found at: ${modelPath}`);
-    }
-
-    vosk.setLogLevel(-1);
-    const model = new vosk.Model(modelPath);
-    const rec = new vosk.Recognizer({model: model, sampleRate: 16000});
+    this.logger.log('Attempting to use Vosk Server (WebSocket) for Speech-to-Text...');
+    const voskUrl = this.configService.get<string>('VOSK_SERVER_URL') || 'ws://localhost:2700';
 
     return new Promise((resolve, reject) => {
-      const results: any[] = [];
-      const stream = fs.createReadStream(audioPath, { highWaterMark: 4096 });
-      let currentTime = 0.0;
+      const ws = new WebSocket(voskUrl);
+      const segments: any[] = [];
 
-      stream.on('data', (data: any) => {
-        if (rec.acceptWaveform(data)) {
-          const res = rec.result();
-          if (res.text) {
-            results.push({
-              startTime: currentTime,
-              endTime: currentTime + 5.0, // estimate
-              text: res.text,
-              speakerLabel: 'Speaker',
-              confidence: 0.9,
-              language: 'en',
-            });
-            currentTime += 5.0;
+      const connectionTimeout = setTimeout(() => {
+        ws.terminate();
+        reject(new Error(`Connection to Vosk server at ${voskUrl} timed out.`));
+      }, 5000);
+
+      ws.on('open', () => {
+        clearTimeout(connectionTimeout);
+        this.logger.log(`Connected to Vosk server at ${voskUrl}. Starting audio stream.`);
+        
+        ws.send(JSON.stringify({
+          config: {
+            sample_rate: 16000,
+            words: true
           }
-        }
+        }));
+
+        const stream = fs.createReadStream(audioPath, { highWaterMark: 8000 });
+        
+        stream.on('data', (chunk) => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(chunk);
+          }
+        });
+
+        stream.on('end', () => {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send('{"eof" : 1}');
+          }
+        });
+
+        stream.on('error', (streamErr) => {
+          this.logger.error(`Read stream error: ${streamErr.message}`);
+          ws.close();
+          reject(streamErr);
+        });
       });
 
-      stream.on('end', () => {
-        const res = rec.finalResult();
-        if (res.text) {
-           results.push({
-              startTime: currentTime,
-              endTime: currentTime + 5.0,
-              text: res.text,
+      ws.on('message', (messageData: any) => {
+        try {
+          const response = JSON.parse(messageData.toString());
+          if (response && response.text) {
+            let startTime = 0;
+            let endTime = 0;
+            const text = response.text.trim();
+            
+            if (response.result && response.result.length > 0) {
+              startTime = response.result[0].start;
+              endTime = response.result[response.result.length - 1].end;
+            } else {
+              startTime = segments.length > 0 ? segments[segments.length - 1].endTime : 0;
+              endTime = startTime + 5.0;
+            }
+
+            segments.push({
+              startTime,
+              endTime,
+              text,
               speakerLabel: 'Speaker',
-              confidence: 0.9,
+              confidence: response.result && response.result.length > 0 
+                ? response.result.reduce((acc: number, w: any) => acc + (w.conf || 0.0), 0) / response.result.length
+                : 0.9,
               language: 'en',
             });
+          }
+        } catch (err: any) {
+          this.logger.error(`Error parsing Vosk message: ${err.message}`);
         }
-        rec.free();
-        model.free();
-        resolve(results);
       });
 
-      stream.on('error', (err: any) => {
-        this.logger.error(`Vosk transcription stream error: ${err.message}`);
+      ws.on('close', () => {
+        this.logger.log(`Vosk connection closed. Received ${segments.length} segments.`);
+        resolve(segments);
+      });
+
+      ws.on('error', (err : Error) => {
+        clearTimeout(connectionTimeout);
+        this.logger.error(`Vosk WebSocket error: ${err.message}`);
         reject(err);
       });
     });
