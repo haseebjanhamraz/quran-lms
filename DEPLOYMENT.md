@@ -1,21 +1,21 @@
 # Quran LMS — Production Deployment Guide for Ubuntu LTS
 
-This guide provides step-by-step instructions for deploying the first version of the Quran LMS application on an Ubuntu LTS server (Xeon Workstation, 64GB RAM). It is updated to resolve port conflicts with existing apps and includes support for routing via **Nginx** or **Cloudflare Tunnels**.
+This guide provides step-by-step instructions for deploying the Quran LMS application on an Ubuntu LTS server (Xeon Workstation, 64GB RAM). All services run in **Docker** and are exposed publicly via **Cloudflare Tunnels** using **subdomain-based routing** — no Nginx required.
 
 ---
 
 ## 1. Architecture Overview
 
-In production, the platform is split between Dockerized services and host-level services. It can be exposed publicly via a traditional Nginx Reverse Proxy or a Cloudflare Tunnel:
+The platform is split between Dockerized services and a host-level LiveKit server. Public traffic is routed through a Cloudflare Tunnel using dedicated subdomains for each service:
 
 ```mermaid
 graph TD
-    User([User Browser]) -->|HTTPS: 443| Routing[Nginx Reverse Proxy OR Cloudflare Tunnel]
+    User([User Browser]) -->|HTTPS| CF[Cloudflare Tunnel]
     User -->|WebRTC Media: 7881, 7882, 3478| LiveKit[Host LiveKit Server]
     
     subgraph Docker Compose Network
-        Routing -->|Proxy: 3001| NextJS[Next.js Frontend]
-        Routing -->|Proxy: 4001| NestJS[NestJS Backend API]
+        CF -->|quran-lms.kpcybers.com → :3030| NextJS[Next.js Frontend]
+        CF -->|api.quran-lms.kpcybers.com → :5000| NestJS[NestJS Backend API]
         NestJS -->|Internal| PG[(PostgreSQL)]
         NestJS -->|Internal| Redis[(Redis)]
         NestJS -->|Internal| Vosk[Vosk STT]
@@ -28,16 +28,19 @@ graph TD
     NestJS -->|Process recordings| Volume
 ```
 
-### Host Port Conflict Resolution
-Because ports `3000`, `4000`, `5432`, and `6379` are commonly occupied by other web services (like `pashto-fonts-web-prod`, PostgreSQL server, or Redis on host), this project's production environment re-maps host bindings to avoid collisions:
+### Host Port Mapping
 
-| Service | Internal Port | Default Host Mapping | Alternative Mapping (Configured in `.env`) |
-|---|---|---|---|
-| **Next.js Frontend** | `3000` | `127.0.0.1:3000` | **`127.0.0.1:3001`** |
-| **NestJS Backend API** | `4000` | `127.0.0.1:4000` | **`127.0.0.1:4001`** |
-| **PostgreSQL DB** | `5432` | `127.0.0.1:5432` | **`127.0.0.1:5434`** |
-| **Redis Queue Broker** | `6379` | `127.0.0.1:6379` | **`127.0.0.1:6380`** |
-| **Vosk Speech-to-Text** | `2700` | `127.0.0.1:2700` | **`127.0.0.1:2701`** |
+Because default ports (`3000`, `4000`, `5432`, `6379`) are commonly occupied by other services already running on the server, this project re-maps host bindings to unique ports:
+
+| Service | Internal (Container) Port | Host Mapping (Configured in `.env`) |
+|---|---|---|
+| **Next.js Frontend** | `3030` | **`127.0.0.1:3030`** |
+| **NestJS Backend API** | `5000` | **`127.0.0.1:5000`** |
+| **PostgreSQL DB** | `5333` | **`127.0.0.1:5333`** |
+| **Redis Queue Broker** | `6380` | **`127.0.0.1:6380`** |
+| **Vosk Speech-to-Text** | `2700` | **`127.0.0.1:2700`** |
+
+> All host port bindings are restricted to `127.0.0.1` (loopback) so they are **not exposed to the public internet**. Public access is exclusively through the Cloudflare Tunnel.
 
 ---
 
@@ -49,37 +52,35 @@ Because ports `3000`, `4000`, `5432`, and `6379` are commonly occupied by other 
 - Docker & Docker Compose installed: [Docker Install Guide](https://docs.docker.com/engine/install/ubuntu/)
 
 ### DNS Configurations (Cloudflare)
-You must configure two DNS records in your Cloudflare dashboard:
 
-1. **`quran-lms.kpcybers.com`**
-   - Type: `A` (or CNAME if using Tunnels)
-   - IP: `YOUR_SERVER_PUBLIC_IP`
-   - Proxy status: **Proxied (Orange Cloud)**
-2. **`livekit.kpcybers.com`**
-   - Type: `A`
-   - IP: `YOUR_SERVER_PUBLIC_IP`
-   - Proxy status: **DNS-only (Grey Cloud)** — **CRITICAL**: WebRTC media traffic (UDP) cannot be proxied through Cloudflare Tunnel or proxy!
+You must configure **three** DNS records in your Cloudflare dashboard. The first two are CNAME records that point to the Cloudflare Tunnel, and the third is a DNS-only A record for LiveKit WebRTC:
+
+| Subdomain | Type | Target | Proxy Status | Purpose |
+|---|---|---|---|---|
+| `quran-lms.kpcybers.com` | `CNAME` | `<TUNNEL_ID>.cfargotunnel.com` | **Proxied (Orange Cloud)** | Next.js Frontend |
+| `api.quran-lms.kpcybers.com` | `CNAME` | `<TUNNEL_ID>.cfargotunnel.com` | **Proxied (Orange Cloud)** | NestJS Backend API |
+| `livekit.kpcybers.com` | `A` | `YOUR_SERVER_PUBLIC_IP` | **DNS-only (Grey Cloud)** | LiveKit WebRTC — **CRITICAL**: UDP media traffic cannot be proxied! |
+
+> **Note**: The CNAME records for the tunnel are created automatically by the `cloudflared tunnel route dns` command (see Step 4). You do not need to add them manually.
 
 ### Cloudflare Dashboard Configuration
 - **SSL/TLS Mode**: Set encryption mode to **Full (Strict)**.
 - **WebSockets**: Navigate to **Network** → Ensure **WebSockets** is toggled **ON** (required for video session signaling).
 
 ### Ubuntu Firewall (UFW) Configuration
-Run the following commands on your Ubuntu server to configure the firewall:
+Since all HTTP/HTTPS traffic goes through the Cloudflare Tunnel (outbound connection), you only need to allow SSH and LiveKit RTC ports:
 
 ```bash
 # Allow SSH
 sudo ufw allow OpenSSH
 
-# Allow HTTP and HTTPS for Nginx/Routing (omit if using ONLY Cloudflare Tunnels)
-sudo ufw allow http
-sudo ufw allow https
-
-# Allow LiveKit RTC Ports (WebRTC Media - Must bypass Tunnels and go direct)
+# Allow LiveKit RTC Ports (WebRTC Media — bypasses Tunnel, direct connection)
 sudo ufw allow 7880/tcp   # LiveKit HTTP/WS Signaling
 sudo ufw allow 7881/tcp   # LiveKit ICE-TCP
 sudo ufw allow 7882/udp   # LiveKit Media UDP
 sudo ufw allow 3478/udp   # LiveKit TURN UDP
+
+# No need to open ports 80/443 — Cloudflare Tunnel uses outbound connections
 
 # Enable Firewall
 sudo ufw enable
@@ -109,26 +110,33 @@ cp .env.example .env
 nano .env
 ```
 
-Ensure the following variables are configured with the **Alternative Ports** to prevent clashing with existing applications:
+Ensure the following variables are configured with the **unique ports** to prevent clashing with existing applications:
 ```env
-# Host Port Bindings (Remapped to avoid collisions)
-POSTGRES_PORT_BINDING=127.0.0.1:5434:5432
-REDIS_PORT_BINDING=127.0.0.1:6380:6379
-NESTJS_PORT_BINDING=127.0.0.1:4001:4000
-NEXTJS_PORT_BINDING=127.0.0.1:3001:3000
-VOSK_PORT_BINDING=127.0.0.1:2701:2700
+# Host Port Bindings (Loopback-only — Cloudflare Tunnel handles public routing)
+POSTGRES_PORT_BINDING=127.0.0.1:5333:5333
+REDIS_PORT_BINDING=127.0.0.1:6380:6380
+NESTJS_PORT_BINDING=127.0.0.1:5000:5000
+NEXTJS_PORT_BINDING=127.0.0.1:3030:3030
+VOSK_PORT_BINDING=127.0.0.1:2700:2700
 
-# Next.js client variables (Notice port 4001 prefix route)
-NEXT_PUBLIC_API_URL=https://quran-lms.kpcybers.com/api/v1
+# NestJS Backend Port (must match the internal port in NESTJS_PORT_BINDING)
+PORT=5000
+
+# Next.js client variables (uses dedicated API subdomain, no path prefix routing)
+NEXT_PUBLIC_API_URL=https://api.quran-lms.kpcybers.com/api/v1
 NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.kpcybers.com
 
 # Backend CORS allowance
 CORS_ORIGIN=https://quran-lms.kpcybers.com
 
-# Database Connection (Uses internal docker host bridge 'postgres' rather than remapped port)
-DATABASE_URL=postgresql://postgres:secure_production_db_password_change_me@postgres:5432/quran_lms?schema=public
+# Database Connection (uses internal Docker service name 'postgres', not host port)
+DATABASE_URL=postgresql://postgres:secure_production_db_password_change_me@postgres:5333/quran_lms?schema=public
 
-# LiveKit (Webhooks must point to NestJS on port 4001)
+# Redis (internal Docker network)
+REDIS_HOST=redis
+REDIS_PORT=6380
+
+# LiveKit (Webhooks must point to NestJS on port 5000)
 LIVEKIT_HOST=http://host.docker.internal:7880
 LIVEKIT_PUBLIC_URL=wss://livekit.kpcybers.com
 ```
@@ -146,13 +154,13 @@ curl -sSL https://get.livekit.io | bash
 cp livekit-prod.yaml /etc/livekit.yaml
 ```
 
-Now, edit `/etc/livekit.yaml` and set the keys to match the `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` you generated in your `.env` file. Ensure the webhook URL targets the remapped NestJS port (`4001`):
+Now, edit `/etc/livekit.yaml` and set the keys to match the `LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` you generated in your `.env` file. Ensure the webhook URL targets the NestJS port (`5000`):
 
 ```yaml
 webhook:
   api_key: livekit_prod_api_key_generate_me
   urls:
-    - http://127.0.0.1:4001/api/v1/livekit/webhook
+    - http://127.0.0.1:5000/api/v1/livekit/webhook
 ```
 
 Create a systemd service file to keep LiveKit running in the background and restart on boot:
@@ -191,37 +199,9 @@ sudo systemctl status livekit
 
 ---
 
-### Step 4: Routing Setup (Choose Alternative A OR B)
+### Step 4: Cloudflare Tunnel Setup (Subdomain Routing)
 
-#### Alternative A: Traditional Nginx Reverse Proxy + Certbot SSL
-If you want to use local Nginx to proxy traffic:
-
-1. **Install Nginx & Certbot**:
-   ```bash
-   sudo apt update
-   sudo apt install -y nginx certbot python3-certbot-nginx
-   ```
-2. **Request Certificate**:
-   ```bash
-   sudo certbot certonly --nginx -d quran-lms.kpcybers.com
-   ```
-3. **Configure Nginx Site**:
-   Copy Nginx config to site directories:
-   ```bash
-   sudo cp nginx.conf /etc/nginx/sites-available/quran-lms
-   sudo ln -s /etc/nginx/sites-available/quran-lms /etc/nginx/sites-enabled/
-   sudo rm -f /etc/nginx/sites-enabled/default
-   ```
-4. **Reload Nginx**:
-   ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
-
----
-
-#### Alternative B: Cloudflare Tunnel Routing (Recommended)
-Cloudflare Tunnel allows you to securely expose Next.js and NestJS to `quran-lms.kpcybers.com` without opening local ports 80/443, setting up Certbot certificates, or configuring local firewalls.
+Cloudflare Tunnel securely exposes the Dockerized services without opening ports 80/443 on the server. Each service gets its own subdomain.
 
 1. **Install Cloudflared on Ubuntu Host**:
    ```bash
@@ -256,24 +236,25 @@ Cloudflare Tunnel allows you to securely expose Next.js and NestJS to `quran-lms
    credentials-file: /home/ubuntu/.cloudflared/<TUNNEL_ID>.json
 
    ingress:
-     # 1. Route all API traffic to the remapped NestJS Backend (Port 4001)
-     - hostname: quran-lms.kpcybers.com
-       path: /api/
-       service: http://localhost:4001
+     # 1. Route API subdomain to the NestJS Backend (Port 5000)
+     - hostname: api.quran-lms.kpcybers.com
+       service: http://localhost:5000
 
-     # 2. Route all other traffic to the remapped Next.js Frontend (Port 3001)
+     # 2. Route main domain to the Next.js Frontend (Port 3030)
      - hostname: quran-lms.kpcybers.com
-       service: http://localhost:3001
+       service: http://localhost:3030
 
-     # 3. Catch-all fallback
+     # 3. Catch-all fallback (required by cloudflared)
      - service: http_status:404
    ```
 
 5. **Configure DNS Records for Tunnel**:
-   Route the subdomain to your tunnel:
+   Route both subdomains to your tunnel:
    ```bash
    cloudflared tunnel route dns quran-lms-tunnel quran-lms.kpcybers.com
+   cloudflared tunnel route dns quran-lms-tunnel api.quran-lms.kpcybers.com
    ```
+   > These commands automatically create the CNAME records in Cloudflare DNS.
 
 6. **Run Cloudflare Tunnel as a Systemd Service**:
    ```bash
@@ -286,14 +267,14 @@ Cloudflare Tunnel allows you to securely expose Next.js and NestJS to `quran-lms
 ---
 
 ### Step 5: Start Dockerized Services
-With remapped ports configured in `.env`, start the Docker services:
+With the configured ports in `.env`, start the Docker services:
 
 ```bash
 # Build and start services in detached mode
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-Verify that all containers are running and healthy (none will crash due to port binding conflicts anymore):
+Verify that all containers are running and healthy:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml ps
@@ -369,4 +350,6 @@ crontab -e
 - **Check container logs**: `docker compose -f docker-compose.yml -f docker-compose.prod.yml logs -f <service_name>` (e.g. `nestjs`, `nextjs`).
 - **Check LiveKit logs**: `sudo journalctl -u livekit -f -n 100`
 - **Check Cloudflare Tunnel logs**: `sudo journalctl -u cloudflared -f -n 100`
-- **LiveKit / WebRTC Handshake fails**: Verify port `7880` and `7882/udp` are fully open in UFW, and that `livekit.kpcybers.com` is configured as **DNS-only** in Cloudflare (grey cloud). Direct UDP port routing is required for WebRTC.
+- **Tunnel not connecting**: Verify `cloudflared` is running (`systemctl status cloudflared`) and the credentials JSON file exists at the path specified in `config.yml`.
+- **API subdomain not working**: Ensure `cloudflared tunnel route dns quran-lms-tunnel api.quran-lms.kpcybers.com` was run and the CNAME record exists in Cloudflare DNS.
+- **LiveKit / WebRTC Handshake fails**: Verify ports `7880`, `7881`, and `7882/udp` are fully open in UFW, and that `livekit.kpcybers.com` is configured as **DNS-only** in Cloudflare (grey cloud). Direct UDP port routing is required for WebRTC.
