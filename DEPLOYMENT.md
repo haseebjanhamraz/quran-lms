@@ -34,11 +34,11 @@ Because default ports (`3000`, `4000`, `5432`, `6379`) are commonly occupied by 
 
 | Service | Internal (Container) Port | Host Mapping (Configured in `.env`) |
 |---|---|---|
-| **Next.js Frontend** | `3030` | **`127.0.0.1:3030`** |
-| **NestJS Backend API** | `5000` | **`127.0.0.1:5000`** |
-| **PostgreSQL DB** | `5333` | **`127.0.0.1:5333`** |
-| **Redis Queue Broker** | `6380` | **`127.0.0.1:6380`** |
-| **Vosk Speech-to-Text** | `2700` | **`127.0.0.1:2700`** |
+| **Next.js Frontend** | `3030` | **`127.0.0.1:3030:3030`** |
+| **NestJS Backend API** | `5000` | **`127.0.0.1:5000:5000`** |
+| **PostgreSQL DB** | `5432` | **`127.0.0.1:5333:5432`** |
+| **Redis Queue Broker** | `6379` | **`127.0.0.1:6380:6379`** |
+| **Vosk Speech-to-Text** | `2700` | **`127.0.0.1:2700:2700`** |
 
 > All host port bindings are restricted to `127.0.0.1` (loopback) so they are **not exposed to the public internet**. Public access is exclusively through the Cloudflare Tunnel.
 
@@ -113,8 +113,8 @@ nano .env
 Ensure the following variables are configured with the **unique ports** to prevent clashing with existing applications:
 ```env
 # Host Port Bindings (Loopback-only — Cloudflare Tunnel handles public routing)
-POSTGRES_PORT_BINDING=127.0.0.1:5333:5333
-REDIS_PORT_BINDING=127.0.0.1:6380:6380
+POSTGRES_PORT_BINDING=127.0.0.1:5333:5432
+REDIS_PORT_BINDING=127.0.0.1:6380:6379
 NESTJS_PORT_BINDING=127.0.0.1:5000:5000
 NEXTJS_PORT_BINDING=127.0.0.1:3030:3030
 VOSK_PORT_BINDING=127.0.0.1:2700:2700
@@ -130,11 +130,11 @@ NEXT_PUBLIC_LIVEKIT_URL=wss://livekit.kpcybers.com
 CORS_ORIGIN=https://quran-lms.kpcybers.com
 
 # Database Connection (uses internal Docker service name 'postgres', not host port)
-DATABASE_URL=postgresql://postgres:secure_production_db_password_change_me@postgres:5333/quran_lms?schema=public
+DATABASE_URL=postgresql://postgres:secure_production_db_password_change_me@postgres:5432/quran_lms?schema=public
 
 # Redis (internal Docker network)
 REDIS_HOST=redis
-REDIS_PORT=6380
+REDIS_PORT=6379
 
 # LiveKit (Webhooks must point to NestJS on port 5000)
 LIVEKIT_HOST=http://host.docker.internal:7880
