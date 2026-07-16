@@ -17,7 +17,7 @@ RUN apk add --no-cache ffmpeg
 WORKDIR /app
 
 ENV NODE_ENV=production
-ENV PORT=4000
+ENV PORT=5000
 
 # Health check endpoint
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
@@ -39,6 +39,6 @@ RUN mkdir -p /app/recordings /app/temp-transcripts \
 
 USER nestjs
 
-EXPOSE 4000
+EXPOSE 5000
 
 CMD ["node", "dist/src/main"]
