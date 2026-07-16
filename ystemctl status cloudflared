@@ -1,0 +1,14 @@
+[0;1;34m# ]8;;file://bkm-server/etc/systemd/system/cloudflared.service/etc/systemd/system/cloudflared.service]8;;[0m
+[0;1;36m[Unit][0m
+Description=cloudflared
+After=network.target
+[0;1;38;5;245m[0m
+[0;1;36m[Service][0m
+TimeoutStartSec=0
+Type=simple
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate run --token eyJhIjoiMTEyY2QyMTczNDcwNGIzYjcwYzNlODdlNTBmZmIyZTYiLCJzIjoiUTk4d2VJQUZaaEtrNjVtUGUzaS92VEpJTjNIdUJPbVNJVEY1YlVCV2RxQT0iLCJ0IjoiYTFhYzRiZWUtNzc2Yi00M2EwLWE4NDAtMzVhNTBkMDkwMTdiIn0=
+Restart=on-failure
+RestartSec=5s
+[0;1;38;5;245m[0m
+[0;1;36m[Install][0m
+WantedBy=multi-user.target
