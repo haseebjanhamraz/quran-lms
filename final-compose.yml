@@ -87,7 +87,7 @@ services:
       context: /mnt/backup4t/quran-lms/apps/frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://api.quran-lms.kpcybers.com
+        NEXT_PUBLIC_API_URL: https://quran-api.kpcybers.com/api/v1
         NEXT_PUBLIC_LIVEKIT_URL: wss://livekit.kpcybers.com
     container_name: quran-lms-nextjs
     depends_on:
@@ -95,7 +95,7 @@ services:
         condition: service_healthy
         required: true
     environment:
-      NEXT_PUBLIC_API_URL: https://api.quran-lms.kpcybers.com
+      NEXT_PUBLIC_API_URL: https://quran-api.kpcybers.com/api/v1
       NEXT_PUBLIC_LIVEKIT_URL: wss://livekit.kpcybers.com
       NODE_ENV: production
     networks:
