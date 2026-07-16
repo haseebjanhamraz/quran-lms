@@ -5,18 +5,8 @@ import * as bcrypt from 'bcrypt';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-import { fileURLToPath } from 'url';
-import { dirname } from 'path';
-
 // Load environment variables from apps/backend/.env
-let currentDirname: string;
-try {
-  currentDirname = __dirname;
-} catch {
-  currentDirname = dirname(fileURLToPath(import.meta.url));
-}
-
-dotenv.config({ path: path.resolve(currentDirname, '../.env') });
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
