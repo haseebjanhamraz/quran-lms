@@ -46,19 +46,27 @@ services:
     ports:
       - "${NESTJS_PORT_BINDING:-4000:4000}"
     environment:
-      DATABASE_URL: postgresql://postgres:postgrespassword@postgres:5432/quran_lms?schema=public
-      JWT_SECRET: your-secret-jwt-key-change-in-prod
-      JWT_REFRESH_SECRET: your-refresh-secret-jwt-key-change-in-prod
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      LIVEKIT_API_KEY: devkey
-      LIVEKIT_API_SECRET: secret
-      LIVEKIT_HOST: http://host.docker.internal:7880
-      LIVEKIT_PUBLIC_URL: http://localhost:7880
-      JWT_EXPIRY: 15m
-      JWT_REFRESH_EXPIRY: 7d
-      RECORDINGS_DIR: /recordings
-      VOSK_SERVER_URL: ws://vosk:2700
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgrespassword@postgres:5432/quran_lms?schema=public}
+      PORT: ${PORT:-4000}
+      NODE_ENV: ${NODE_ENV:-development}
+      JWT_SECRET: ${JWT_SECRET:-your-secret-jwt-key-change-in-prod}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-your-refresh-secret-jwt-key-change-in-prod}
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
+      LIVEKIT_HOST: ${LIVEKIT_HOST:-http://host.docker.internal:7880}
+      LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}
+      JWT_EXPIRY: ${JWT_EXPIRY:-15m}
+      JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
+      RECORDINGS_DIR: ${RECORDINGS_DIR:-/recordings}
+      VOSK_SERVER_URL: ${VOSK_SERVER_URL:-ws://vosk:2700}
+      CORS_ORIGIN: ${CORS_ORIGIN:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_DRIVE_CLIENT_ID: ${GOOGLE_DRIVE_CLIENT_ID:-}
+      GOOGLE_DRIVE_CLIENT_SECRET: ${GOOGLE_DRIVE_CLIENT_SECRET:-}
+      GOOGLE_DRIVE_REDIRECT_URI: ${GOOGLE_DRIVE_REDIRECT_URI:-}
+      GOOGLE_DRIVE_REFRESH_TOKEN: ${GOOGLE_DRIVE_REFRESH_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -80,14 +88,15 @@ services:
       context: ./apps/frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
-        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
     container_name: quran-lms-nextjs
     restart: always
     ports:
       - "${NEXTJS_PORT_BINDING:-3030:3030}"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+      NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
     depends_on:
       - nestjs
 
