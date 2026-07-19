@@ -9,6 +9,7 @@ import {
   ParticipantTile,
   useTracks,
   useLocalParticipant,
+  useRoomContext,
 } from '@livekit/components-react';
 import { Track, MediaDeviceFailure } from 'livekit-client';
 import { Loader2, AlertCircle, Mic, MicOff, Video, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
@@ -161,6 +162,15 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
     return () => clearInterval(timer);
   }, [sessionInfo]);
 
+  const room = useRoomContext();
+
+  const handleExit = async () => {
+    if (room) {
+      await room.disconnect();
+    }
+    router.push('/');
+  };
+
   return (
     <header className="h-16 border-b border-border bg-card/60 backdrop-blur-md flex items-center justify-between px-6 z-10">
       <div className="flex items-center gap-3">
@@ -190,7 +200,7 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
 
       <div>
         <button
-          onClick={() => router.push('/')}
+          onClick={handleExit}
           className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 text-foreground py-1.5 px-3.5 rounded-lg text-xs font-semibold transition-colors outline-none"
         >
           <LogOut className="h-3.5 w-3.5" />
@@ -471,10 +481,24 @@ function ControlBarCustom({
     }
   };
 
+  const room = useRoomContext();
+
+  const handleLeaveRoom = async () => {
+    if (confirm('Are you sure you want to disconnect from this class?')) {
+      if (room) {
+        await room.disconnect();
+      }
+      router.push('/');
+    }
+  };
+
   const handleEndClass = async () => {
     if (confirm('Are you sure you want to end this class for everyone? This will save the actual class duration and trigger recording uploads.')) {
       setEnding(true);
       try {
+        if (room) {
+          await room.disconnect();
+        }
         const res = await fetch(`${API_URL}/class-sessions/${sessionId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -560,11 +584,7 @@ function ControlBarCustom({
 
       <div className="flex items-center gap-3">
         <button
-          onClick={() => {
-            if (confirm('Are you sure you want to disconnect from this class?')) {
-              router.push('/');
-            }
-          }}
+          onClick={handleLeaveRoom}
           className="flex items-center gap-1.5 border border-slate-700 hover:bg-slate-800 text-slate-350 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors outline-none"
         >
           <LogOut className="h-4 w-4" />
