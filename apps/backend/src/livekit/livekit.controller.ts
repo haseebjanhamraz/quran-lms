@@ -36,10 +36,10 @@ export class LivekitController {
 
     try {
       let bodyString = '';
-      if (rawBody && Buffer.isBuffer(rawBody)) {
-        bodyString = rawBody.toString('utf8');
-      } else if (req?.rawBody) {
+      if (req?.rawBody) {
         bodyString = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : req.rawBody;
+      } else if (rawBody && Buffer.isBuffer(rawBody)) {
+        bodyString = rawBody.toString('utf8');
       } else if (typeof body === 'string') {
         bodyString = body;
       } else {
@@ -51,7 +51,12 @@ export class LivekitController {
         event = await this.receiver.receive(bodyString, authHeader);
       } catch (verifyErr: any) {
         this.logger.warn(`Webhook signature verification warning (${verifyErr.message}). Processing payload with fallback parser.`);
-        event = typeof body === 'object' && body !== null && body.event ? body : JSON.parse(bodyString);
+        try {
+          const parsed = JSON.parse(bodyString);
+          event = parsed && parsed.event ? parsed : (typeof body === 'object' && body !== null ? body : {});
+        } catch {
+          event = typeof body === 'object' && body !== null ? body : {};
+        }
       }
 
       const eventType = event.event;
