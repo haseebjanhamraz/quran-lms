@@ -1,4 +1,4 @@
-import { Controller, Post, Headers, Body, RawBody, UseGuards, UnauthorizedException, HttpCode, HttpStatus, Logger } from '@nestjs/common';
+import { Controller, Post, Headers, Body, RawBody, Req, UseGuards, UnauthorizedException, HttpCode, HttpStatus, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { LivekitService } from './livekit.service';
 import { WebhookReceiver } from 'livekit-server-sdk';
@@ -25,7 +25,9 @@ export class LivekitController {
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
     @Headers('Authorization') authHeader: string,
-    @RawBody() rawBody: Buffer,
+    @Req() req: any,
+    @Body() body: any,
+    @RawBody() rawBody?: Buffer,
   ) {
     if (!authHeader) {
       this.logger.warn('Webhook received without Authorization header');
@@ -33,7 +35,18 @@ export class LivekitController {
     }
 
     try {
-      const event = await this.receiver.receive(rawBody.toString('utf8'), authHeader);
+      let bodyString = '';
+      if (rawBody && Buffer.isBuffer(rawBody)) {
+        bodyString = rawBody.toString('utf8');
+      } else if (req?.rawBody) {
+        bodyString = Buffer.isBuffer(req.rawBody) ? req.rawBody.toString('utf8') : req.rawBody;
+      } else if (typeof body === 'string') {
+        bodyString = body;
+      } else {
+        bodyString = JSON.stringify(body || {});
+      }
+
+      const event = await this.receiver.receive(bodyString, authHeader);
       this.logger.log(`Webhook event: ${event.event} for room ${event.room?.name || event.egressInfo?.roomName || 'unknown'}`);
       await this.livekitService.handleWebhookEvent(event);
       return { status: 'success' };
