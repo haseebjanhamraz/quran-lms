@@ -56,8 +56,10 @@ export class RecordingsService {
       const egressInfo = await this.egressClient.startRoomCompositeEgress(
         roomName,
         fileOutput,
-        undefined,
-        EncodingOptionsPreset.H264_720P_30,
+        {
+          layout: 'grid',
+          encodingOptions: EncodingOptionsPreset.H264_720P_30,
+        },
       );
 
       const egressId = egressInfo.egressId;
