@@ -30,7 +30,8 @@ services:
       - EGRESS_CONFIG_FILE=/etc/egress/config.yaml
       - EGRESS_API_KEY=${LIVEKIT_API_KEY:-devkey}
       - EGRESS_API_SECRET=${LIVEKIT_API_SECRET:-secret}
-      - EGRESS_WS_URL=${LIVEKIT_WS_URL:-ws://host.docker.internal:7880}
+      - EGRESS_WS_URL=${LIVEKIT_WS_URL:-${LIVEKIT_PUBLIC_URL:-wss://livekit.kpcybers.com}}
+      - EGRESS_INSECURE=true
     volumes:
       - ./egress.yaml:/etc/egress/config.yaml
       - ./apps/backend/recordings:/recordings

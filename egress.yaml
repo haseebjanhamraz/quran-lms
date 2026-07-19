@@ -1,5 +1,6 @@
 api_key: devkey
 api_secret: secret
-ws_url: ws://host.docker.internal:7880
+ws_url: wss://livekit.kpcybers.com
+insecure: true
 redis:
   address: redis:6379
