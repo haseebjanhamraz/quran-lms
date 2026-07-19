@@ -51,10 +51,12 @@ export class LivekitController {
         event = await this.receiver.receive(bodyString, authHeader);
       } catch (verifyErr: any) {
         this.logger.warn(`Webhook signature verification warning (${verifyErr.message}). Processing payload with fallback parser.`);
-        event = await this.receiver.receive(bodyString, authHeader, true);
+        event = typeof body === 'object' && body !== null && body.event ? body : JSON.parse(bodyString);
       }
 
-      this.logger.log(`Webhook event: ${event.event} for room ${event.room?.name || event.egressInfo?.roomName || 'unknown'}`);
+      const eventType = event.event;
+      const roomName = event.room?.name || event.egressInfo?.roomName || event.egress_info?.room_name || 'unknown';
+      this.logger.log(`Webhook event: ${eventType} for room ${roomName}`);
       await this.livekitService.handleWebhookEvent(event);
       return { status: 'success' };
     } catch (err: any) {

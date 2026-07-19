@@ -18,7 +18,7 @@ export class LivekitService {
   async handleWebhookEvent(event: any) {
     this.logger.log(`Received LiveKit webhook event: ${event.event}`);
 
-    const roomName = event.room?.name || event.egressInfo?.roomName;
+    const roomName = event.room?.name || event.egressInfo?.roomName || event.egress_info?.room_name || event.egress_info?.roomName;
     if (!roomName || !roomName.startsWith('room-')) return;
 
     const sessionId = roomName.substring(5);
@@ -73,13 +73,15 @@ export class LivekitService {
 
   private async handleEgressEnded(sessionId: string, event: any) {
     this.logger.log(`Egress ended webhook received for session: ${sessionId}`);
-    const egressInfo = event.egressInfo;
+    const egressInfo = event.egressInfo || event.egress_info;
+    const fileResults = egressInfo?.fileResults || egressInfo?.file_results;
 
-    // If the egress was aborted (e.g. no media published), there is no file to process.
-    const hasFileResults = egressInfo?.fileResults && egressInfo.fileResults.length > 0
-      && egressInfo.fileResults.some((r: any) => r.result === 'SUCCESS' || r.status === 'SUCCESS');
-    if (!hasFileResults) {
-      this.logger.warn(`Egress ended with no successful file output for session ${sessionId}. Marking recording as FAILED.`);
+    // Check for success in file results or status
+    const isEgressSuccess = (egressInfo?.status === 'EGRESS_COMPLETE' || egressInfo?.status === 0) ||
+      (fileResults && fileResults.length > 0 && fileResults.some((r: any) => r.result === 'SUCCESS' || r.status === 'SUCCESS' || r.location));
+
+    if (!isEgressSuccess) {
+      this.logger.warn(`Egress ended without successful status for session ${sessionId}. Marking recording as FAILED.`);
       await this.prisma.recording.update({
         where: { sessionId },
         data: { status: RecordingStatus.FAILED },
@@ -88,8 +90,8 @@ export class LivekitService {
     }
 
     let filePath = `recordings/room-${sessionId}.mp4`;
-    if (egressInfo?.fileResults && egressInfo.fileResults.length > 0) {
-      filePath = egressInfo.fileResults[0].filename;
+    if (fileResults && fileResults.length > 0) {
+      filePath = fileResults[0].filename || fileResults[0].location || filePath;
     } else if (egressInfo?.file?.result?.filepath) {
       filePath = egressInfo.file.result.filepath;
     }
