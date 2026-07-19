@@ -27,6 +27,9 @@ services:
     restart: always
     environment:
       - EGRESS_CONFIG_FILE=/etc/egress/config.yaml
+      - EGRESS_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - EGRESS_API_SECRET=${LIVEKIT_API_SECRET:-secret}
+      - EGRESS_WS_URL=${LIVEKIT_HOST:-ws://host.docker.internal:7880}
     volumes:
       - ./egress.yaml:/etc/egress/config.yaml
       - ./apps/backend/recordings:/recordings
