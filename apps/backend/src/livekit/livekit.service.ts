@@ -75,13 +75,15 @@ export class LivekitService {
     this.logger.log(`Egress ended webhook received for session: ${sessionId}`);
     const egressInfo = event.egressInfo || event.egress_info;
     const fileResults = egressInfo?.fileResults || egressInfo?.file_results;
-
-    // Check for success in file results or status
-    const isEgressSuccess = (egressInfo?.status === 'EGRESS_COMPLETE' || egressInfo?.status === 0) ||
-      (fileResults && fileResults.length > 0 && fileResults.some((r: any) => r.result === 'SUCCESS' || r.status === 'SUCCESS' || r.location));
+    const status = egressInfo?.status;
+    const isFailed = status === 'EGRESS_FAILED' || status === 4 || status === 'EGRESS_ABORTED' || status === 5;
+    const isEgressSuccess = !isFailed && (
+      status === 'EGRESS_COMPLETE' || status === 3 || status === 'COMPLETE' || status === 0 || status === 'EGRESS_STARTING' ||
+      (fileResults && fileResults.length > 0) || egressInfo?.file?.result?.filepath
+    );
 
     if (!isEgressSuccess) {
-      this.logger.warn(`Egress ended without successful status for session ${sessionId}. Marking recording as FAILED.`);
+      this.logger.warn(`Egress ended without successful status (status=${status}) for session ${sessionId}. Marking recording as FAILED.`);
       await this.prisma.recording.update({
         where: { sessionId },
         data: { status: RecordingStatus.FAILED },

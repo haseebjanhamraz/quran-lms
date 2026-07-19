@@ -24,7 +24,17 @@ export class UploadProcessor extends WorkerHost {
   async process(job: Job<{ sessionId: string; filePath: string; filename: string }>): Promise<any> {
     const { sessionId, filePath: rawFilePath, filename } = job.data;
     const resolvedFilename = path.basename(rawFilePath);
-    const filePath = this.localStorageService.getFilePath(resolvedFilename);
+    let filePath = this.localStorageService.getFilePath(resolvedFilename);
+    const rootPath = path.join('/recordings', resolvedFilename);
+
+    if (!fs.existsSync(filePath)) {
+      if (fs.existsSync(rootPath)) {
+        filePath = rootPath;
+      } else if (fs.existsSync(rawFilePath)) {
+        filePath = rawFilePath;
+      }
+    }
+
     this.logger.log(`Processing recording upload job for session: ${sessionId}, raw file: ${rawFilePath}, resolved: ${filePath}`);
 
     // Check if recording is already successfully processed or currently being processed
@@ -69,6 +79,16 @@ export class UploadProcessor extends WorkerHost {
       for (let i = 0; i < 30; i++) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         if (fs.existsSync(filePath)) {
+          fileExists = true;
+          this.logger.log(`Recording file found at ${filePath} after ${(i + 1) * 3}s.`);
+          break;
+        } else if (fs.existsSync(rootPath)) {
+          filePath = rootPath;
+          fileExists = true;
+          this.logger.log(`Recording file found at ${filePath} after ${(i + 1) * 3}s.`);
+          break;
+        } else if (fs.existsSync(rawFilePath)) {
+          filePath = rawFilePath;
           fileExists = true;
           this.logger.log(`Recording file found at ${filePath} after ${(i + 1) * 3}s.`);
           break;
