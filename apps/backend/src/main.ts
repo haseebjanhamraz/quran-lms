@@ -3,12 +3,13 @@ import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import bodyParser from 'body-parser';
+import cookieParser from 'cookie-parser';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
-  
+
   const configService = app.get(ConfigService);
   const port = configService.get<number>('PORT') ?? 4000;
 
@@ -30,7 +31,7 @@ async function bootstrap() {
     origin: corsOrigin ? corsOrigin.split(',').map(o => o.trim()) : true,
     credentials: true,
   });
-  
+
   app.useGlobalPipes(new ValidationPipe({
     whitelist: true,
     transform: true,
