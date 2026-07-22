@@ -28,7 +28,7 @@ export default function PipelineMonitorModal({
   const [loading, setLoading] = useState(true);
   const [retrying, setRetrying] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchLogs = async () => {
     try {
@@ -114,36 +114,33 @@ export default function PipelineMonitorModal({
           {/* Visual Step Timeline */}
           <div className="grid grid-cols-3 gap-3">
             {/* Step 1: Upload */}
-            <div className={`p-3 rounded-2xl border text-center ${
-              uploadStatus === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' :
-              uploadStatus === 'FAILED' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
-              uploadStatus === 'PROCESSING' ? 'bg-amber-500/5 border-amber-500/20 text-amber-400 animate-pulse' :
-              'bg-slate-950/40 border-slate-800 text-slate-550'
-            }`}>
+            <div className={`p-3 rounded-2xl border text-center ${uploadStatus === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' :
+                uploadStatus === 'FAILED' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
+                  uploadStatus === 'PROCESSING' ? 'bg-amber-500/5 border-amber-500/20 text-amber-400 animate-pulse' :
+                    'bg-slate-950/40 border-slate-800 text-slate-550'
+              }`}>
               <Play className="mx-auto mb-2" size={18} />
               <p className="text-xs font-bold font-display">1. Drive Upload</p>
               <p className="text-[10px] mt-1 font-mono">{uploadStatus}</p>
             </div>
 
             {/* Step 2: Transcription */}
-            <div className={`p-3 rounded-2xl border text-center ${
-              transStatus === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' :
-              transStatus === 'FAILED' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
-              transStatus === 'PROCESSING' ? 'bg-amber-500/5 border-amber-500/20 text-amber-400 animate-pulse' :
-              'bg-slate-950/40 border-slate-800 text-slate-550'
-            }`}>
+            <div className={`p-3 rounded-2xl border text-center ${transStatus === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' :
+                transStatus === 'FAILED' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
+                  transStatus === 'PROCESSING' ? 'bg-amber-500/5 border-amber-500/20 text-amber-400 animate-pulse' :
+                    'bg-slate-950/40 border-slate-800 text-slate-550'
+              }`}>
               <FileText className="mx-auto mb-2" size={18} />
               <p className="text-xs font-bold font-display">2. Transcription</p>
               <p className="text-[10px] mt-1 font-mono">{transStatus}</p>
             </div>
 
             {/* Step 3: AI Compliance Audit */}
-            <div className={`p-3 rounded-2xl border text-center ${
-              auditStatus === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' :
-              auditStatus === 'FAILED' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
-              auditStatus === 'PROCESSING' ? 'bg-amber-500/5 border-amber-500/20 text-amber-400 animate-pulse' :
-              'bg-slate-950/40 border-slate-800 text-slate-550'
-            }`}>
+            <div className={`p-3 rounded-2xl border text-center ${auditStatus === 'SUCCESS' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' :
+                auditStatus === 'FAILED' ? 'bg-red-500/5 border-red-500/20 text-red-400' :
+                  auditStatus === 'PROCESSING' ? 'bg-amber-500/5 border-amber-500/20 text-amber-400 animate-pulse' :
+                    'bg-slate-950/40 border-slate-800 text-slate-550'
+              }`}>
               <Cpu className="mx-auto mb-2" size={18} />
               <p className="text-xs font-bold font-display">3. AI Compliance</p>
               <p className="text-[10px] mt-1 font-mono">{auditStatus}</p>
@@ -164,11 +161,10 @@ export default function PipelineMonitorModal({
                 logs.map((log) => (
                   <div key={log.id} className="flex gap-3 items-start hover:bg-white/[0.02] p-1 rounded transition">
                     <span className="text-slate-600 select-none">[{formatTime(log.createdAt)}]</span>
-                    <span className={`font-bold shrink-0 w-24 ${
-                      log.status === 'SUCCESS' ? 'text-emerald-400' :
-                      log.status === 'FAILED' ? 'text-red-400' :
-                      'text-amber-400'
-                    }`}>
+                    <span className={`font-bold shrink-0 w-24 ${log.status === 'SUCCESS' ? 'text-emerald-400' :
+                        log.status === 'FAILED' ? 'text-red-400' :
+                          'text-amber-400'
+                      }`}>
                       {log.step} {'->'} {log.status}
                     </span>
                     <span className="text-slate-200 break-words flex-1">{log.message}</span>

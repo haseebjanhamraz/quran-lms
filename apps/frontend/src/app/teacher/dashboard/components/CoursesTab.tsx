@@ -28,36 +28,36 @@ export default function CoursesTab({ courses, coursesLoading }: CoursesTabProps)
   return (
     <section>
       <div className="mb-5 flex items-center gap-3">
-        <h2 className="font-display text-xl font-bold" style={{ color: '#C9A84C' }}>
+        <h2 className="font-display text-xl font-bold text-brand">
           My Courses
         </h2>
-        <span className="rounded-full border border-slate-700/50 bg-slate-800/80 px-2.5 py-0.5 text-xs font-medium text-slate-400">
+        <span className="rounded-full border border-border bg-card/80 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
           {courses.length} courses
         </span>
       </div>
 
       {coursesLoading ? (
         <div className="flex items-center justify-center py-16">
-          <Loader2 size={28} className="animate-spin text-emerald-400" />
+          <Loader2 size={28} className="animate-spin text-primary" />
         </div>
       ) : courses.length === 0 ? (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/60 py-16 text-center">
-          <p className="text-slate-400">No courses assigned to you.</p>
+        <div className="rounded-2xl border border-border bg-card/60 py-16 text-center shadow-sm">
+          <p className="text-muted-foreground">No courses assigned to you.</p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {courses.map((course) => (
-            <div key={course.id} className="group rounded-2xl border border-slate-700/50 bg-slate-900/80 p-5 backdrop-blur-sm transition-all duration-200 hover:-translate-y-1">
+            <div key={course.id} className="group rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm transition-all duration-200 hover:-translate-y-1 shadow-sm hover:border-brand/40">
               <div className="mb-4 flex items-start justify-between">
-                <div className="rounded-xl border border-emerald-400/25 bg-emerald-400/10 p-2.5">
-                  <BookOpen size={18} className="text-emerald-400" />
+                <div className="rounded-xl border border-primary/25 bg-primary/10 p-2.5">
+                  <BookOpen size={18} className="text-primary" />
                 </div>
-                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[course.type] || 'text-slate-450 bg-slate-900'}`}>
+                <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${TYPE_COLORS[course.type] || 'text-muted-foreground bg-muted'}`}>
                   {typeLabel(course.type)}
                 </span>
               </div>
-              <h3 className="mb-3 font-semibold text-slate-100 leading-snug">{course.title}</h3>
-              <div className="flex items-center gap-4 text-xs text-slate-400">
+              <h3 className="mb-3 font-semibold text-foreground leading-snug">{course.title}</h3>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Users size={12} />
                   {course._count?.enrollments ?? 0} students

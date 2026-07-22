@@ -43,6 +43,22 @@ export default {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+        brand: {
+          DEFAULT: "hsl(var(--brand-gold))",
+          foreground: "hsl(var(--brand-gold-foreground))",
+        },
+        sidebar: {
+          DEFAULT: "hsl(var(--sidebar-bg))",
+          foreground: "hsl(var(--sidebar-foreground))",
+          border: "hsl(var(--sidebar-border))",
+        },
+        surface: {
+          DEFAULT: "hsl(var(--surface))",
+          foreground: "hsl(var(--foreground))",
+        },
+        header: {
+          DEFAULT: "hsl(var(--header-bg))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

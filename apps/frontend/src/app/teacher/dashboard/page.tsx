@@ -14,6 +14,8 @@ import StudentsTab from './components/StudentsTab';
 import RecordingsTab from './components/RecordingsTab';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import InstantClassModal from './components/InstantClassModal';
+import ThemeToggle from '@/components/ThemeToggle';
+import Image from 'next/image';
 
 // Interfaces
 interface SessionItem {
@@ -51,15 +53,14 @@ interface TeacherStats {
   totalStudents: number;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 function NavTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`relative px-4 py-2 text-sm font-medium transition-colors duration-200 ${
-        active ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
-      }`}
+      className={`relative px-4 py-2 text-sm font-medium transition-colors duration-200 ${active ? 'text-emerald-400' : 'text-slate-400 hover:text-slate-200'
+        }`}
     >
       {label}
       {active && (
@@ -141,7 +142,7 @@ export default function TeacherDashboard() {
         const data: SessionItem[] = await res.json();
         setSessions(data);
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   // Fetch stats
@@ -154,7 +155,7 @@ export default function TeacherDashboard() {
         const data = await res.json();
         setStats(data);
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   // Fetch courses
@@ -185,7 +186,7 @@ export default function TeacherDashboard() {
       if (coursesRes.ok) {
         const coursesData = await coursesRes.json();
         const roster: StudentRecord[] = [];
-        
+
         for (const c of coursesData) {
           const detailRes = await fetch(`${API_URL}/courses/${c.id}`, {
             credentials: 'include',
@@ -310,30 +311,23 @@ export default function TeacherDashboard() {
 
   if (authLoading || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-400" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700;800&display=swap');
-        .font-display { font-family: 'Outfit', sans-serif; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgb(2 6 23); }
-        ::-webkit-scrollbar-thumb { background: rgb(51 65 85); border-radius: 3px; }
-      `}</style>
-
+    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Navbar */}
-      <header className="sticky top-0 z-50 border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2.5">
-            <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-1.5">
-              <BookOpen size={18} className="text-emerald-400" />
+            <div className="rounded-lg border border-primary/30 bg-primary/10 p-1.5">
+              {/* <BookOpen size={18} className="text-primary" /> */}
+              <Image src="/logo.png" width={25} height={25} alt="Logo" />
             </div>
-            <span className="font-display text-base font-bold text-slate-100">Teacher Portal</span>
+            <span className="font-display text-base font-bold text-foreground">Teacher Portal</span>
           </div>
 
           <nav className="hidden items-center gap-1 sm:flex">
@@ -348,14 +342,15 @@ export default function TeacherDashboard() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <NotificationsDropdown />
             <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-slate-200 leading-none">{user.name}</p>
-              <p className="mt-0.5 text-xs text-slate-500">{user.email}</p>
+              <p className="text-sm font-semibold text-foreground leading-none">{user.name}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{user.email}</p>
             </div>
             <button
               onClick={logout}
-              className="flex items-center gap-1.5 rounded-xl border border-slate-700/60 bg-slate-880/60 px-3 py-1.5 text-xs font-medium text-slate-450 transition-all duration-205 hover:border-rose-505/40 hover:bg-rose-505/10 hover:text-rose-400"
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all duration-200 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
             >
               <LogOut size={14} />
               <span className="hidden sm:inline">Logout</span>
@@ -394,15 +389,15 @@ export default function TeacherDashboard() {
                 className="group flex w-fit items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3 font-bold text-white shadow-xl shadow-amber-500/20 transition-all duration-200 hover:scale-105 hover:from-amber-400 hover:to-orange-500 border border-amber-400/20"
               >
                 <PlayCircle size={18} className="text-white animate-pulse" />
-                Instant Class
+                Start Class
               </button>
-              <button
+              {/* <button
                 onClick={() => router.push('/teacher/schedule')}
                 className="group flex w-fit items-center gap-2 rounded-2xl bg-slate-800 border border-slate-700/60 px-6 py-3 font-semibold text-slate-200 shadow-xl transition-all duration-200 hover:scale-105 hover:bg-slate-700/80"
               >
                 <Plus size={18} className="transition-transform duration-200 group-hover:rotate-90 text-emerald-400" />
                 Schedule Class
-              </button>
+              </button> */}
             </div>
           </div>
         </section>

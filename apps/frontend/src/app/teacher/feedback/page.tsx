@@ -40,7 +40,7 @@ export default function TeacherFeedbackIndex() {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
     if (!user?.id) return;
@@ -67,17 +67,17 @@ export default function TeacherFeedbackIndex() {
   }, [user?.id]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="border-b border-slate-800/60 bg-slate-950/80 backdrop-blur-xl sticky top-0 z-30">
+    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="border-b border-border bg-card/80 backdrop-blur-xl sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <button
             onClick={() => router.push('/teacher/dashboard')}
-            className="flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200 transition-colors outline-none"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors outline-none"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Back to Dashboard</span>
           </button>
-          <h1 className="font-semibold text-lg text-slate-200">Class Feedback History</h1>
+          <h1 className="font-semibold text-lg text-foreground">Class Feedback History</h1>
           <div />
         </div>
       </header>
@@ -85,16 +85,16 @@ export default function TeacherFeedbackIndex() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         {loading ? (
           <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-10 w-10 animate-spin text-emerald-400" />
-            <p className="text-sm text-slate-400">Loading reviews...</p>
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading reviews...</p>
           </div>
         ) : reviews.length === 0 ? (
-          <div className="rounded-2xl border border-slate-850 bg-slate-900/60 py-16 text-center backdrop-blur-sm">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-slate-800 bg-slate-800/80">
-              <Award className="h-6 w-6 text-slate-400" />
+          <div className="rounded-2xl border border-border bg-card/60 py-16 text-center backdrop-blur-sm shadow-sm">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-muted">
+              <Award className="h-6 w-6 text-muted-foreground" />
             </div>
-            <p className="font-semibold text-slate-300">No feedback submitted yet</p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="font-semibold text-foreground">No feedback submitted yet</p>
+            <p className="mt-1 text-sm text-muted-foreground">
               Reviews will appear here once Compliance Reviewers assess your recorded sessions.
             </p>
           </div>

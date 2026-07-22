@@ -14,15 +14,15 @@ interface StatsRowProps {
 function StatCard({ icon, value, label, gradient }: any) {
   return (
     <div
-      className={`relative overflow-hidden rounded-2xl border border-slate-700/50 p-5 ${gradient} backdrop-blur-sm transition-transform duration-200 hover:-translate-y-1`}
+      className={`relative overflow-hidden rounded-2xl border border-border p-5 ${gradient} backdrop-blur-sm transition-transform duration-200 hover:-translate-y-1 shadow-sm`}
     >
       <div className="mb-3 flex items-center justify-between">
-        <div className="rounded-xl border border-white/10 bg-white/5 p-2">{icon}</div>
-        <ChevronRight size={16} className="text-slate-500" />
+        <div className="rounded-xl border border-border/40 bg-card/40 p-2">{icon}</div>
+        <ChevronRight size={16} className="text-muted-foreground" />
       </div>
-      <p className="text-3xl font-bold text-slate-100">{value}</p>
-      <p className="mt-1 text-sm text-slate-400">{label}</p>
-      <div className="pointer-events-none absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-white/5 blur-xl" />
+      <p className="text-3xl font-bold text-foreground">{value}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{label}</p>
+      <div className="pointer-events-none absolute -bottom-4 -right-4 h-20 w-20 rounded-full bg-primary/5 blur-xl" />
     </div>
   );
 }

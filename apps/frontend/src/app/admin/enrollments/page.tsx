@@ -47,7 +47,7 @@ export default function EnrollmentManagement() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchData = async () => {
     try {
@@ -239,84 +239,84 @@ export default function EnrollmentManagement() {
       </div>
 
 
-      {/* Enroll Student Modal */ }
-  {
-    showAddModal && (
-      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-        <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-          <h2 className="text-2xl font-display font-bold mb-4">Enroll Student</h2>
+      {/* Enroll Student Modal */}
+      {
+        showAddModal && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
+            <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
+              <h2 className="text-2xl font-display font-bold mb-4">Enroll Student</h2>
 
-          <form onSubmit={handleEnroll} className="space-y-4">
-            {submitError && (
-              <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-lg p-3">
-                {submitError}
-              </div>
-            )}
+              <form onSubmit={handleEnroll} className="space-y-4">
+                {submitError && (
+                  <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-lg p-3">
+                    {submitError}
+                  </div>
+                )}
 
-            {/* Student selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Student</label>
-              {students.length === 0 ? (
-                <p className="text-xs text-destructive">No student accounts registered! Please create a Student first.</p>
-              ) : (
-                <select
-                  value={studentId}
-                  onChange={(e) => setStudentId(e.target.value)}
-                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
-                >
-                  {students.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.email})
-                    </option>
-                  ))}
-                </select>
-              )}
+                {/* Student selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Student</label>
+                  {students.length === 0 ? (
+                    <p className="text-xs text-destructive">No student accounts registered! Please create a Student first.</p>
+                  ) : (
+                    <select
+                      value={studentId}
+                      onChange={(e) => setStudentId(e.target.value)}
+                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
+                    >
+                      {students.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.name} ({s.email})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Course selector */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Course</label>
+                  {courses.length === 0 ? (
+                    <p className="text-xs text-destructive">No active courses registered! Please create a Course first.</p>
+                  ) : (
+                    <select
+                      value={courseId}
+                      onChange={(e) => setCourseId(e.target.value)}
+                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
+                    >
+                      {courses.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.title}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className="bg-muted hover:bg-muted/80 text-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-colors outline-none"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || students.length === 0 || courses.length === 0}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-primary/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                    <span>Enroll</span>
+                  </button>
+                </div>
+              </form>
             </div>
+          </div>
 
-            {/* Course selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Course</label>
-              {courses.length === 0 ? (
-                <p className="text-xs text-destructive">No active courses registered! Please create a Course first.</p>
-              ) : (
-                <select
-                  value={courseId}
-                  onChange={(e) => setCourseId(e.target.value)}
-                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
-                >
-                  {courses.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.title}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex gap-3 justify-end pt-4">
-              <button
-                type="button"
-                onClick={() => setShowAddModal(false)}
-                className="bg-muted hover:bg-muted/80 text-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-colors outline-none"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || students.length === 0 || courses.length === 0}
-                className="bg-primary hover:bg-primary/90 text-primary-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-primary/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-              >
-                {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>Enroll</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-    )
-  }
+        )
+      }
     </div >
 
   );

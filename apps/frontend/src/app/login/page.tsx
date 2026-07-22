@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Mail, Lock, Loader2, ShieldAlert } from 'lucide-react';
 import Image from 'next/image';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -46,6 +47,11 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-background">
+      {/* Top right theme switcher */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Dynamic Background Gradients */}
       <div className="absolute top-[-20%] left-[-20%] w-[60%] h-[60%] rounded-full bg-primary/10 blur-[120px] pointer-events-none animate-pulse duration-5000"></div>
       <div className="absolute bottom-[-20%] right-[-20%] w-[60%] h-[60%] rounded-full bg-accent/5 blur-[120px] pointer-events-none animate-pulse duration-5000"></div>
@@ -61,7 +67,7 @@ export default function LoginPage() {
               <Image src="/logo.png" width={50} height={50} alt="Logo" />
             </div>
             <h1 className="text-3xl font-display font-bold tracking-tight text-foreground">
-              Quran <span className="text-primary">LMS 2</span>
+              Quran <span className="text-primary">LMS</span>
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               E-Learning &amp; Quality Monitoring Portal

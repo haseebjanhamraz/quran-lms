@@ -3,13 +3,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../context/AuthContext';
-import { 
-  ArrowLeft, 
-  Shield, 
-  AlertTriangle, 
-  CheckCircle, 
-  FileText, 
-  Sparkles, 
+import {
+  ArrowLeft,
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  FileText,
+  Sparkles,
   Loader2,
   Calendar,
   ExternalLink,
@@ -64,12 +64,12 @@ export default function AIReportDetailPage() {
   const { sessionId } = useParams() as { sessionId: string };
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  
+
   const [report, setReport] = useState<ReportDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -84,7 +84,7 @@ export default function AIReportDetailPage() {
 
   useEffect(() => {
     if (!sessionId || !user) return;
-    
+
     const fetchReport = async () => {
       setLoading(true);
       try {
@@ -99,7 +99,7 @@ export default function AIReportDetailPage() {
         setLoading(false);
       }
     };
-    
+
     fetchReport();
   }, [sessionId, user]);
 
@@ -161,21 +161,21 @@ export default function AIReportDetailPage() {
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-amber-500 mb-2" />
-        <p className="text-xs text-slate-400">Loading detailed AI audit scorecard...</p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand mb-2" />
+        <p className="text-xs text-muted-foreground">Loading detailed AI audit scorecard...</p>
       </div>
     );
   }
 
   if (!report) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-sm">
-          <p className="text-sm text-slate-400 mb-4">AI audit report could not be found.</p>
-          <button 
+          <p className="text-sm text-muted-foreground mb-4">AI audit report could not be found.</p>
+          <button
             onClick={() => router.back()}
-            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs transition"
+            className="inline-flex items-center gap-2 bg-muted hover:bg-muted/80 text-foreground px-4 py-2 rounded-xl text-xs transition border border-border"
           >
             <ArrowLeft size={14} /> Back
           </button>
@@ -185,23 +185,23 @@ export default function AIReportDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="sticky top-0 z-50 border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl">
+    <div className="min-h-screen bg-background text-foreground pb-12" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="p-2 bg-slate-900 hover:bg-slate-855 rounded-xl border border-slate-800/80 text-slate-350 transition"
+              className="p-2 bg-muted hover:bg-muted/80 rounded-xl border border-border text-foreground transition"
               title="Go Back"
             >
               <ArrowLeft size={16} />
             </button>
             <div>
-              <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold font-display">Compliance Portal</span>
+              <span className="text-[10px] text-brand uppercase tracking-widest font-semibold font-display">Compliance Portal</span>
               <h1 className="text-sm font-bold text-slate-200">AI Evaluation Audit Report</h1>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button
               onClick={handleDownloadPDF}
@@ -237,11 +237,10 @@ export default function AIReportDetailPage() {
                     {report.riskScore}%
                   </p>
                 </div>
-                <div className={`rounded-xl border p-3 flex items-center justify-center shrink-0 ${
-                  report.riskScore >= 60 ? 'bg-red-500/10 border-red-500/20 text-red-400' :
-                  report.riskScore >= 20 ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
-                  'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                }`}>
+                <div className={`rounded-xl border p-3 flex items-center justify-center shrink-0 ${report.riskScore >= 60 ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+                    report.riskScore >= 20 ? 'bg-amber-500/10 border-amber-500/20 text-amber-400' :
+                      'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                  }`}>
                   {report.riskScore >= 60 ? <AlertOctagon size={24} /> : report.riskScore >= 20 ? <AlertTriangle size={24} /> : <CheckCircle size={24} />}
                 </div>
               </div>

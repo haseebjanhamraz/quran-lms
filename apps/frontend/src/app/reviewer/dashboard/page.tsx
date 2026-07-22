@@ -17,10 +17,9 @@ import {
   Activity,
   TrendingUp,
   BookOpen,
-  Plus,
-  Star,
-  Save,
 } from 'lucide-react';
+import NotificationsDropdown from '@/components/NotificationsDropdown';
+import ThemeToggle from '@/components/ThemeToggle';
 
 function ReviewerSettingsTab() {
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -30,7 +29,7 @@ function ReviewerSettingsTab() {
   useEffect(() => {
     async function loadSettings() {
       try {
-        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+        const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
         const res = await fetch(`${API_URL}/system-settings/ai_analysis_enabled`, {
           credentials: 'include',
         });
@@ -38,7 +37,7 @@ function ReviewerSettingsTab() {
           const data = await res.json();
           setAiEnabled(data.value === 'true');
         }
-      } catch (err) {}
+      } catch (err) { }
       setLoading(false);
     }
     loadSettings();
@@ -47,7 +46,7 @@ function ReviewerSettingsTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+      const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
       await fetch(`${API_URL}/system-settings/ai_analysis_enabled`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -68,7 +67,7 @@ function ReviewerSettingsTab() {
     <div className="qa-card" style={{ maxWidth: 600 }}>
       <h2 className="qa-card-title text-xl mb-2">Platform Settings</h2>
       <p className="text-sm text-slate-400 mb-6">Configure AI automation for compliance reviews.</p>
-      
+
       <div className="flex items-center justify-between mb-6 border border-slate-700/50 p-4 rounded-xl bg-slate-800/30">
         <div>
           <label className="text-sm font-semibold text-slate-200">Enable AI Analysis</label>
@@ -77,13 +76,11 @@ function ReviewerSettingsTab() {
         <button
           type="button"
           onClick={() => setAiEnabled(!aiEnabled)}
-          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-            aiEnabled ? 'bg-[#C9A84C]' : 'bg-slate-700'
-          }`}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${aiEnabled ? 'bg-[#C9A84C]' : 'bg-slate-700'
+            }`}
         >
-          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-            aiEnabled ? 'translate-x-5' : 'translate-x-0'
-          }`} />
+          <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${aiEnabled ? 'translate-x-5' : 'translate-x-0'
+            }`} />
         </button>
       </div>
 
@@ -165,7 +162,7 @@ export default function ReviewerDashboardPage() {
   const [loadingData, setLoadingData] = useState(true);
   const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
 
-  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
+  const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000/api/v1';
 
   const loadData = async () => {
     if (!user?.id) return;
@@ -261,257 +258,36 @@ export default function ReviewerDashboardPage() {
   ];
 
   return (
-    <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #020617; }
-        .qa-root {
-          min-height: 100vh;
-          background: #020617;
-          font-family: 'Inter', sans-serif;
-          color: #f1f5f9;
-        }
-        .qa-navbar {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 0 2rem;
-          height: 64px;
-          background: rgba(2,6,23,0.85);
-          backdrop-filter: blur(16px);
-          border-bottom: 1px solid rgba(148,163,184,0.08);
-        }
-        .qa-navbar-brand {
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-          font-size: 1.125rem;
-          font-weight: 700;
-          color: #f1f5f9;
-        }
-        .qa-navbar-brand .shield-icon {
-          color: #C9A84C;
-          flex-shrink: 0;
-        }
-        .qa-navbar-right {
-          display: flex;
-          align-items: center;
-          gap: 1.25rem;
-        }
-        .qa-user-info {
-          text-align: right;
-        }
-        .qa-user-name {
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: #e2e8f0;
-        }
-        .qa-user-email {
-          font-size: 0.75rem;
-          color: #64748b;
-        }
-        .qa-logout-btn {
-          display: flex;
-          align-items: center;
-          gap: 0.4rem;
-          padding: 0.45rem 1rem;
-          border-radius: 0.625rem;
-          border: 1px solid rgba(148,163,184,0.15);
-          background: rgba(148,163,184,0.06);
-          color: #94a3b8;
-          font-size: 0.8125rem;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .qa-logout-btn:hover {
-          background: rgba(239,68,68,0.12);
-          border-color: rgba(239,68,68,0.3);
-          color: #f87171;
-        }
-        .qa-main {
-          max-width: 1440px;
-          margin: 0 auto;
-          padding: 2.5rem 2rem 4rem;
-        }
-        .qa-hero {
-          margin-bottom: 2.5rem;
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          flex-wrap: wrap;
-          gap: 1rem;
-        }
-        .qa-hero-heading {
-          font-size: clamp(1.6rem, 3vw, 2.25rem);
-          font-weight: 800;
-          color: #C9A84C;
-        }
-        .qa-hero-sub {
-          margin-top: 0.5rem;
-          font-size: 0.9375rem;
-          color: #94a3b8;
-          max-width: 520px;
-        }
-        .qa-stats {
-          display: grid;
-          grid-template-columns: repeat(4, 1fr);
-          gap: 1rem;
-          margin-bottom: 2.5rem;
-        }
-        @media (max-width: 1024px) { .qa-stats { grid-template-columns: repeat(2, 1fr); } }
-        @media (max-width: 540px) { .qa-stats { grid-template-columns: 1fr; } }
-        .qa-stat-card {
-          background: rgba(15,23,42,0.8);
-          border: 1px solid rgba(148,163,184,0.1);
-          border-radius: 1rem;
-          padding: 1.25rem 1.375rem;
-          display: flex;
-          align-items: flex-start;
-          gap: 1rem;
-        }
-        .qa-stat-icon {
-          width: 44px;
-          height: 44px;
-          border-radius: 0.75rem;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-        }
-        .qa-stat-value {
-          font-size: 1.65rem;
-          font-weight: 800;
-          line-height: 1;
-        }
-        .qa-stat-label {
-          font-size: 0.8125rem;
-          font-weight: 600;
-          color: #cbd5e1;
-          margin-top: 0.25rem;
-        }
-        .qa-stat-sub {
-          font-size: 0.75rem;
-          color: #475569;
-          margin-top: 0.2rem;
-        }
-        .qa-tab-btn {
-          background: transparent;
-          color: #94a3b8;
-          border: none;
-          padding: 0.5rem 1.25rem;
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          border-bottom: 2px solid transparent;
-        }
-        .qa-tab-btn.active {
-          color: #C9A84C;
-          border-bottom-color: #C9A84C;
-        }
-        .qa-panel {
-          background: rgba(15,23,42,0.8);
-          border: 1px solid rgba(100,116,139,0.2);
-          border-radius: 1.25rem;
-          overflow: hidden;
-        }
-        .qa-panel-header {
-          padding: 1.25rem 1.5rem;
-          border-bottom: 1px solid rgba(100,116,139,0.15);
-        }
-        .qa-panel-body {
-          padding: 1.5rem;
-          display: flex;
-          flex-direction: column;
-          gap: 1rem;
-        }
-        .qa-card {
-          background: rgba(30,41,59,0.6);
-          border: 1px solid rgba(100,116,139,0.15);
-          border-radius: 0.875rem;
-          padding: 1.25rem;
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-        .qa-card-title {
-          font-size: 0.95rem;
-          font-weight: 700;
-          color: #f1f5f9;
-        }
-        .qa-card-meta {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 0.5rem 1.5rem;
-          font-size: 0.78rem;
-          color: #64748b;
-        }
-        .qa-badge {
-          padding: 0.2rem 0.625rem;
-          border-radius: 999px;
-          font-size: 0.6875rem;
-          font-weight: 700;
-          text-transform: uppercase;
-        }
-        .qa-badge-amber {
-          background: rgba(245,158,11,0.12);
-          color: #fbbf24;
-          border: 1px solid rgba(245,158,11,0.2);
-        }
-        .qa-btn-primary {
-          display: inline-flex;
-          align-items: center;
-          gap: 0.35rem;
-          padding: 0.45rem 1rem;
-          border-radius: 0.5rem;
-          background: #C9A84C;
-          color: #fff;
-          font-size: 0.8rem;
-          font-weight: 600;
-          border: none;
-          cursor: pointer;
-          text-decoration: none;
-        }
-        .qa-btn-primary:hover {
-          background: #b59238;
-        }
-        .qa-loader {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          padding: 3rem;
-          color: #C9A84C;
-        }
-        .qa-spin { animation: spin 0.9s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
-
-      <div className="qa-root">
-        <nav className="qa-navbar">
-          <div className="qa-navbar-brand">
-            <ShieldCheck size={24} className="shield-icon" />
-            Compliance QA Portal
+    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
+      {/* ── Navbar ── */}
+      <header className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6">
+          <div className="flex items-center gap-2.5">
+            <div className="rounded-xl border border-brand/30 bg-brand/10 p-2 text-brand">
+              <ShieldCheck size={20} />
+            </div>
+            <span className="font-display text-base font-bold text-foreground">Reviewer Portal</span>
           </div>
-          <div className="qa-navbar-right">
-            <div className="qa-user-info">
-              <div className="qa-user-name">{user?.name ?? 'Reviewer'}</div>
-              <div className="qa-user-email">{user?.email ?? ''}</div>
+
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <NotificationsDropdown />
+            <div className="hidden text-right sm:block">
+              <p className="text-sm font-semibold text-foreground leading-none">{user?.name ?? ''}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{user?.email ?? ''}</p>
             </div>
             <button
-              className="qa-logout-btn"
-              onClick={() => { logout(); router.push('/login'); }}
+              onClick={logout}
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-all"
             >
               <LogOut size={14} />
-              Logout
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
-        </nav>
+        </div>
+      </header>
 
-        <main className="qa-main">
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
           <section className="qa-hero">
             <div>
               <h1 className="qa-hero-heading">Welcome back, {user?.name ?? 'Reviewer'}</h1>
@@ -712,8 +488,6 @@ export default function ReviewerDashboardPage() {
             </div>
           </div>
         </main>
-      </div>
-
-    </>
+    </div>
   );
 }

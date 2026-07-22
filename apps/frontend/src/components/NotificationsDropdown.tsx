@@ -18,8 +18,8 @@ export default function NotificationsDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchNotifications = async () => {
     try {
@@ -37,7 +37,7 @@ export default function NotificationsDropdown() {
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, 20000); // Poll every 20s
-    
+
     // Close dropdown on click outside
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
@@ -45,7 +45,7 @@ export default function NotificationsDropdown() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    
+
     return () => {
       clearInterval(interval);
       document.removeEventListener('mousedown', handleClickOutside);
@@ -90,13 +90,13 @@ export default function NotificationsDropdown() {
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
-    
+
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
-    
+
     const diffHours = Math.floor(diffMins / 60);
     if (diffHours < 24) return `${diffHours}h ago`;
-    
+
     return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
@@ -104,26 +104,26 @@ export default function NotificationsDropdown() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 bg-slate-900 hover:bg-slate-850 border border-slate-800 rounded-xl text-slate-400 hover:text-slate-200 transition"
+        className="relative p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition shadow-sm"
         title="Notifications"
       >
         <Bell size={16} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-slate-950 ring-2 ring-slate-950">
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[9px] font-bold text-brand-foreground ring-2 ring-background">
             {unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2.5 w-80 rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-2xl z-50">
-          <div className="flex items-center justify-between border-b border-slate-900 pb-3 mb-3">
-            <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wider font-display">Notifications</h4>
+        <div className="absolute right-0 mt-2.5 w-80 rounded-2xl border border-border bg-card p-4 shadow-2xl z-50">
+          <div className="flex items-center justify-between border-b border-border pb-3 mb-3">
+            <h4 className="text-xs font-bold text-foreground uppercase tracking-wider font-display">Notifications</h4>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAllAsRead}
                 disabled={loading}
-                className="text-[10px] text-amber-500 hover:underline font-semibold flex items-center gap-1"
+                className="text-[10px] text-brand hover:underline font-semibold flex items-center gap-1"
               >
                 {loading ? <Loader2 size={10} className="animate-spin" /> : <Check size={10} />}
                 <span>Mark read</span>
@@ -133,27 +133,27 @@ export default function NotificationsDropdown() {
 
           <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
             {notifications.length === 0 ? (
-              <p className="text-center text-slate-500 text-xs py-8">No notifications yet.</p>
+              <p className="text-center text-muted-foreground text-xs py-8">No notifications yet.</p>
             ) : (
               notifications.slice(0, 8).map((n) => (
                 <div
                   key={n.id}
                   onClick={() => !n.isRead && handleMarkAsRead(n.id)}
                   className={`p-3 rounded-xl border transition cursor-pointer text-left ${
-                    n.isRead 
-                      ? 'bg-slate-950 border-slate-900/60 hover:bg-slate-900/10' 
-                      : 'bg-amber-500/5 border-amber-500/15 hover:bg-amber-500/10'
+                    n.isRead
+                      ? 'bg-background/60 border-border/60 hover:bg-muted/40'
+                      : 'bg-brand/10 border-brand/20 hover:bg-brand/15'
                   }`}
                 >
                   <div className="flex justify-between items-start gap-2">
-                    <p className={`text-xs font-semibold ${n.isRead ? 'text-slate-300' : 'text-slate-100'}`}>
+                    <p className={`text-xs font-semibold ${n.isRead ? 'text-muted-foreground' : 'text-foreground'}`}>
                       {n.title}
                     </p>
-                    <span className="text-[9px] text-slate-550 font-mono whitespace-nowrap">
+                    <span className="text-[9px] text-muted-foreground/70 font-mono whitespace-nowrap">
                       {formatTime(n.createdAt)}
                     </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-normal font-sans">
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-normal font-sans">
                     {n.message}
                   </p>
                 </div>

@@ -3,14 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
-import { 
-  ArrowLeft, 
-  Search, 
-  Shield, 
-  AlertTriangle, 
-  CheckCircle, 
-  TrendingUp, 
-  Sparkles, 
+import {
+  ArrowLeft,
+  Search,
+  Shield,
+  AlertTriangle,
+  CheckCircle,
+  TrendingUp,
+  Sparkles,
   Loader2,
   Calendar,
   ExternalLink,
@@ -49,12 +49,12 @@ interface ReportItem {
 export default function AIReportsListPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  
+
   const [reports, setReports] = useState<ReportItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -126,41 +126,41 @@ export default function AIReportsListPage() {
     return 'Clear / Low Risk';
   };
 
-  const filteredReports = reports.filter(r => 
+  const filteredReports = reports.filter(r =>
     r.session.course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.session.teacher.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const totalReports = reports.length;
   const highRiskCount = reports.filter(r => r.riskScore >= 60).length;
-  const avgRiskScore = totalReports > 0 
-    ? Math.round(reports.reduce((acc, r) => acc + r.riskScore, 0) / totalReports) 
+  const avgRiskScore = totalReports > 0
+    ? Math.round(reports.reduce((acc, r) => acc + r.riskScore, 0) / totalReports)
     : 0;
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-amber-500 mb-2" />
-        <p className="text-xs text-slate-400">Loading AI analysis reports...</p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand mb-2" />
+        <p className="text-xs text-muted-foreground">Loading AI analysis reports...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="sticky top-0 z-50 border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl">
+    <div className="min-h-screen bg-background text-foreground pb-12" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link
               href="/admin/dashboard"
-              className="p-2 bg-slate-900 hover:bg-slate-850 rounded-xl border border-slate-800/80 text-slate-350 transition"
+              className="p-2 bg-muted hover:bg-muted/80 rounded-xl border border-border text-foreground transition"
               title="Back to Dashboard"
             >
               <ArrowLeft size={16} />
             </Link>
             <div>
-              <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold font-display">Compliance Portal</span>
-              <h1 className="text-sm font-bold text-slate-200">AI Quality Reports Archive</h1>
+              <span className="text-[10px] text-brand uppercase tracking-widest font-semibold font-display">Compliance Portal</span>
+              <h1 className="text-sm font-bold text-foreground">AI Quality Reports Archive</h1>
             </div>
           </div>
         </div>
@@ -169,33 +169,33 @@ export default function AIReportsListPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 mt-8 space-y-6">
         {/* Aggregated Overview Cards */}
         <section className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-          <div className="rounded-2xl border border-slate-850 bg-slate-900/60 p-5 flex items-center gap-4">
-            <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-blue-400">
+          <div className="rounded-2xl border border-border bg-card/60 p-5 flex items-center gap-4 shadow-sm">
+            <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-blue-500">
               <TrendingUp size={20} />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">Total Audited Sessions</span>
-              <p className="text-2xl font-bold text-slate-100 font-display mt-0.5">{totalReports}</p>
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold">Total Audited Sessions</span>
+              <p className="text-2xl font-bold text-foreground font-display mt-0.5">{totalReports}</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-850 bg-slate-900/60 p-5 flex items-center gap-4">
-            <div className="rounded-xl bg-red-500/10 border border-red-500/20 p-3 text-red-400">
+          <div className="rounded-2xl border border-border bg-card/60 p-5 flex items-center gap-4 shadow-sm">
+            <div className="rounded-xl bg-destructive/10 border border-destructive/20 p-3 text-destructive">
               <AlertTriangle size={20} />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">High Risk Flagged</span>
-              <p className="text-2xl font-bold text-slate-100 font-display mt-0.5">{highRiskCount}</p>
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold">High Risk Flagged</span>
+              <p className="text-2xl font-bold text-foreground font-display mt-0.5">{highRiskCount}</p>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-850 bg-slate-900/60 p-5 flex items-center gap-4">
-            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-amber-400">
+          <div className="rounded-2xl border border-border bg-card/60 p-5 flex items-center gap-4 shadow-sm">
+            <div className="rounded-xl bg-amber-500/10 border border-amber-500/20 p-3 text-amber-500">
               <Shield size={20} />
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-semibold">Average Risk Rating</span>
-              <p className="text-2xl font-bold text-slate-100 font-display mt-0.5">{avgRiskScore}%</p>
+              <span className="text-[10px] text-muted-foreground uppercase font-semibold">Average Risk Rating</span>
+              <p className="text-2xl font-bold text-foreground font-display mt-0.5">{avgRiskScore}%</p>
             </div>
           </div>
         </section>

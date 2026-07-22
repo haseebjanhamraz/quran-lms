@@ -85,7 +85,7 @@ GOOGLE_DRIVE_REFRESH_TOKEN="your-refresh-token"
 **Frontend** — create `apps/frontend/.env.local`:
 
 ```env
-NEXT_PUBLIC_API_URL="http://localhost:4000/api/v1"
+NEXT_PUBLIC_API_URL="http://localhost:5000/api/v1"
 ```
 
 ### 3. Spin Up Infrastructure (DB, Redis, LiveKit)
@@ -111,7 +111,7 @@ npm run dev
 ```
 
 - **Frontend**: `http://localhost:3000`
-- **Backend API**: `http://localhost:4000/api/v1`
+- **Backend API**: `http://localhost:5000/api/v1`
 - **LiveKit**: `ws://localhost:7880`
 
 ---

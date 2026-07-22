@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Loader2, PlayCircle, X } from 'lucide-react';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 interface SessionItem {
   id: string;
@@ -41,16 +41,16 @@ export default function RecordingsTab({
 
   return (
     <section className="space-y-5">
-      <h2 className="font-display text-xl font-bold" style={{ color: '#C9A84C' }}>
+      <h2 className="font-display text-xl font-bold text-brand">
         Past Class Recordings Archive
       </h2>
 
       {sessionsLoading ? (
         <div className="flex justify-center py-16">
-          <Loader2 size={28} className="animate-spin text-emerald-400" />
+          <Loader2 size={28} className="animate-spin text-primary" />
         </div>
       ) : completedRecordings.length === 0 ? (
-        <div className="py-16 text-center text-slate-500 text-sm">No past class recordings cataloged.</div>
+        <div className="py-16 text-center text-muted-foreground text-sm">No past class recordings cataloged.</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {completedRecordings.map((session) => {
@@ -62,11 +62,11 @@ export default function RecordingsTab({
             return (
               <div
                 key={session.id}
-                className="rounded-2xl border border-slate-800/80 bg-slate-900/80 p-5 flex flex-col justify-between gap-4"
+                className="rounded-2xl border border-border bg-card/80 p-5 flex flex-col justify-between gap-4 shadow-sm"
               >
                 <div>
-                  <h3 className="font-semibold text-slate-100">{session.course.title}</h3>
-                  <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                  <h3 className="font-semibold text-foreground">{session.course.title}</h3>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                     <Calendar size={12} />
                     <span>{formatDateTime(session.scheduledAt)}</span>
                     <span>•</span>
@@ -74,17 +74,16 @@ export default function RecordingsTab({
                   </p>
                 </div>
 
-                <div className="flex items-center justify-between border-t border-slate-800/60 pt-3">
+                <div className="flex items-center justify-between border-t border-border/60 pt-3">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500">Status:</span>
+                    <span className="text-xs text-muted-foreground">Status:</span>
                     <span
-                      className={`inline-flex items-center gap-1.5 font-semibold text-xs rounded-full px-2 py-0.5 ${
-                        isReady
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                      className={`inline-flex items-center gap-1.5 font-semibold text-xs rounded-full px-2 py-0.5 ${isReady
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
                           : isFailed
-                          ? 'bg-red-500/10 text-red-400 border border-red-500/20'
-                          : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                      }`}
+                            ? 'bg-destructive/10 text-destructive border border-destructive/20'
+                            : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                        }`}
                     >
                       {isProcessing && <Loader2 size={10} className="animate-spin" />}
                       {status}
@@ -96,22 +95,19 @@ export default function RecordingsTab({
                         const previewUrl = `${API_URL}/recordings/${session.id}/stream`;
                         setActiveVideoUrl(previewUrl);
                       }}
-                      className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-400 text-white text-xs font-semibold py-1.5 px-4 rounded-xl transition-all border-none cursor-pointer outline-none"
+                      className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold py-1.5 px-4 rounded-xl transition-all border-none cursor-pointer outline-none shadow-sm"
                     >
-                      <PlayCircle size={12} />
-                      <span>Watch recording</span>
+                      <PlayCircle size={14} /> Play Video
                     </button>
                   ) : isFailed ? (
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleRetryUpload(session.id)}
-                        className="flex items-center gap-1.5 bg-red-500/20 border border-red-500/35 hover:bg-red-500/30 text-red-300 text-xs font-semibold py-1.5 px-4 rounded-xl transition-all cursor-pointer outline-none"
-                      >
-                        <span>Retry Upload</span>
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => handleRetryUpload(session.id)}
+                      className="text-xs text-destructive hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                    >
+                      Retry Upload
+                    </button>
                   ) : (
-                    <span className="text-xs text-slate-500 italic">Processing upload...</span>
+                    <span className="text-xs text-muted-foreground italic">Processing...</span>
                   )}
                 </div>
               </div>
@@ -120,10 +116,13 @@ export default function RecordingsTab({
         </div>
       )}
 
-      <VideoPlayerModal 
-        url={activeVideoUrl} 
-        onClose={() => setActiveVideoUrl(null)} 
-      />
+      {/* Embedded Video Modal */}
+      {activeVideoUrl && (
+        <VideoPlayerModal
+          videoUrl={activeVideoUrl}
+          onClose={() => setActiveVideoUrl(null)}
+        />
+      )}
     </section>
   );
 }

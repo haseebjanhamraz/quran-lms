@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../context/AuthContext';
-import { 
+import {
   ArrowLeft, Play, Pause, ShieldAlert, Award, MessageSquare, BookOpen, ThumbsUp, Loader2
 } from 'lucide-react';
 
@@ -46,7 +46,7 @@ export default function TeacherFeedbackPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
     const fetchFeedback = async () => {
@@ -80,7 +80,7 @@ export default function TeacherFeedbackPage() {
   const seekTo = (seconds: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = seconds;
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
     }
   };
 
@@ -130,7 +130,7 @@ export default function TeacherFeedbackPage() {
     );
   }
 
-  const videoStreamUrl = review.session.recording?.filePath 
+  const videoStreamUrl = review.session.recording?.filePath
     ? `${API_URL}/recordings/${id}/stream`
     : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
@@ -146,7 +146,7 @@ export default function TeacherFeedbackPage() {
             <ArrowLeft className="h-4 w-4" />
             <span>Dashboard</span>
           </button>
-          
+
           <div className="text-center">
             <h1 className="font-bold text-base md:text-lg font-display">QA Feedback Report</h1>
             <p className="text-xs text-muted-foreground">Class: {review.session.course.title}</p>
@@ -158,7 +158,7 @@ export default function TeacherFeedbackPage() {
 
       {/* Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* Left: Video and Annotations */}
         <div className="space-y-6">
           <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border border-border/50">
@@ -179,7 +179,7 @@ export default function TeacherFeedbackPage() {
           {/* Annotations Timeline */}
           <div className="glass-panel p-6 rounded-2xl border border-border/50">
             <h3 className="text-lg font-bold font-display mb-4">Reviewer Annotation Timeline</h3>
-            
+
             {review.annotations.length === 0 ? (
               <p className="text-xs text-muted-foreground italic py-4 text-center">
                 No specific timeline notes recorded by the reviewer.

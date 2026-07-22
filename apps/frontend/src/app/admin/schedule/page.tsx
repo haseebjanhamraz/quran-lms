@@ -38,7 +38,7 @@ export default function ScheduleManagement() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchData = async () => {
     try {
@@ -147,119 +147,119 @@ export default function ScheduleManagement() {
   return (
     <div className="relative mx-auto max-w-7xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Class Sessions Roster</h1>
-            <p className="text-muted-foreground mt-1">Schedule live classes and check for timing conflicts automatically.</p>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
-          >
-            <Plus className="h-5 w-5" />
-            <span>Schedule Session</span>
-          </button>
+        <div>
+          <h1 className="text-3xl font-display font-bold">Class Sessions Roster</h1>
+          <p className="text-muted-foreground mt-1">Schedule live classes and check for timing conflicts automatically.</p>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
+        >
+          <Plus className="h-5 w-5" />
+          <span>Schedule Session</span>
+        </button>
+      </div>
 
-        {/* Schedule List Table */}
-        <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
-          {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading schedules...</p>
-            </div>
-          ) : sessions.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground text-sm">
-              No classes scheduled. Click "Schedule Session" to start.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-card/30">
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Course Details</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Teacher</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Scheduled Date / Time</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Duration</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Status</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {sessions.map((s) => (
-                    <tr key={s.id} className="hover:bg-card/20 transition-colors">
-                      <td className="py-4 px-6 font-semibold text-foreground">
-                        {s.course.title}
-                      </td>
-                      <td className="py-4 px-6">
-                        {s.course.teacher.name}
-                      </td>
-                      <td className="py-4 px-6 text-foreground/90 font-mono text-xs">
-                        {new Date(s.scheduledAt).toLocaleString(undefined, {
-                          weekday: 'short',
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </td>
-                      <td className="py-4 px-6 text-muted-foreground">
-                        {s.durationMinutes} mins
-                      </td>
-                      <td className="py-4 px-6">
-                        {getStatusBadge(s.status)}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        {s.status === 'COMPLETED' ? (
-                          <div className="flex gap-2 justify-end items-center">
-                            <button
-                              onClick={() => setSelectedSession({ id: s.id, title: s.course.title })}
-                              className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-semibold"
-                            >
-                              Track Process
-                            </button>
-                            <Link
-                              href={`/admin/transcripts/${s.id}`}
-                              className="inline-flex items-center gap-1 text-[#C9A84C] hover:text-[#e0bc5c] hover:underline text-xs font-semibold py-1 px-2.5 rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/25 transition"
-                            >
-                              <span>Transcript</span>
-                            </Link>
-                            <button
-                              onClick={() => handleCancelSession(s.id, true)}
-                              className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
-                              title="Delete Recorded Class"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : s.status === 'SCHEDULED' ? (
+      {/* Schedule List Table */}
+      <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading schedules...</p>
+          </div>
+        ) : sessions.length === 0 ? (
+          <div className="py-20 text-center text-muted-foreground text-sm">
+            No classes scheduled. Click "Schedule Session" to start.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card/30">
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Course Details</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Teacher</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Scheduled Date / Time</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Duration</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Status</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {sessions.map((s) => (
+                  <tr key={s.id} className="hover:bg-card/20 transition-colors">
+                    <td className="py-4 px-6 font-semibold text-foreground">
+                      {s.course.title}
+                    </td>
+                    <td className="py-4 px-6">
+                      {s.course.teacher.name}
+                    </td>
+                    <td className="py-4 px-6 text-foreground/90 font-mono text-xs">
+                      {new Date(s.scheduledAt).toLocaleString(undefined, {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
+                    <td className="py-4 px-6 text-muted-foreground">
+                      {s.durationMinutes} mins
+                    </td>
+                    <td className="py-4 px-6">
+                      {getStatusBadge(s.status)}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      {s.status === 'COMPLETED' ? (
+                        <div className="flex gap-2 justify-end items-center">
                           <button
-                            onClick={() => handleCancelSession(s.id, false)}
+                            onClick={() => setSelectedSession({ id: s.id, title: s.course.title })}
+                            className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-semibold"
+                          >
+                            Track Process
+                          </button>
+                          <Link
+                            href={`/admin/transcripts/${s.id}`}
+                            className="inline-flex items-center gap-1 text-[#C9A84C] hover:text-[#e0bc5c] hover:underline text-xs font-semibold py-1 px-2.5 rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/25 transition"
+                          >
+                            <span>Transcript</span>
+                          </Link>
+                          <button
+                            onClick={() => handleCancelSession(s.id, true)}
                             className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
-                            title="Cancel Class Session"
+                            title="Delete Recorded Class"
                           >
                             <Trash2 className="h-4 w-4" />
                           </button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">--</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {selectedSession && (
-          <PipelineMonitorModal
-            sessionId={selectedSession.id}
-            courseTitle={selectedSession.title}
-            isOpen={!!selectedSession}
-            onClose={() => setSelectedSession(null)}
-          />
+                        </div>
+                      ) : s.status === 'SCHEDULED' ? (
+                        <button
+                          onClick={() => handleCancelSession(s.id, false)}
+                          className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
+                          title="Cancel Class Session"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">--</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
+      </div>
+
+      {selectedSession && (
+        <PipelineMonitorModal
+          sessionId={selectedSession.id}
+          courseTitle={selectedSession.title}
+          isOpen={!!selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
+      )}
 
 
       {/* Schedule Session Modal */}

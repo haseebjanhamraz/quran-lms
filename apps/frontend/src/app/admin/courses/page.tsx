@@ -41,7 +41,7 @@ export default function CourseManagement() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchData = async () => {
     try {
@@ -136,89 +136,89 @@ export default function CourseManagement() {
   return (
     <div className="relative mx-auto max-w-7xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Manage Courses</h1>
-            <p className="text-muted-foreground mt-1">Configure subjects, define day-to-day syllabi, and assign primary instructors.</p>
+        <div>
+          <h1 className="text-3xl font-display font-bold">Manage Courses</h1>
+          <p className="text-muted-foreground mt-1">Configure subjects, define day-to-day syllabi, and assign primary instructors.</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
+        >
+          <Plus className="h-5 w-5" />
+          <span>Create Course</span>
+        </button>
+      </div>
+
+      {/* Toolbar (Search) */}
+      <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
+        <Search className="h-5 w-5 text-muted-foreground/60" />
+        <input
+          type="text"
+          placeholder="Search courses by title or subject..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
+        />
+      </div>
+
+      {/* Courses Table */}
+      <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading courses...</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
-          >
-            <Plus className="h-5 w-5" />
-            <span>Create Course</span>
-          </button>
-        </div>
-
-        {/* Toolbar (Search) */}
-        <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
-          <Search className="h-5 w-5 text-muted-foreground/60" />
-          <input
-            type="text"
-            placeholder="Search courses by title or subject..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
-          />
-        </div>
-
-        {/* Courses Table */}
-        <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
-          {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading courses...</p>
-            </div>
-          ) : filteredCourses.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground text-sm">
-              No courses configured yet. Click "Create Course" to get started.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-card/30">
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Course Details</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Subject Category</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Instructor</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Curriculum Syllabus</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+        ) : filteredCourses.length === 0 ? (
+          <div className="py-20 text-center text-muted-foreground text-sm">
+            No courses configured yet. Click "Create Course" to get started.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card/30">
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Course Details</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Subject Category</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Instructor</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Curriculum Syllabus</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filteredCourses.map((c) => (
+                  <tr key={c.id} className="hover:bg-card/20 transition-colors">
+                    <td className="py-4 px-6">
+                      <p className="font-semibold text-foreground">{c.title}</p>
+                      <p className="text-xs text-muted-foreground font-mono">ID: {c.id.substring(0, 8)}...</p>
+                    </td>
+                    <td className="py-4 px-6">
+                      <span className="bg-primary/10 text-primary border border-primary/20 text-xs font-semibold py-1 px-2.5 rounded-full">
+                        {c.type}
+                      </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <p className="font-semibold">{c.teacher.name}</p>
+                      <p className="text-xs text-muted-foreground">{c.teacher.email}</p>
+                    </td>
+                    <td className="py-4 px-6 max-w-xs truncate text-muted-foreground" title={c.curriculum}>
+                      {c.curriculum}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <button
+                        onClick={() => handleDeleteCourse(c.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
+                        title="Delete Course"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filteredCourses.map((c) => (
-                    <tr key={c.id} className="hover:bg-card/20 transition-colors">
-                      <td className="py-4 px-6">
-                        <p className="font-semibold text-foreground">{c.title}</p>
-                        <p className="text-xs text-muted-foreground font-mono">ID: {c.id.substring(0, 8)}...</p>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="bg-primary/10 text-primary border border-primary/20 text-xs font-semibold py-1 px-2.5 rounded-full">
-                          {c.type}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <p className="font-semibold">{c.teacher.name}</p>
-                        <p className="text-xs text-muted-foreground">{c.teacher.email}</p>
-                      </td>
-                      <td className="py-4 px-6 max-w-xs truncate text-muted-foreground" title={c.curriculum}>
-                        {c.curriculum}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <button
-                          onClick={() => handleDeleteCourse(c.id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
-                          title="Delete Course"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
 
       {/* Add Course Modal */}

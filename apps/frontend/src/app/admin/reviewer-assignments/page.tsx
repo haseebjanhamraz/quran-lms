@@ -46,7 +46,7 @@ export default function ReviewerAssignmentManagement() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchData = async () => {
     try {
@@ -150,86 +150,86 @@ export default function ReviewerAssignmentManagement() {
   return (
     <div className="relative mx-auto max-w-7xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Reviewer Assignments</h1>
-            <p className="text-muted-foreground mt-1">Assign quality reviewers to specific courses for silent monitoring and reviews.</p>
+        <div>
+          <h1 className="text-3xl font-display font-bold">Reviewer Assignments</h1>
+          <p className="text-muted-foreground mt-1">Assign quality reviewers to specific courses for silent monitoring and reviews.</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
+        >
+          <Eye className="h-5 w-5" />
+          <span>Assign Reviewer</span>
+        </button>
+      </div>
+
+      {/* Toolbar (Search) */}
+      <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
+        <Search className="h-5 w-5 text-muted-foreground/60" />
+        <input
+          type="text"
+          placeholder="Search assignments by reviewer name or course title..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
+        />
+      </div>
+
+      {/* Assignments Table */}
+      <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading QA assignments...</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
-          >
-            <Eye className="h-5 w-5" />
-            <span>Assign Reviewer</span>
-          </button>
-        </div>
-
-        {/* Toolbar (Search) */}
-        <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
-          <Search className="h-5 w-5 text-muted-foreground/60" />
-          <input
-            type="text"
-            placeholder="Search assignments by reviewer name or course title..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
-          />
-        </div>
-
-        {/* Assignments Table */}
-        <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
-          {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading QA assignments...</p>
-            </div>
-          ) : filteredAssignments.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground text-sm">
-              No reviewer assignments found. Click "Assign Reviewer" to configure one.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-card/30">
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Reviewer</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Assigned Course</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Date Configured</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+        ) : filteredAssignments.length === 0 ? (
+          <div className="py-20 text-center text-muted-foreground text-sm">
+            No reviewer assignments found. Click "Assign Reviewer" to configure one.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card/30">
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Reviewer</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Assigned Course</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Date Configured</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filteredAssignments.map((a) => (
+                  <tr key={a.id} className="hover:bg-card/20 transition-colors">
+                    <td className="py-4 px-6">
+                      <p className="font-semibold text-foreground">{a.reviewer.name}</p>
+                      <p className="text-xs text-muted-foreground">{a.reviewer.email}</p>
+                    </td>
+                    <td className="py-4 px-6">
+                      <p className="font-semibold text-foreground">{a.course.title}</p>
+                    </td>
+                    <td className="py-4 px-6 text-muted-foreground text-xs">
+                      {new Date(a.assignedAt).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      <button
+                        onClick={() => handleRemoveAssignment(a.id)}
+                        className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
+                        title="Remove Assignment"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filteredAssignments.map((a) => (
-                    <tr key={a.id} className="hover:bg-card/20 transition-colors">
-                      <td className="py-4 px-6">
-                        <p className="font-semibold text-foreground">{a.reviewer.name}</p>
-                        <p className="text-xs text-muted-foreground">{a.reviewer.email}</p>
-                      </td>
-                      <td className="py-4 px-6">
-                        <p className="font-semibold text-foreground">{a.course.title}</p>
-                      </td>
-                      <td className="py-4 px-6 text-muted-foreground text-xs">
-                        {new Date(a.assignedAt).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        <button
-                          onClick={() => handleRemoveAssignment(a.id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
-                          title="Remove Assignment"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
 
       {/* Assign Reviewer Modal */}

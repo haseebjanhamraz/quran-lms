@@ -16,10 +16,10 @@ import {
   TrendingUp,
   CheckCircle,
   PlayCircle,
-  ExternalLink,
   X,
 } from 'lucide-react';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
+import ThemeToggle from '@/components/ThemeToggle';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ interface StudentStats {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -105,68 +105,60 @@ export default function StudentDashboard() {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'learning' | 'attendance'>('learning');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'learning' | 'attendance'>('learning');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
+  const fetchSessionsAndStats = async () => {
+    try {
+      const [sRes, cRes, stRes] = await Promise.all([
+        fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' }),
+        fetch(`${API_URL}/courses/enrolled`, { credentials: 'include' }),
+        fetch(`${API_URL}/students/stats`, { credentials: 'include' }),
+      ]);
+
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setSessions(Array.isArray(sData) ? sData : sData.data ?? []);
+      }
+      if (cRes.ok) {
+        const cData = await cRes.json();
+        setCourses(Array.isArray(cData) ? cData : cData.data ?? []);
+      }
+      if (stRes.ok) {
+        const stData = await stRes.json();
+        setStats(stData);
+      }
+    } catch (err) {
+      console.error('Failed to load student dashboard data:', err);
+    } finally {
+      setDataLoading(false);
     }
-  }, [authLoading, user, router]);
+  };
 
   const refreshSessionsSilently = async () => {
     try {
-      const sessRes = await fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' });
-      if (sessRes.ok) {
-        const d = await sessRes.json();
-        setSessions(Array.isArray(d) ? d : d.sessions ?? []);
+      const sRes = await fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' });
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        setSessions(Array.isArray(sData) ? sData : sData.data ?? []);
       }
-    } catch (_) { }
+    } catch (_) {}
   };
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    const fetchData = async () => {
-      setDataLoading(true);
-      try {
-        const [sessRes, coursesRes, statsRes] = await Promise.all([
-          fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' }),
-          fetch(`${API_URL}/courses`, { credentials: 'include' }),
-          fetch(`${API_URL}/class-sessions/stats`, { credentials: 'include' }),
-        ]);
-
-        if (sessRes.ok) {
-          const d = await sessRes.json();
-          setSessions(Array.isArray(d) ? d : d.sessions ?? []);
-        }
-        if (coursesRes.ok) {
-          const d = await coursesRes.json();
-          setCourses(Array.isArray(d) ? d : d.courses ?? []);
-        }
-        if (statsRes.ok) {
-          const d = await statsRes.json();
-          setStats(d);
-        }
-      } catch {
-        // network errors silently ignored; UI shows empty states
-      } finally {
-        setDataLoading(false);
-      }
-    };
-    fetchData();
-  }, [authLoading, user]);
+    if (user) {
+      fetchSessionsAndStats();
+    }
+  }, [user]);
 
   useEffect(() => {
-    if (user) {
+    if (user && sessions.length > 0) {
       const hasActiveUploads = sessions.some(
-        (s) =>
-          s.status === 'COMPLETED' &&
-          (!s.recording || s.recording.status === 'PROCESSING' || s.recording.status === 'UPLOADING')
+        (s) => s.status === 'COMPLETED' && (!s.recording || s.recording.status === 'PROCESSING' || s.recording.status === 'UPLOADING')
       );
 
       if (hasActiveUploads) {
@@ -183,8 +175,8 @@ export default function StudentDashboard() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <Loader2 className="w-10 h-10 text-emerald-400 animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-primary animate-spin" />
       </div>
     );
   }
@@ -192,366 +184,206 @@ export default function StudentDashboard() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-slate-950" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 999px; }
-
-        .glass-card {
-          background: rgba(15,23,42,0.80);
-          border: 1px solid rgba(51,65,85,0.5);
-          border-radius: 1rem;
-          backdrop-filter: blur(12px);
-        }
-        .stat-card {
-          background: linear-gradient(135deg, rgba(15,23,42,0.9) 0%, rgba(30,41,59,0.7) 100%);
-          border: 1px solid rgba(51,65,85,0.5);
-          border-radius: 1rem;
-          backdrop-filter: blur(12px);
-          transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .stat-card:hover {
-          transform: translateY(-3px);
-          box-shadow: 0 12px 40px rgba(0,0,0,0.4);
-        }
-        .session-card {
-          background: rgba(15,23,42,0.85);
-          border: 1px solid rgba(51,65,85,0.4);
-          border-radius: 0.875rem;
-          transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        .session-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(96,165,250,0.35);
-          box-shadow: 0 8px 32px rgba(59,130,246,0.15);
-        }
-        .course-card {
-          background: rgba(15,23,42,0.85);
-          border: 1px solid rgba(51,65,85,0.4);
-          border-radius: 0.875rem;
-          transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-        .course-card:hover {
-          transform: translateY(-3px);
-          border-color: rgba(96,165,250,0.35);
-          box-shadow: 0 12px 40px rgba(59,130,246,0.12);
-        }
-        .btn-primary {
-          background: linear-gradient(135deg, #C9A84C, #a8842e);
-          color: #fff;
-          border: none;
-          border-radius: 0.625rem;
-          padding: 0.5rem 1.25rem;
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          transition: opacity 0.2s, transform 0.15s;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-        }
-        .btn-primary:hover { opacity: 0.9; transform: scale(1.03); }
-
-        .btn-live {
-          background: linear-gradient(135deg, #10b981, #059669);
-          color: #fff;
-          border: none;
-          border-radius: 0.625rem;
-          padding: 0.5rem 1.25rem;
-          font-size: 0.875rem;
-          font-weight: 700;
-          cursor: pointer;
-          transition: opacity 0.2s, transform 0.15s;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          box-shadow: 0 0 16px rgba(16,185,129,0.4);
-        }
-        .btn-live:hover { opacity: 0.9; transform: scale(1.04); }
-
-        .btn-logout {
-          background: rgba(239,68,68,0.1);
-          color: #ef4444;
-          border: 1px solid rgba(239,68,68,0.25);
-          border-radius: 0.625rem;
-          padding: 0.5rem 1rem;
-          font-size: 0.875rem;
-          font-weight: 600;
-          cursor: pointer;
-          display: inline-flex;
-          align-items: center;
-          gap: 0.4rem;
-          transition: background 0.2s;
-        }
-        .btn-logout:hover { background: rgba(239,68,68,0.2); }
-
-        .pulse-live {
-          width: 10px; height: 10px;
-          background: #10b981;
-          border-radius: 50%;
-          position: relative;
-          display: inline-block;
-        }
-        .pulse-live::before {
-          content: '';
-          position: absolute;
-          inset: -4px;
-          background: rgba(16,185,129,0.4);
-          border-radius: 50%;
-          animation: pulse-ring 1.4s ease-out infinite;
-        }
-        @keyframes pulse-ring {
-          0%   { transform: scale(0.8); opacity: 1; }
-          100% { transform: scale(2); opacity: 0; }
-        }
-        .gold-text { color: #C9A84C; }
-        .gradient-hero {
-          background: linear-gradient(135deg, #0a2e2b 0%, #08211f 40%, #092624 70%, #051413 100%);
-          border: 1px solid rgba(201,168,76,0.2);
-          border-radius: 1.25rem;
-          position: relative;
-          overflow: hidden;
-        }
-        .gradient-hero::before {
-          content: '';
-          position: absolute;
-          top: -60px; left: -60px;
-          width: 280px; height: 280px;
-          background: radial-gradient(circle, rgba(201,168,76,0.1) 0%, transparent 70%);
-          pointer-events: none;
-        }
-        .verse-banner {
-          background: linear-gradient(135deg, rgba(201,168,76,0.1) 0%, rgba(201,168,76,0.05) 100%);
-          border: 1px solid rgba(201,168,76,0.2);
-          border-radius: 0.875rem;
-        }
-        .section-heading {
-          font-size: 1.25rem;
-          font-weight: 700;
-          color: #f1f5f9;
-          display: flex;
-          align-items: center;
-          gap: 0.6rem;
-        }
-        .empty-state {
-          text-align: center;
-          padding: 3rem 1.5rem;
-          color: #64748b;
-        }
-        .navbar {
-          position: sticky;
-          top: 0;
-          z-index: 50;
-          background: rgba(2,6,23,0.85);
-          backdrop-filter: blur(16px);
-          border-bottom: 1px solid rgba(51,65,85,0.4);
-        }
-        @media (max-width: 768px) {
-          .stats-grid { grid-template-columns: 1fr !important; }
-          .courses-grid { grid-template-columns: 1fr !important; }
-          .hero-inner { flex-direction: column !important; gap: 1.5rem !important; }
-        }
-      `}</style>
-
+    <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* ═══════════════ NAVBAR ═══════════════ */}
-      <nav className="navbar">
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0.875rem 1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <nav className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
           {/* Brand */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <div style={{ background: 'linear-gradient(135deg,#C9A84C,#a8842e)', borderRadius: '0.625rem', padding: '0.45rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <GraduationCap style={{ color: '#fff', width: 20, height: 20 }} />
+          <div className="flex items-center gap-2.5">
+            <div className="bg-brand rounded-xl p-2 flex items-center justify-center text-brand-foreground shadow-sm">
+              <GraduationCap className="w-5 h-5" />
             </div>
-            <span style={{ fontWeight: 800, fontSize: '1.1rem', color: '#f1f5f9', letterSpacing: '-0.01em' }}>
+            <span className="font-display font-bold text-lg text-foreground tracking-tight">
               Student Portal
             </span>
           </div>
 
           {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('learning')}
-              style={{
-                background: activeTab === 'learning' ? 'rgba(201,168,76,0.15)' : 'transparent',
-                color: activeTab === 'learning' ? '#C9A84C' : '#94a3b8',
-                border: activeTab === 'learning' ? '1px solid rgba(201,168,76,0.3)' : '1px solid transparent',
-                borderRadius: '0.5rem',
-                padding: '0.4rem 0.85rem',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'learning'
+                  ? 'bg-brand/15 text-brand border border-brand/30'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
             >
               Learning Portal
             </button>
             <button
               onClick={() => setActiveTab('attendance')}
-              style={{
-                background: activeTab === 'attendance' ? 'rgba(201,168,76,0.15)' : 'transparent',
-                color: activeTab === 'attendance' ? '#C9A84C' : '#94a3b8',
-                border: activeTab === 'attendance' ? '1px solid rgba(201,168,76,0.3)' : '1px solid transparent',
-                borderRadius: '0.5rem',
-                padding: '0.4rem 0.85rem',
-                fontSize: '0.82rem',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'attendance'
+                  ? 'bg-brand/15 text-brand border border-brand/30'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
             >
               Attendance Logs
             </button>
           </div>
 
           {/* User area */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
             {user && (
-              <div style={{ textAlign: 'right', lineHeight: 1.3 }}>
-                <p style={{ fontSize: '0.875rem', fontWeight: 600, color: '#e2e8f0', margin: 0 }}>{user.name}</p>
-                <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0 }}>{user.email}</p>
+              <div className="hidden sm:block text-right leading-tight">
+                <p className="text-sm font-semibold text-foreground">{user.name}</p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
               </div>
             )}
-            <button className="btn-logout" onClick={logout}>
-              <LogOut style={{ width: 15, height: 15 }} />
-              Logout
+            <button
+              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-all"
+              onClick={logout}
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
             </button>
           </div>
         </div>
       </nav>
 
       {/* ═══════════════ MAIN ═══════════════ */}
-      <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* HERO */}
-        <section className="gradient-hero" style={{ padding: '2.5rem', marginBottom: '2rem' }}>
-          <div className="hero-inner" style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '2rem' }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(201,168,76,0.12)', border: '1px solid rgba(201,168,76,0.25)', borderRadius: '999px', padding: '0.3rem 0.9rem', marginBottom: '1rem' }}>
-                <Star style={{ width: 13, height: 13, color: '#C9A84C' }} />
-                <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 500 }}>Quranic Journey</span>
+        <section className="relative overflow-hidden rounded-2xl border border-border bg-card/70 p-6 md:p-8 backdrop-blur-xl mb-8 shadow-sm">
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="flex-1">
+              <div className="inline-flex items-center gap-1.5 bg-brand/15 border border-brand/30 rounded-full px-3 py-1 mb-3">
+                <Star className="w-3.5 h-3.5 text-brand" />
+                <span className="text-xs font-semibold text-brand">Quranic Journey</span>
               </div>
-              <h1 style={{ fontSize: 'clamp(1.6rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f8fafc', margin: '0 0 0.5rem', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
-                Assalamu Alaikum, <span className="gold-text">{user.name}</span>
+              <h1 className="text-2xl md:text-3xl font-extrabold text-foreground tracking-tight mb-2">
+                Assalamu Alaikum, <span className="text-brand">{user.name}</span> 👋
               </h1>
-              <p style={{ color: '#94a3b8', fontSize: '1rem', margin: '0 0 1.75rem', fontWeight: 400 }}>
+              <p className="text-muted-foreground text-sm mb-5">
                 May Allah guide you and grant you success in your learning.
               </p>
-              <div className="verse-banner" style={{ padding: '1rem 1.25rem', display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
-                <BookOpen style={{ width: 20, height: 20, color: '#C9A84C', flexShrink: 0, marginTop: '2px' }} />
-                <p style={{ color: '#ecdcb5', fontSize: '0.95rem', fontStyle: 'italic', margin: 0, lineHeight: 1.6 }}>
+              <div className="rounded-xl border border-brand/20 bg-brand/10 p-4 flex items-start gap-3">
+                <BookOpen className="w-5 h-5 text-brand shrink-0 mt-0.5" />
+                <p className="text-foreground/90 text-sm italic leading-relaxed">
                   &ldquo;Read in the name of your Lord who created.&rdquo;
-                  <span style={{ color: '#C9A84C', fontWeight: 600, fontStyle: 'normal' }}> — Al-Alaq 96:1</span>
+                  <span className="text-brand font-semibold not-italic"> — Al-Alaq 96:1</span>
                 </p>
               </div>
             </div>
-            <div style={{ flexShrink: 0, width: 120, height: 120, borderRadius: '50%', background: 'linear-gradient(135deg,rgba(201,168,76,0.2),rgba(201,168,76,0.05))', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <GraduationCap style={{ width: 52, height: 52, color: '#C9A84C' }} />
+            <div className="hidden md:flex shrink-0 w-28 h-28 rounded-full bg-brand/10 border border-brand/20 items-center justify-center">
+              <GraduationCap className="w-14 h-14 text-brand" />
             </div>
           </div>
         </section>
 
         {/* STATS ROW */}
-        <section className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-          <div className="stat-card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ background: 'rgba(201,168,76,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
-                <CheckCircle style={{ width: 22, height: 22, color: '#C9A84C' }} />
+        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-brand/15 rounded-xl p-2.5">
+                <CheckCircle className="w-5 h-5 text-brand" />
               </div>
             </div>
-            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
-              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#C9A84C' }} /> : completedSessions.length}
+            <p className="text-3xl font-bold text-foreground mb-1 leading-none">
+              {dataLoading ? <Loader2 className="w-5 h-5 inline animate-spin text-brand" /> : completedSessions.length}
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Classes Attended</p>
+            <p className="text-xs font-medium text-muted-foreground">Classes Attended</p>
           </div>
 
-          <div className="stat-card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ background: 'rgba(16,185,129,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
-                <Calendar style={{ width: 22, height: 22, color: '#34d399' }} />
+          <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-emerald-500/15 rounded-xl p-2.5">
+                <Calendar className="w-5 h-5 text-emerald-500" />
               </div>
             </div>
-            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
-              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#34d399' }} /> : upcomingSessions.length}
+            <p className="text-3xl font-bold text-foreground mb-1 leading-none">
+              {dataLoading ? <Loader2 className="w-5 h-5 inline animate-spin text-emerald-500" /> : upcomingSessions.length}
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Upcoming Classes</p>
+            <p className="text-xs font-medium text-muted-foreground">Upcoming Classes</p>
           </div>
 
-          <div className="stat-card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ background: 'rgba(201,168,76,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
-                <Clock style={{ width: 22, height: 22, color: '#C9A84C' }} />
+          <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-brand/15 rounded-xl p-2.5">
+                <Clock className="w-5 h-5 text-brand" />
               </div>
             </div>
-            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
-              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#C9A84C' }} /> : (stats?.totalHours ?? 0).toFixed(1)}
+            <p className="text-3xl font-bold text-foreground mb-1 leading-none">
+              {dataLoading ? <Loader2 className="w-5 h-5 inline animate-spin text-brand" /> : (stats?.totalHours ?? 0).toFixed(1)}
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Learning Hours</p>
+            <p className="text-xs font-medium text-muted-foreground">Learning Hours</p>
           </div>
 
-          <div className="stat-card" style={{ padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ background: 'rgba(59,130,246,0.15)', borderRadius: '0.75rem', padding: '0.6rem', display: 'flex' }}>
-                <BookOpen style={{ width: 22, height: 22, color: '#60a5fa' }} />
+          <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <div className="bg-blue-500/15 rounded-xl p-2.5">
+                <BookOpen className="w-5 h-5 text-blue-500" />
               </div>
             </div>
-            <p style={{ fontSize: 'clamp(1.8rem, 3vw, 2.4rem)', fontWeight: 800, color: '#f1f5f9', margin: '0 0 0.25rem', lineHeight: 1 }}>
-              {dataLoading ? <Loader2 style={{ width: 20, height: 20, display: 'inline', animation: 'spin 1s linear infinite', color: '#60a5fa' }} /> : (stats?.enrolledCourses ?? 0)}
+            <p className="text-3xl font-bold text-foreground mb-1 leading-none">
+              {dataLoading ? <Loader2 className="w-5 h-5 inline animate-spin text-blue-500" /> : (stats?.enrolledCourses ?? 0)}
             </p>
-            <p style={{ color: '#64748b', fontSize: '0.8rem', fontWeight: 500, margin: 0 }}>Enrolled Courses</p>
+            <p className="text-xs font-medium text-muted-foreground">Enrolled Courses</p>
           </div>
         </section>
 
         {activeTab === 'learning' ? (
           <>
             {/* UPCOMING CLASSES */}
-            <section className="glass-card" style={{ padding: '1.75rem', marginBottom: '2rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                <h2 className="section-heading">
-                  <Video style={{ width: 20, height: 20, color: '#C9A84C' }} />
+            <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm mb-8 shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Video className="w-5 h-5 text-brand" />
                   Upcoming Classes
                 </h2>
               </div>
 
               {dataLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem 0' }}>
-                  <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-7 h-7 text-brand animate-spin" />
                 </div>
               ) : upcomingSessions.length === 0 ? (
-                <div className="empty-state">
-                  <Calendar style={{ width: 40, height: 40, margin: '0 auto 1rem', color: '#334155' }} />
-                  <p style={{ fontSize: '0.95rem', marginBottom: '0.25rem' }}>No upcoming classes</p>
+                <div className="py-12 text-center text-muted-foreground">
+                  <Calendar className="w-10 h-10 mx-auto mb-3 text-muted-foreground/40" />
+                  <p className="text-sm font-medium">No upcoming classes scheduled</p>
                 </div>
               ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                <div className="flex flex-col gap-3">
                   {upcomingSessions.map((session) => (
-                    <div key={session.id} className="session-card" style={{ padding: '1.125rem 1.25rem', display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                      <div style={{ width: 44, height: 44, borderRadius: '0.75rem', background: session.status === 'LIVE' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.12)', border: `1px solid ${session.status === 'LIVE' ? '#10b981' : 'rgba(96,165,250,0.2)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        {session.status === 'LIVE' ? <PlayCircle style={{ width: 20, height: 20, color: '#34d399' }} /> : <Video style={{ width: 20, height: 20, color: '#60a5fa' }} />}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.9rem', margin: '0 0 0.25rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {session.course.title}
-                        </p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                          <CourseTypeBadge type={session.course.type} />
-                          <span style={{ color: '#64748b', fontSize: '0.78rem' }}>
-                            {formatDate(session.scheduledAt)} · {formatTime(session.scheduledAt)}
-                          </span>
+                    <div key={session.id} className="rounded-xl border border-border bg-background/50 p-4 flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-3.5 min-w-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
+                          session.status === 'LIVE'
+                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
+                            : 'bg-blue-500/15 border-blue-500/30 text-blue-500'
+                        }`}>
+                          {session.status === 'LIVE' ? <PlayCircle className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground text-sm truncate">
+                            {session.course.title}
+                          </p>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <CourseTypeBadge type={session.course.type} />
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(session.scheduledAt)} · {formatTime(session.scheduledAt)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div style={{ flexShrink: 0 }}>
+                      <div className="shrink-0">
                         {session.status === 'LIVE' ? (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-                            <span className="pulse-live" />
-                            <button className="btn-live" onClick={() => router.push(`/classroom/${session.id}`)}>
-                              <PlayCircle style={{ width: 15, height: 15 }} /> Join Now
+                          <div className="flex items-center gap-2">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <button
+                              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all shadow-md"
+                              onClick={() => router.push(`/classroom/${session.id}`)}
+                            >
+                              <PlayCircle className="w-4 h-4" /> Join Now
                             </button>
                           </div>
                         ) : (
-                          <div style={{ textAlign: 'right' }}>
-                            <span style={{ display: 'inline-block', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '999px', padding: '0.25rem 0.75rem', fontSize: '0.75rem', color: '#60a5fa', fontWeight: 600, marginBottom: '0.25rem' }}>
+                          <div className="text-right">
+                            <span className="inline-block bg-blue-500/15 border border-blue-500/30 rounded-full px-3 py-0.5 text-xs text-blue-500 font-semibold mb-1">
                               Upcoming
                             </span>
-                            <p style={{ color: '#64748b', fontSize: '0.75rem', margin: 0 }}>
+                            <p className="text-xs text-muted-foreground font-mono">
                               {getCountdown(session.scheduledAt)}
                             </p>
                           </div>
@@ -564,34 +396,36 @@ export default function StudentDashboard() {
             </section>
 
             {/* ENROLLED COURSES */}
-            <section className="glass-card" style={{ padding: '1.75rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                <h2 className="section-heading">
-                  <BookOpen style={{ width: 20, height: 20, color: '#C9A84C' }} />
-                  <span className="gold-text">Enrolled Courses</span>
+            <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-brand" />
+                  <span className="text-brand">Enrolled Courses</span>
                 </h2>
               </div>
 
               {dataLoading ? (
-                <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem 0' }}>
-                  <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
+                <div className="flex justify-center py-10">
+                  <Loader2 className="w-7 h-7 text-brand animate-spin" />
                 </div>
               ) : courses.length === 0 ? (
-                <div className="empty-state">
-                  <p>No enrolled courses.</p>
+                <div className="py-12 text-center text-muted-foreground text-sm">
+                  <p>No enrolled courses found.</p>
                 </div>
               ) : (
-                <div className="courses-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '1rem' }}>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {courses.map((course) => (
-                    <div key={course.id} className="course-card" style={{ padding: '1.25rem' }}>
-                      <div style={{ width: 40, height: 40, borderRadius: '0.625rem', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.875rem' }}>
-                        <BookOpen style={{ width: 18, height: 18, color: '#C9A84C' }} />
+                    <div key={course.id} className="rounded-xl border border-border bg-background/50 p-5 flex flex-col justify-between hover:border-brand/40 transition-all shadow-sm">
+                      <div className="mb-4">
+                        <div className="w-10 h-10 rounded-xl bg-brand/15 border border-brand/30 flex items-center justify-center mb-3">
+                          <BookOpen className="w-5 h-5 text-brand" />
+                        </div>
+                        <h3 className="font-bold text-foreground text-sm leading-snug mb-1">
+                          {course.title}
+                        </h3>
+                        {course.teacher && <p className="text-xs text-muted-foreground">{course.teacher.name}</p>}
                       </div>
-                      <h3 style={{ color: '#f1f5f9', fontWeight: 700, fontSize: '0.95rem', margin: '0 0 0.4rem', lineHeight: 1.35 }}>
-                        {course.title}
-                      </h3>
-                      {course.teacher && <p style={{ color: '#64748b', fontSize: '0.8rem', margin: '0 0 0.75rem' }}>{course.teacher.name}</p>}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 'auto' }}>
+                      <div className="flex items-center justify-between mt-auto">
                         <CourseTypeBadge type={course.type} />
                       </div>
                     </div>
@@ -602,66 +436,61 @@ export default function StudentDashboard() {
           </>
         ) : (
           /* ATTENDANCE & RECORDINGS TAB */
-          <section className="glass-card" style={{ padding: '1.75rem' }}>
-            <h2 className="section-heading mb-6">
-              <CheckCircle style={{ width: 20, height: 20, color: '#C9A84C' }} />
+          <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm">
+            <h2 className="text-lg font-bold text-foreground flex items-center gap-2 mb-6">
+              <CheckCircle className="w-5 h-5 text-brand" />
               Class Attendance & Recording History
             </h2>
 
             {dataLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '2.5rem 0' }}>
-                <Loader2 style={{ width: 28, height: 28, color: '#C9A84C', animation: 'spin 1s linear infinite' }} />
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-7 h-7 text-brand animate-spin" />
               </div>
             ) : completedSessions.length === 0 ? (
-              <div className="empty-state">
+              <div className="py-12 text-center text-muted-foreground text-sm">
                 <p>No completed class records found.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+              <div className="flex flex-col gap-3">
                 {completedSessions.map((session) => (
-                  <div key={session.id} className="session-card animate-fadeIn" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '0.95rem', margin: '0 0 0.25rem' }}>{session.course.title}</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div key={session.id} className="rounded-xl border border-border bg-background/50 p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div>
+                        <p className="font-semibold text-foreground text-sm mb-1">{session.course.title}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
                           <CourseTypeBadge type={session.course.type} />
-                          <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
+                          <span className="text-xs text-muted-foreground">
                             {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)}
                           </span>
                         </div>
                       </div>
-                      <span style={{ background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: '999px', padding: '0.3rem 0.875rem', fontSize: '0.75rem', color: '#34d399', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <CheckCircle style={{ width: 13, height: 13 }} /> Attended
+                      <span className="bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                        <CheckCircle className="w-3.5 h-3.5" /> Attended
                       </span>
                     </div>
 
                     {/* Recording section */}
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid rgba(148,163,184,0.1)', paddingTop: '0.75rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                    <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+                      <span className="text-muted-foreground">
                         Recording:{' '}
-                        <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-400' : 'text-slate-500'}`}>
+                        <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
                           {session.recording?.status || 'PROCESSING'}
                         </span>
                       </span>
                       {session.recording?.status === 'READY' ? (
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <button
-                            onClick={() => {
-                              const previewUrl = `${API_URL}/recordings/${session.id}/stream`;
-                              setActiveVideoUrl(previewUrl);
-                            }}
-                            className="btn-primary"
-                            style={{ padding: '0.35rem 0.9rem', fontSize: '0.78rem', display: 'flex', alignItems: 'center', gap: '0.35rem', border: 'none', cursor: 'pointer' }}
-                          >
-                            <PlayCircle style={{ width: 12, height: 12 }} /> Watch Recording
-                          </button>
-                        </div>
+                        <button
+                          onClick={() => {
+                            const previewUrl = `${API_URL}/recordings/${session.id}/stream`;
+                            setActiveVideoUrl(previewUrl);
+                          }}
+                          className="bg-brand hover:bg-brand/90 text-brand-foreground font-semibold px-3.5 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5"
+                        >
+                          <PlayCircle className="w-3.5 h-3.5" /> Watch Recording
+                        </button>
                       ) : (
-                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                          <span style={{ fontSize: '0.75rem', color: '#475569', fontStyle: 'italic' }}>
-                            Processing upload...
-                          </span>
-                        </div>
+                        <span className="text-muted-foreground italic">
+                          Processing upload...
+                        </span>
                       )}
                     </div>
                   </div>
@@ -672,16 +501,16 @@ export default function StudentDashboard() {
         )}
 
         <VideoPlayerModal
-          url={activeVideoUrl}
+          videoUrl={activeVideoUrl}
           onClose={() => setActiveVideoUrl(null)}
         />
 
         {/* FOOTER */}
-        <footer style={{ textAlign: 'center', padding: '1.5rem', borderTop: '1px solid rgba(51,65,85,0.4)', marginTop: '3rem' }}>
-          <p style={{ fontStyle: 'italic', color: '#475569', fontSize: '0.9rem', margin: '0 0 0.3rem' }}>
+        <footer className="text-center py-6 border-t border-border mt-12">
+          <p className="italic text-muted-foreground text-sm mb-1">
             &ldquo;Seek knowledge from the cradle to the grave.&rdquo;
           </p>
-          <p style={{ color: '#334155', fontSize: '0.75rem', margin: 0 }}>— Prophet Muhammad (PBUH)</p>
+          <p className="text-xs text-muted-foreground/70">— Prophet Muhammad (PBUH)</p>
         </footer>
       </main>
     </div>

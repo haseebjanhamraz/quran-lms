@@ -64,7 +64,7 @@ interface EnrollmentStats {
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -113,15 +113,15 @@ function todayLabel(): string {
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; dot?: string }> = {
-    SCHEDULED: { cls: 'bg-blue-500/20 text-blue-300 border border-blue-500/30' },
+    SCHEDULED: { cls: 'bg-blue-500/20 text-blue-500 border border-blue-500/30' },
     LIVE: {
-      cls: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
-      dot: 'bg-emerald-400 animate-pulse',
+      cls: 'bg-emerald-500/20 text-emerald-500 border border-emerald-500/30',
+      dot: 'bg-emerald-500 animate-pulse',
     },
-    COMPLETED: { cls: 'bg-slate-600/40 text-slate-300 border border-slate-600/40' },
-    CANCELLED: { cls: 'bg-red-500/20 text-red-300 border border-red-500/30' },
+    COMPLETED: { cls: 'bg-muted text-muted-foreground border border-border' },
+    CANCELLED: { cls: 'bg-destructive/20 text-destructive border border-destructive/30' },
   };
-  const { cls, dot } = map[status] ?? { cls: 'bg-slate-700 text-slate-300' };
+  const { cls, dot } = map[status] ?? { cls: 'bg-muted text-muted-foreground' };
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}
@@ -134,11 +134,11 @@ function StatusBadge({ status }: { status: string }) {
 
 function SeverityBadge({ severity }: { severity: string }) {
   const map: Record<string, string> = {
-    HIGH: 'bg-red-500/20 text-red-300 border border-red-500/30',
-    MEDIUM: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
-    LOW: 'bg-blue-500/20 text-blue-300 border border-blue-500/30',
+    HIGH: 'bg-destructive/20 text-destructive border border-destructive/30',
+    MEDIUM: 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30',
+    LOW: 'bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/30',
   };
-  const cls = map[severity] ?? 'bg-slate-700 text-slate-300';
+  const cls = map[severity] ?? 'bg-muted text-muted-foreground';
   return (
     <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
       {severity}
@@ -148,14 +148,14 @@ function SeverityBadge({ severity }: { severity: string }) {
 
 function StatCard({ label, value, icon, iconBg, trend }: any) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/80 p-5 backdrop-blur-sm transition-all duration-300 hover:border-slate-600/60 hover:shadow-lg hover:shadow-black/30">
+    <div className="relative overflow-hidden rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm transition-all duration-300 hover:border-brand/40 hover:shadow-lg">
       <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-10 blur-2xl" style={{ background: iconBg }} />
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-sm font-medium text-slate-400">{label}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-slate-100">{value}</p>
+          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+          <p className="mt-2 text-3xl font-bold tracking-tight text-foreground">{value}</p>
           {trend && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-emerald-400">
+            <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
               <TrendingUp size={12} />
               {trend}
             </p>
@@ -163,7 +163,7 @@ function StatCard({ label, value, icon, iconBg, trend }: any) {
         </div>
         <div
           className="flex h-12 w-12 items-center justify-center rounded-xl"
-          style={{ background: iconBg + '33' }}
+          style={{ background: iconBg + '25' }}
         >
           {icon}
         </div>
@@ -252,15 +252,15 @@ export default function AdminDashboardPage() {
       {/* ── Top Bar ── */}
       <div className="mb-8 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 font-display">
+          <h1 className="text-2xl font-bold text-foreground font-display">
             Assalamu Alaikum,{' '}
-            <span style={{ color: '#C9A84C' }}>{user?.name ?? 'Admin'}</span> 👋
+            <span className="text-brand">{user?.name ?? 'Admin'}</span> 👋
           </h1>
-          <p className="mt-0.5 text-sm text-slate-400">{todayLabel()}</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">{todayLabel()}</p>
         </div>
         {loading && (
-          <div className="flex items-center gap-2 rounded-full border border-slate-700/50 bg-slate-900/60 px-4 py-1.5 text-xs text-slate-400">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#C9A84C]" />
+          <div className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs text-muted-foreground">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
             Loading system metrics&hellip;
           </div>
         )}
@@ -271,41 +271,41 @@ export default function AdminDashboardPage() {
         <StatCard
           label="Teachers"
           value={totalTeachers}
-          icon={<BookOpen size={20} color="#6ee7b7" />}
-          iconBg="#6ee7b7"
+          icon={<BookOpen size={20} className="text-emerald-500" />}
+          iconBg="#10b981"
           trend="Active educators"
         />
         <StatCard
           label="Students"
           value={totalStudents}
-          icon={<Users size={20} color="#60a5fa" />}
-          iconBg="#60a5fa"
+          icon={<Users size={20} className="text-blue-500" />}
+          iconBg="#3b82f6"
           trend="Enrolled learners"
         />
         <StatCard
           label="Classes Today"
           value={classesToday}
-          icon={<Calendar size={20} color="#C9A84C" />}
+          icon={<Calendar size={20} className="text-brand" />}
           iconBg="#C9A84C"
         />
         <StatCard
           label="Enrollments"
           value={totalEnrollments}
-          icon={<UserCheck size={20} color="#34d399" />}
-          iconBg="#34d399"
+          icon={<UserCheck size={20} className="text-emerald-500" />}
+          iconBg="#10b981"
           trend="Total connections"
         />
         <StatCard
           label="Schedules"
           value={sessions.length}
-          icon={<Clock size={20} color="#a78bfa" />}
-          iconBg="#a78bfa"
+          icon={<Clock size={20} className="text-purple-500" />}
+          iconBg="#8b5cf6"
         />
         <StatCard
           label="Flagged Reviews"
           value={flagged.length}
-          icon={<AlertTriangle size={20} color="#f87171" />}
-          iconBg="#f87171"
+          icon={<AlertTriangle size={20} className="text-destructive" />}
+          iconBg="#ef4444"
         />
       </div>
 
@@ -316,32 +316,32 @@ export default function AdminDashboardPage() {
           {/* Recent Sessions Table */}
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-100">
-                <Clock size={16} className="text-[#C9A84C]" />
+              <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Clock size={16} className="text-brand" />
                 Recent scheduled classes
               </h2>
               <Link
                 href="/admin/schedule"
-                className="text-xs font-medium text-[#C9A84C] hover:underline"
+                className="text-xs font-medium text-brand hover:underline"
               >
                 View all &rarr;
               </Link>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/80 backdrop-blur-sm">
+            <div className="overflow-hidden rounded-2xl border border-border bg-card/80 backdrop-blur-sm shadow-sm">
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-700/60 bg-slate-950/40">
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Course</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Date &amp; Time</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Duration</th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">Status</th>
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Course</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Date &amp; Time</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Duration</th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {recentSessions.length === 0 ? (
                       <tr>
-                        <td colSpan={4} className="px-4 py-10 text-center text-sm text-slate-500">
+                        <td colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
                           {loading ? 'Loading sessions\u2026' : 'No sessions scheduled yet.'}
                         </td>
                       </tr>
@@ -356,18 +356,17 @@ export default function AdminDashboardPage() {
                               router.push(`/admin/schedule`);
                             }
                           }}
-                          className={`cursor-pointer transition-colors hover:bg-white/[0.03] ${
-                            i !== recentSessions.length - 1 ? 'border-b border-slate-700/40' : ''
-                          }`}
+                          className={`cursor-pointer transition-colors hover:bg-muted/40 ${i !== recentSessions.length - 1 ? 'border-b border-border/60' : ''
+                            }`}
                         >
                           <td className="px-4 py-3">
-                            <p className="font-medium text-slate-100">{s.course?.title ?? '\u2014'}</p>
-                            <p className="text-xs text-slate-500">{s.course?.type ?? 'CourseType'}</p>
+                            <p className="font-medium text-foreground">{s.course?.title ?? '\u2014'}</p>
+                            <p className="text-xs text-muted-foreground">{s.course?.type ?? 'CourseType'}</p>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-slate-300 font-mono text-xs">
+                          <td className="whitespace-nowrap px-4 py-3 text-foreground/80 font-mono text-xs">
                             {formatDate(s.scheduledAt)}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-slate-300">
+                          <td className="whitespace-nowrap px-4 py-3 text-foreground/80">
                             {s.durationMinutes} min
                           </td>
                           <td className="px-4 py-3">
@@ -385,9 +384,9 @@ export default function AdminDashboardPage() {
           {/* System Overview Visualizations */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Enrollment Distribution */}
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/80 p-5 backdrop-blur-sm">
-              <h3 className="mb-4 text-sm font-semibold text-slate-100 flex items-center gap-1.5">
-                <Sparkles size={16} className="text-[#C9A84C]" />
+            <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <Sparkles size={16} className="text-brand" />
                 Enrollment by Category
               </h3>
               <div className="space-y-3">
@@ -397,10 +396,10 @@ export default function AdminDashboardPage() {
                   return (
                     <div key={type} className="space-y-1">
                       <div className="flex justify-between text-xs font-semibold">
-                        <span className="text-slate-300">{type.replace(/_/g, ' ')}</span>
-                        <span className="text-[#C9A84C] font-mono">{count} student{count !== 1 ? 's' : ''}</span>
+                        <span className="text-foreground/80">{type.replace(/_/g, ' ')}</span>
+                        <span className="text-brand font-mono">{count} student{count !== 1 ? 's' : ''}</span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden border border-slate-700/20">
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden border border-border/40">
                         <div
                           className="h-full rounded-full bg-gradient-to-r from-blue-500 to-indigo-500 transition-all duration-500"
                           style={{ width: `${pct}%` }}
@@ -413,29 +412,29 @@ export default function AdminDashboardPage() {
             </div>
 
             {/* Session Status Overview */}
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/80 p-5 backdrop-blur-sm">
-              <h3 className="mb-4 text-sm font-semibold text-slate-100 flex items-center gap-1.5">
-                <LayoutDashboard size={16} className="text-[#C9A84C]" />
+            <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
+              <h3 className="mb-4 text-sm font-semibold text-foreground flex items-center gap-1.5">
+                <LayoutDashboard size={16} className="text-brand" />
                 Class Status Overview
               </h3>
               <div className="space-y-3">
                 {Object.entries(statusCounts).map(([status, count]) => {
                   const pct = Math.round((count / maxSessionStatusVal) * 100);
                   const colors: Record<string, string> = {
-                    SCHEDULED: 'from-blue-400 to-indigo-500',
+                    SCHEDULED: 'from-blue-500 to-indigo-500',
                     LIVE: 'from-emerald-400 to-teal-500',
-                    COMPLETED: 'from-slate-400 to-slate-500',
+                    COMPLETED: 'from-muted-foreground/60 to-muted-foreground',
                     CANCELLED: 'from-red-400 to-rose-500',
                   };
                   return (
                     <div key={status} className="space-y-1">
                       <div className="flex justify-between text-xs font-semibold">
-                        <span className="text-slate-300">{status}</span>
-                        <span className="text-slate-400 font-mono">{count}</span>
+                        <span className="text-foreground/80">{status}</span>
+                        <span className="text-muted-foreground font-mono">{count}</span>
                       </div>
-                      <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden border border-slate-700/20">
+                      <div className="h-2 w-full rounded-full bg-muted overflow-hidden border border-border/40">
                         <div
-                          className={`h-full rounded-full bg-gradient-to-r ${colors[status] || 'from-slate-500 to-slate-600'} transition-all duration-500`}
+                          className={`h-full rounded-full bg-gradient-to-r ${colors[status] || 'from-muted-foreground to-muted-foreground'} transition-all duration-500`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
@@ -452,35 +451,35 @@ export default function AdminDashboardPage() {
           {/* Audit Logs Feed */}
           <section>
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-100">
-                <Activity size={16} className="text-[#C9A84C]" />
+              <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Activity size={16} className="text-brand" />
                 Recent System Activity
               </h2>
               <Link
                 href="/admin/audit-logs"
-                className="text-xs font-medium text-[#C9A84C] hover:underline"
+                className="text-xs font-medium text-brand hover:underline"
               >
                 View all &rarr;
               </Link>
             </div>
-            <div className="rounded-2xl border border-slate-700/50 bg-slate-900/80 p-4 backdrop-blur-sm space-y-3 max-h-[360px] overflow-y-auto">
+            <div className="rounded-2xl border border-border bg-card/80 p-4 backdrop-blur-sm space-y-3 max-h-[360px] overflow-y-auto shadow-sm">
               {auditLogs.length === 0 ? (
-                <div className="py-10 text-center text-sm text-slate-500">
+                <div className="py-10 text-center text-sm text-muted-foreground">
                   {loading ? 'Loading logs\u2026' : 'No system logs registered.'}
                 </div>
               ) : (
                 auditLogs.map((log) => (
-                  <div key={log.id} className="border-b border-slate-800/60 pb-2.5 last:border-0 last:pb-0">
+                  <div key={log.id} className="border-b border-border/60 pb-2.5 last:border-0 last:pb-0">
                     <div className="flex justify-between items-start gap-2">
-                      <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-800/30">
+                      <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         {log.action}
                       </span>
-                      <span className="text-[10px] text-slate-500 font-mono">
+                      <span className="text-[10px] text-muted-foreground font-mono">
                         {formatRelativeTime(log.createdAt)}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-300 mt-1.5 leading-snug">
-                      User: <span className="text-slate-400 font-medium">{log.user?.name || 'System Action'}</span>
+                    <p className="text-xs text-foreground/80 mt-1.5 leading-snug">
+                      User: <span className="text-muted-foreground font-medium">{log.user?.name || 'System Action'}</span>
                     </p>
                   </div>
                 ))
@@ -491,43 +490,43 @@ export default function AdminDashboardPage() {
           {/* Flagged Reviews Panel */}
           <section id="flagged">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-100">
-                <Flag size={16} className="text-red-400" />
+              <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Flag size={16} className="text-destructive" />
                 Escalated Reviews
               </h2>
-              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-xs font-semibold text-red-300">
+              <span className="rounded-full bg-destructive/20 px-2 py-0.5 text-xs font-semibold text-destructive">
                 {flagged.length}
               </span>
             </div>
             <div className="flex flex-col gap-3">
               {flagged.length === 0 ? (
-                <div className="rounded-2xl border border-slate-700/50 bg-slate-900/80 px-4 py-10 text-center text-sm text-slate-500 backdrop-blur-sm">
+                <div className="rounded-2xl border border-border bg-card/80 px-4 py-10 text-center text-sm text-muted-foreground backdrop-blur-sm shadow-sm">
                   {loading ? 'Loading\u2026' : 'No flagged reviews \u2714'}
                 </div>
               ) : (
                 flagged.map((f) => (
                   <div
                     key={f.id}
-                    className="rounded-2xl border border-slate-700/50 bg-slate-900/80 p-4 backdrop-blur-sm transition-all hover:border-slate-600/60"
+                    className="rounded-2xl border border-border bg-card/80 p-4 backdrop-blur-sm transition-all hover:border-brand/40 shadow-sm"
                   >
                     <div className="mb-1.5 flex items-start justify-between gap-2">
-                      <p className="font-semibold text-slate-100 leading-snug truncate">
+                      <p className="font-semibold text-foreground leading-snug truncate">
                         {f.session?.course?.title ?? 'Unknown Course'}
                       </p>
                       <SeverityBadge severity={f.flagSeverity} />
                     </div>
-                    <p className="mb-1 text-xs text-slate-400">
+                    <p className="mb-1 text-xs text-muted-foreground">
                       Teacher:{' '}
-                      <span className="text-slate-300">
+                      <span className="text-foreground/80">
                         {f.session?.course?.teacher?.name ?? 'N/A'}
                       </span>
                     </p>
-                    <div className="flex items-center gap-3 text-xs text-slate-400">
-                      <span>Reviewer: <span className="text-slate-300">{f.reviewer?.name ?? 'N/A'}</span></span>
-                      <span>Score: <span className="text-amber-400 font-bold font-mono">{f.overallScore.toFixed(1)}/5.0</span></span>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>Reviewer: <span className="text-foreground/80">{f.reviewer?.name ?? 'N/A'}</span></span>
+                      <span>Score: <span className="text-amber-500 font-bold font-mono">{f.overallScore.toFixed(1)}/5.0</span></span>
                     </div>
                     {f.flagReason && (
-                      <p className="mt-2 rounded-lg border border-slate-700/40 bg-slate-800/60 px-3 py-1.5 text-xs text-slate-300 italic">
+                      <p className="mt-2 rounded-lg border border-border bg-muted/60 px-3 py-1.5 text-xs text-foreground/90 italic">
                         &ldquo;{f.flagReason}&rdquo;
                       </p>
                     )}
@@ -541,8 +540,8 @@ export default function AdminDashboardPage() {
 
       {/* ── Quick Actions ── */}
       <section>
-        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-slate-100">
-          <TrendingUp size={16} className="text-[#C9A84C]" />
+        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-foreground">
+          <TrendingUp size={16} className="text-brand" />
           Admin Toolbelt Roster
         </h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
@@ -550,14 +549,14 @@ export default function AdminDashboardPage() {
             {
               href: '/admin/users',
               icon: <Users size={24} />,
-              iconColor: '#60a5fa',
+              iconColor: '#3b82f6',
               title: 'Manage Users',
               desc: 'Edit teacher/student roles.',
             },
             {
               href: '/admin/courses',
               icon: <BookOpen size={24} />,
-              iconColor: '#6ee7b7',
+              iconColor: '#10b981',
               title: 'Manage Courses',
               desc: 'Configure Quran syllabus.',
             },
@@ -571,14 +570,14 @@ export default function AdminDashboardPage() {
             {
               href: '/admin/reviewer-assignments',
               icon: <ShieldCheck size={24} />,
-              iconColor: '#c084fc',
+              iconColor: '#8b5cf6',
               title: 'QA Reviewers',
               desc: 'Syllabus compliance assigning.',
             },
             {
               href: '/admin/audit-logs',
               icon: <Activity size={24} />,
-              iconColor: '#34d399',
+              iconColor: '#10b981',
               title: 'Audit Logs',
               desc: 'Trace platform events.',
             },
@@ -586,7 +585,7 @@ export default function AdminDashboardPage() {
             <Link
               key={href}
               href={href}
-              className="group relative overflow-hidden rounded-2xl border border-slate-700/50 bg-slate-900/80 p-4 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-slate-600/60 hover:shadow-xl hover:shadow-black/40"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card/80 p-4 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-lg shadow-sm"
             >
               <div
                 className="pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full opacity-10 blur-2xl transition-opacity group-hover:opacity-20"
@@ -598,8 +597,8 @@ export default function AdminDashboardPage() {
               >
                 {icon}
               </div>
-              <h3 className="mb-0.5 font-semibold text-slate-100 text-sm truncate">{title}</h3>
-              <p className="text-[11px] leading-relaxed text-slate-400 truncate">{desc}</p>
+              <h3 className="mb-0.5 font-semibold text-foreground text-sm truncate">{title}</h3>
+              <p className="text-[11px] leading-relaxed text-muted-foreground truncate">{desc}</p>
               <span
                 className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold transition-all duration-200"
                 style={{ color: iconColor }}

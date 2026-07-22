@@ -3,16 +3,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../context/AuthContext';
-import { 
-  ArrowLeft, 
-  Search, 
-  Calendar, 
-  Clock, 
-  User, 
-  ExternalLink, 
-  Play, 
-  Loader2, 
-  Volume2 
+import {
+  ArrowLeft,
+  Search,
+  Calendar,
+  Clock,
+  User,
+  ExternalLink,
+  Play,
+  Loader2,
+  Volume2
 } from 'lucide-react';
 
 interface TranscriptSegment {
@@ -47,7 +47,7 @@ export default function TranscriptViewerPage() {
   const { sessionId } = useParams() as { sessionId: string };
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
-  
+
   const [session, setSession] = useState<SessionDetail | null>(null);
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +55,7 @@ export default function TranscriptViewerPage() {
   const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -101,7 +101,7 @@ export default function TranscriptViewerPage() {
   const handleTimeUpdate = () => {
     if (!videoRef.current || segments.length === 0) return;
     const currentTime = videoRef.current.currentTime;
-    
+
     const index = segments.findIndex(
       (seg) => currentTime >= seg.startTime && currentTime <= seg.endTime
     );
@@ -113,7 +113,7 @@ export default function TranscriptViewerPage() {
   const handleSeek = (seconds: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = seconds;
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
     }
   };
 
@@ -134,28 +134,28 @@ export default function TranscriptViewerPage() {
     });
   };
 
-  const filteredSegments = segments.filter(seg => 
+  const filteredSegments = segments.filter(seg =>
     seg.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (seg.speakerLabel && seg.speakerLabel.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   if (loading || authLoading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-amber-500 mb-2" />
-        <p className="text-xs text-slate-400">Loading transcript data...</p>
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand mb-2" />
+        <p className="text-xs text-muted-foreground">Loading transcript data...</p>
       </div>
     );
   }
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
         <div className="text-center max-w-sm">
-          <p className="text-sm text-slate-400 mb-4">Class session details could not be found.</p>
-          <button 
+          <p className="text-sm text-muted-foreground mb-4">Class session details could not be found.</p>
+          <button
             onClick={() => router.back()}
-            className="inline-flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs transition"
+            className="inline-flex items-center gap-2 bg-muted hover:bg-muted/80 text-foreground px-4 py-2 rounded-xl text-xs transition border border-border"
           >
             <ArrowLeft size={14} /> Back
           </button>
@@ -165,19 +165,19 @@ export default function TranscriptViewerPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-12" style={{ fontFamily: "'Inter', sans-serif" }}>
-      <header className="sticky top-0 z-50 border-b border-slate-900 bg-slate-950/80 backdrop-blur-xl">
+    <div className="min-h-screen bg-background text-foreground pb-12" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <header className="sticky top-0 z-50 border-b border-border bg-card/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="p-2 bg-slate-900 hover:bg-slate-855 rounded-xl border border-slate-800/80 text-slate-350 transition"
+              className="p-2 bg-muted hover:bg-muted/80 rounded-xl border border-border text-foreground transition"
               title="Go Back"
             >
               <ArrowLeft size={16} />
             </button>
             <div>
-              <span className="text-[10px] text-amber-500 uppercase tracking-widest font-semibold font-display">Compliance Portal</span>
+              <span className="text-[10px] text-brand uppercase tracking-widest font-semibold font-display">Compliance Portal</span>
               <h1 className="text-sm font-bold text-slate-200">Transcript Analysis Dashboard</h1>
             </div>
           </div>
@@ -227,11 +227,11 @@ export default function TranscriptViewerPage() {
             {session.recording?.status === 'READY' ? (
               <div className="space-y-4">
                 <div className="bg-slate-950 rounded-xl overflow-hidden aspect-video border border-slate-850 flex items-center justify-center relative">
-                  <video 
+                  <video
                     ref={videoRef}
                     onTimeUpdate={handleTimeUpdate}
                     src={`${API_URL}/recordings/${session.id}/stream`}
-                    controls 
+                    controls
                     crossOrigin="use-credentials"
                     className="w-full h-full object-cover"
                   />
@@ -290,24 +290,22 @@ export default function TranscriptViewerPage() {
                 filteredSegments.map((seg, idx) => {
                   const isTeacher = seg.speakerLabel === 'Teacher';
                   const isActive = idx === activeSegmentIndex;
-                  
+
                   return (
                     <div
                       key={seg.id}
                       onClick={() => handleSeek(seg.startTime)}
-                      className={`group cursor-pointer p-4 rounded-xl border transition-all duration-200 ${
-                        isActive
+                      className={`group cursor-pointer p-4 rounded-xl border transition-all duration-200 ${isActive
                           ? 'bg-amber-500/10 border-amber-500/30'
                           : 'bg-slate-950/40 border-slate-855/50 hover:bg-slate-900/50 hover:border-slate-800'
-                      }`}
+                        }`}
                     >
                       <div className="flex items-center justify-between gap-3 mb-2">
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                            isTeacher
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${isTeacher
                               ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
                               : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                          }`}>
+                            }`}>
                             {seg.speakerLabel || 'Speaker'}
                           </span>
                           <span className="text-[10px] text-slate-500 font-mono">

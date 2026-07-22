@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../../context/AuthContext';
-import { 
-  ArrowLeft, Play, Pause, Plus, Trash2, ShieldAlert, 
+import {
+  ArrowLeft, Play, Pause, Plus, Trash2, ShieldAlert,
   Award, MessageSquare, BookOpen, ThumbsUp, HelpCircle, AlertTriangle, CheckCircle, Loader2
 } from 'lucide-react';
+import ThemeToggle from '@/components/ThemeToggle';
 
 interface Annotation {
   id: string;
@@ -60,7 +61,7 @@ export default function ReviewPage() {
   const [curriculumScore, setCurriculumScore] = useState(5);
   const [qualityScore, setQualityScore] = useState(5);
   const [engagementScore, setEngagementScore] = useState(5);
-  
+
   // Feedback text
   const [strengths, setStrengths] = useState('');
   const [improvements, setImprovements] = useState('');
@@ -75,7 +76,7 @@ export default function ReviewPage() {
   const [noteText, setNoteText] = useState('');
   const [category, setCategory] = useState('Positive');
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchReview = async () => {
     try {
@@ -87,7 +88,7 @@ export default function ReviewPage() {
       if (res.ok) {
         const data = await res.json();
         setReview(data);
-        
+
         // Populate inputs
         setCurriculumScore(data.curriculumAdherenceScore);
         setQualityScore(data.teachingQualityScore);
@@ -193,7 +194,7 @@ export default function ReviewPage() {
   const seekTo = (seconds: number) => {
     if (videoRef.current) {
       videoRef.current.currentTime = seconds;
-      videoRef.current.play().catch(() => {});
+      videoRef.current.play().catch(() => { });
     }
   };
 
@@ -230,7 +231,7 @@ export default function ReviewPage() {
   if (!review) return null;
 
   // Stream URL fallback for local development testing
-  const videoStreamUrl = review.session.recording?.filePath 
+  const videoStreamUrl = review.session.recording?.filePath
     ? `${API_URL}/recordings/${id}/stream`
     : 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4';
 
@@ -246,17 +247,18 @@ export default function ReviewPage() {
             <ArrowLeft className="h-4 w-4" />
             <span>Reviewer Dashboard</span>
           </button>
-          
+
           <div className="text-center">
             <h1 className="font-bold text-base md:text-lg font-display">{review.session.course.title}</h1>
             <p className="text-xs text-muted-foreground">Teacher: {review.session.course.teacher?.name}</p>
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <button
               onClick={() => handleSave('DRAFT')}
               disabled={saving}
-              className="bg-muted hover:bg-muted/80 text-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-colors outline-none"
+              className="bg-muted hover:bg-muted/80 text-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-colors outline-none border border-border"
             >
               Save Draft
             </button>
@@ -273,7 +275,7 @@ export default function ReviewPage() {
 
       {/* Main split-screen panel */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* Left Side: Video & Annotations */}
         <div className="space-y-6">
           {/* Glassmorphic Video Box */}
@@ -348,7 +350,7 @@ export default function ReviewPage() {
           {/* Annotations Timeline Roster */}
           <div className="glass-panel p-6 rounded-2xl border border-border/50">
             <h3 className="text-lg font-bold font-display mb-4">Annotations Timeline</h3>
-            
+
             {review.annotations.length === 0 ? (
               <p className="text-xs text-muted-foreground italic py-4 text-center">
                 No annotations added. Use the capture bar above during video playback.
@@ -521,11 +523,10 @@ export default function ReviewPage() {
                           key={level}
                           type="button"
                           onClick={() => setFlagSeverity(level as any)}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                            flagSeverity === level
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-semibold border transition-all ${flagSeverity === level
                               ? 'bg-red-500 text-white border-red-500'
                               : 'bg-background border-border text-muted-foreground hover:bg-muted'
-                          }`}
+                            }`}
                         >
                           {level}
                         </button>

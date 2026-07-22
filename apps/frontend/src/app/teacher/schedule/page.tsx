@@ -11,7 +11,7 @@ function ScheduleForm() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('id');
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   // Form state
   const [courseId, setCourseId] = useState('');
@@ -197,11 +197,10 @@ function ScheduleForm() {
               </span>
               <button
                 onClick={handleCopy}
-                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg border transition-all duration-200 shrink-0 ${
-                  copied
+                className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-lg border transition-all duration-200 shrink-0 ${copied
                     ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                     : 'bg-slate-800 border-slate-750 hover:bg-slate-700 text-slate-200'
-                }`}
+                  }`}
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                 <span>{copied ? 'Copied!' : 'Copy Link'}</span>

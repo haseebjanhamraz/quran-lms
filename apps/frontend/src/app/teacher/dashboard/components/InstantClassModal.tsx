@@ -48,17 +48,17 @@ export default function InstantClassModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm animate-fadeIn">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700/60 bg-slate-900 p-6 shadow-2xl backdrop-blur-xl transition-all duration-300">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-fadeIn">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl backdrop-blur-xl transition-all duration-300">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <h2 className="font-display text-xl font-bold text-slate-100 flex items-center gap-2">
-            <PlayCircle size={22} className="text-emerald-400" />
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <h2 className="font-display text-xl font-bold text-foreground flex items-center gap-2">
+            <PlayCircle size={22} className="text-primary" />
             <span>Start Instant Class</span>
           </h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
+            className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <X size={18} />
           </button>
@@ -67,23 +67,23 @@ export default function InstantClassModal({
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-5 space-y-5">
           {error && (
-            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-400">
+            <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
               {error}
             </div>
           )}
 
           {/* Course select */}
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
               Select Course
             </label>
             {coursesLoading ? (
-              <div className="flex items-center gap-2 text-slate-400 text-sm py-2">
-                <Loader2 size={16} className="animate-spin text-emerald-400" />
+              <div className="flex items-center gap-2 text-muted-foreground text-sm py-2">
+                <Loader2 size={16} className="animate-spin text-primary" />
                 <span>Loading courses...</span>
               </div>
             ) : courses.length === 0 ? (
-              <p className="text-xs text-amber-400 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg">
+              <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 p-2.5 rounded-lg">
                 No active courses found. You need to be assigned to a course to start a class.
               </p>
             ) : (
@@ -91,11 +91,11 @@ export default function InstantClassModal({
                 value={courseId}
                 onChange={(e) => setCourseId(e.target.value)}
                 required
-                className="w-full rounded-xl border border-slate-700/50 glass-card px-3.5 py-2.5 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-colors cursor-pointer"
+                className="w-full rounded-xl border border-border bg-background px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-primary/50 transition-colors cursor-pointer"
               >
                 <option value="" disabled>Select a course to teach</option>
                 {courses.map((c) => (
-                  <option key={c.id} value={c.id} className="bg-slate-900 text-slate-200">
+                  <option key={c.id} value={c.id} className="bg-card text-foreground">
                     {c.title} ({c.type.replace(/_/g, ' ')})
                   </option>
                 ))}
@@ -103,46 +103,52 @@ export default function InstantClassModal({
             )}
           </div>
 
-          {/* Duration */}
+          {/* Duration select */}
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">
-              Duration (minutes)
+            <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">
+              Duration
             </label>
-            <input
-              type="number"
-              min={15}
-              max={180}
-              value={duration}
-              onChange={(e) => setDuration(Number(e.target.value))}
-              required
-              className="w-full rounded-xl border border-slate-700/50 glass-card px-3.5 py-2.5 text-sm text-slate-200 outline-none focus:border-emerald-500/50 transition-colors"
-            />
+            <div className="grid grid-cols-3 gap-2">
+              {[30, 45, 60].map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDuration(d)}
+                  className={`rounded-xl border py-2 text-xs font-semibold transition-all ${
+                    duration === d
+                      ? 'border-primary/50 bg-primary/10 text-primary'
+                      : 'border-border bg-muted/40 text-muted-foreground hover:border-border hover:text-foreground'
+                  }`}
+                >
+                  {d} mins
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+          {/* Action buttons */}
+          <div className="mt-6 flex items-center justify-end gap-3 pt-3 border-t border-border">
             <button
               type="button"
               onClick={onClose}
-              disabled={loading}
-              className="rounded-xl border border-slate-700/60 bg-slate-800/40 px-4 py-2 text-xs font-semibold text-slate-350 hover:bg-slate-850 hover:text-slate-100 transition-colors"
+              className="rounded-xl border border-border px-4 py-2 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || courses.length === 0}
-              className="flex items-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 px-5 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/10 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02]"
+              className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
                   <Loader2 size={14} className="animate-spin" />
-                  <span>Launching Class...</span>
+                  <span>Starting...</span>
                 </>
               ) : (
                 <>
                   <PlayCircle size={14} />
-                  <span>Start Class Now</span>
+                  <span>Launch Class Now</span>
                 </>
               )}
             </button>

@@ -19,7 +19,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<UserItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Create User Modal Form State
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
@@ -29,7 +29,7 @@ export default function UserManagement() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchUsers = async () => {
     try {
@@ -65,7 +65,7 @@ export default function UserManagement() {
         body: JSON.stringify({ name, email, password, role }),
         credentials: 'include',
       });
-      
+
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.message || 'Failed to create user');
@@ -127,102 +127,102 @@ export default function UserManagement() {
   return (
     <div className="relative mx-auto max-w-7xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-display font-bold">Manage Accounts</h1>
-            <p className="text-muted-foreground mt-1">Create, view, and manage roles for teachers, reviewers, and students.</p>
+        <div>
+          <h1 className="text-3xl font-display font-bold">Manage Accounts</h1>
+          <p className="text-muted-foreground mt-1">Create, view, and manage roles for teachers, reviewers, and students.</p>
+        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
+        >
+          <Plus className="h-5 w-5" />
+          <span>Add New User</span>
+        </button>
+      </div>
+
+      {/* Toolbar (Search) */}
+      <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
+        <Search className="h-5 w-5 text-muted-foreground/60" />
+        <input
+          type="text"
+          placeholder="Search users by name or email..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
+        />
+      </div>
+
+      {/* Users Table */}
+      <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
+        {loading ? (
+          <div className="py-20 flex flex-col items-center justify-center gap-3">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Fetching users...</p>
           </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
-          >
-            <Plus className="h-5 w-5" />
-            <span>Add New User</span>
-          </button>
-        </div>
-
-        {/* Toolbar (Search) */}
-        <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
-          <Search className="h-5 w-5 text-muted-foreground/60" />
-          <input
-            type="text"
-            placeholder="Search users by name or email..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
-          />
-        </div>
-
-        {/* Users Table */}
-        <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
-          {loading ? (
-            <div className="py-20 flex flex-col items-center justify-center gap-3">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Fetching users...</p>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="py-20 text-center text-muted-foreground">
-              No users found matching your search.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border bg-card/30">
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">User</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">System Role</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Status</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Created Date</th>
-                    <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+        ) : filteredUsers.length === 0 ? (
+          <div className="py-20 text-center text-muted-foreground">
+            No users found matching your search.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card/30">
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">User</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">System Role</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Status</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Created Date</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {filteredUsers.map((u) => (
+                  <tr key={u.id} className="hover:bg-card/20 transition-colors">
+                    <td className="py-4 px-6">
+                      <p className="font-semibold text-foreground">{u.name}</p>
+                      <p className="text-xs text-muted-foreground">{u.email}</p>
+                    </td>
+                    <td className="py-4 px-6">{getRoleBadge(u.role)}</td>
+                    <td className="py-4 px-6">
+                      {u.isActive ? (
+                        <div className="flex items-center gap-1.5 text-emerald-400">
+                          <CheckCircle2 className="h-4 w-4" />
+                          <span className="text-xs font-semibold">Active</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-muted-foreground">
+                          <XCircle className="h-4 w-4" />
+                          <span className="text-xs">Deactivated</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-muted-foreground text-xs">
+                      {new Date(u.createdAt).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </td>
+                    <td className="py-4 px-6 text-right">
+                      {u.isActive ? (
+                        <button
+                          onClick={() => handleDeactivate(u.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
+                          title="Deactivate Account"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">--</span>
+                      )}
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-card/20 transition-colors">
-                      <td className="py-4 px-6">
-                        <p className="font-semibold text-foreground">{u.name}</p>
-                        <p className="text-xs text-muted-foreground">{u.email}</p>
-                      </td>
-                      <td className="py-4 px-6">{getRoleBadge(u.role)}</td>
-                      <td className="py-4 px-6">
-                        {u.isActive ? (
-                          <div className="flex items-center gap-1.5 text-emerald-400">
-                            <CheckCircle2 className="h-4 w-4" />
-                            <span className="text-xs font-semibold">Active</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <XCircle className="h-4 w-4" />
-                            <span className="text-xs">Deactivated</span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="py-4 px-6 text-muted-foreground text-xs">
-                        {new Date(u.createdAt).toLocaleDateString(undefined, {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </td>
-                      <td className="py-4 px-6 text-right">
-                        {u.isActive ? (
-                          <button
-                            onClick={() => handleDeactivate(u.id)}
-                            className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
-                            title="Deactivate Account"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">--</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
 
       {/* Add User Modal */}
@@ -230,7 +230,7 @@ export default function UserManagement() {
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
             <h2 className="text-2xl font-display font-bold mb-4">Register User</h2>
-            
+
             <form onSubmit={handleCreateUser} className="space-y-4">
               {submitError && (
                 <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-lg p-3">

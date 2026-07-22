@@ -14,6 +14,7 @@ import {
 import { Track, MediaDeviceFailure } from 'livekit-client';
 import { Loader2, AlertCircle, Mic, MicOff, Video, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
 import '@livekit/components-styles';
+import ThemeToggle from '@/components/ThemeToggle';
 
 export default function ClassroomPage() {
   const { id } = useParams() as { id: string };
@@ -24,7 +25,7 @@ export default function ClassroomPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   useEffect(() => {
     const fetchTokenAndSession = async () => {
@@ -106,14 +107,14 @@ export default function ClassroomPage() {
       className="relative flex flex-col min-h-screen bg-background text-foreground overflow-hidden animate-fadeIn"
     >
       <ClassroomHeader roomName={tokenInfo.roomName} sessionInfo={sessionInfo} />
-      
+
       {/* Dynamic Video Layout */}
       <div className="flex-1 relative flex flex-col p-4 overflow-hidden h-[calc(100vh-140px)]">
         <VideoGrid />
       </div>
 
       <ControlBarCustom role={user?.role} sessionId={id} canPublishMedia={canPublishMedia} />
-      
+
       <RoomAudioRenderer />
     </LiveKitRoom>
   );
@@ -136,7 +137,7 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
       const start = new Date(startTimeVal).getTime();
       const now = Date.now();
       const elapsedMs = Math.max(0, now - start);
-      
+
       const elapsedSec = Math.floor(elapsedMs / 1000);
       const elapsedMins = Math.floor(elapsedSec / 60);
       const elapsedSecs = elapsedSec % 60;
@@ -191,20 +192,21 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
         )}
       </div>
 
-      {(user?.role === 'REVIEWER' || user?.role === 'ADMIN') && (
-        <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm">
-          <ShieldAlert className="h-4 w-4 text-amber-500 shrink-0" />
-          <span>Silent Monitor Mode (Hidden Observer)</span>
-        </div>
-      )}
+      <div className="flex items-center gap-3">
+        <ThemeToggle />
+        {(user?.role === 'REVIEWER' || user?.role === 'ADMIN') && (
+          <div className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 text-amber-500 dark:text-amber-400 text-xs font-semibold py-1.5 px-3 rounded-lg shadow-sm">
+            <ShieldAlert className="h-4 w-4" />
+            <span>Auditing Live Mode</span>
+          </div>
+        )}
 
-      <div>
         <button
-          onClick={handleExit}
-          className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 text-foreground py-1.5 px-3.5 rounded-lg text-xs font-semibold transition-colors outline-none"
+          onClick={handleLeave}
+          className="flex items-center gap-1.5 bg-destructive/10 hover:bg-destructive/20 text-destructive border border-destructive/20 font-semibold text-xs py-1.5 px-3.5 rounded-lg transition-colors outline-none cursor-pointer"
         >
-          <LogOut className="h-3.5 w-3.5" />
-          <span>Exit Room</span>
+          <LogOut className="h-4 w-4" />
+          <span>Exit</span>
         </button>
       </div>
     </header>
@@ -214,7 +216,7 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
 function VideoGrid() {
   const { user } = useAuth();
   const { id: sessionId } = useParams() as { id: string };
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const tracks = useTracks(
     [
@@ -427,7 +429,7 @@ function ControlBarCustom({
     localParticipant,
   } = useLocalParticipant();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api/v1';
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   if (role === 'REVIEWER' || role === 'ADMIN') {
     return (
@@ -537,71 +539,68 @@ function ControlBarCustom({
         </div>
       )}
       <div className="h-20 flex items-center justify-between px-6">
-      <div className="flex items-center gap-3">
-        {/* Microphone Toggle Button */}
-        <button
-          onClick={handleMicrophoneToggle}
-          disabled={togglingMic}
-          className={`p-3 rounded-xl transition-all duration-200 outline-none border disabled:opacity-50 ${
-            isMicrophoneEnabled
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-              : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-          }`}
-          title={isMicrophoneEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
-        >
-          {togglingMic ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
-        </button>
-
-        {/* Camera Toggle Button */}
-        <button
-          onClick={handleCameraToggle}
-          disabled={togglingCamera}
-          className={`p-3 rounded-xl transition-all duration-200 outline-none border disabled:opacity-50 ${
-            isCameraEnabled
-              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
-              : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-          }`}
-          title={isCameraEnabled ? 'Disable Camera' : 'Enable Camera'}
-        >
-          {togglingCamera ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5 w-5" />}
-        </button>
-
-        {/* Screen Share Toggle Button */}
-        {role === 'TEACHER' && (
+        <div className="flex items-center gap-3">
+          {/* Microphone Toggle Button */}
           <button
-            onClick={() => localParticipant?.setScreenShareEnabled(!isScreenShareEnabled)}
-            className={`p-3 rounded-xl transition-all duration-200 outline-none border ${
-              isScreenShareEnabled
-                ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-emerald-500/20'
-                : 'bg-slate-700/50 text-slate-400 border-slate-700/60 hover:bg-slate-700'
-            }`}
-            title={isScreenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+            onClick={handleMicrophoneToggle}
+            disabled={togglingMic}
+            className={`p-3 rounded-xl transition-all duration-200 outline-none border disabled:opacity-50 ${isMicrophoneEnabled
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+              }`}
+            title={isMicrophoneEnabled ? 'Mute Microphone' : 'Unmute Microphone'}
           >
-            <ScreenShare className="h-5 w-5" />
+            {togglingMic ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mic className="h-5 w-5" />}
           </button>
-        )}
-      </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleLeaveRoom}
-          className="flex items-center gap-1.5 border border-slate-700 hover:bg-slate-800 text-slate-350 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors outline-none"
-        >
-          <LogOut className="h-4 w-4" />
-          <span>Leave Room</span>
-        </button>
-
-        {role === 'TEACHER' && (
+          {/* Camera Toggle Button */}
           <button
-            onClick={handleEndClass}
-            disabled={ending}
-            className="flex items-center gap-1.5 bg-red-500 hover:bg-red-650 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-colors outline-none shadow-md hover:shadow-red-500/10 disabled:opacity-50"
+            onClick={handleCameraToggle}
+            disabled={togglingCamera}
+            className={`p-3 rounded-xl transition-all duration-200 outline-none border disabled:opacity-50 ${isCameraEnabled
+                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
+                : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
+              }`}
+            title={isCameraEnabled ? 'Disable Camera' : 'Enable Camera'}
           >
-            {ending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
-            <span>End Class for All</span>
+            {togglingCamera ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5 w-5" />}
           </button>
-        )}
-      </div>
+
+          {/* Screen Share Toggle Button */}
+          {role === 'TEACHER' && (
+            <button
+              onClick={() => localParticipant?.setScreenShareEnabled(!isScreenShareEnabled)}
+              className={`p-3 rounded-xl transition-all duration-200 outline-none border ${isScreenShareEnabled
+                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-emerald-500/20'
+                  : 'bg-slate-700/50 text-slate-400 border-slate-700/60 hover:bg-slate-700'
+                }`}
+              title={isScreenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+            >
+              <ScreenShare className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleLeaveRoom}
+            className="flex items-center gap-1.5 border border-slate-700 hover:bg-slate-800 text-slate-350 font-semibold py-2.5 px-4 rounded-xl text-sm transition-colors outline-none"
+          >
+            <LogOut className="h-4 w-4" />
+            <span>Leave Room</span>
+          </button>
+
+          {role === 'TEACHER' && (
+            <button
+              onClick={handleEndClass}
+              disabled={ending}
+              className="flex items-center gap-1.5 bg-red-500 hover:bg-red-650 text-white font-bold py-2.5 px-5 rounded-xl text-sm transition-colors outline-none shadow-md hover:shadow-red-500/10 disabled:opacity-50"
+            >
+              {ending ? <Loader2 className="h-4 w-4 animate-spin" /> : <LogOut className="h-4 w-4" />}
+              <span>End Class for All</span>
+            </button>
+          )}
+        </div>
       </div>
     </footer>
   );

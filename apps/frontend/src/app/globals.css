@@ -37,7 +37,18 @@
     --input: 220 15% 90%;
     --ring: 156 72% 22%;
     
+    --sidebar-bg: 168 40% 12%;
+    --sidebar-foreground: 40 25% 95%;
+    --sidebar-border: 168 30% 18%;
+
+    --brand-gold: 40 75% 42%;
+    --brand-gold-foreground: 0 0% 100%;
+
+    --surface: 220 15% 94%;
+    --header-bg: 0 0% 100%;
+
     --radius: 0.75rem;
+    color-scheme: light;
   }
 
   .dark {
@@ -68,6 +79,18 @@
     --border: 220 20% 18%;
     --input: 220 20% 18%;
     --ring: 158 64% 52%;
+
+    --sidebar-bg: 172 63% 11%;
+    --sidebar-foreground: 210 20% 96%;
+    --sidebar-border: 220 20% 18%;
+
+    --brand-gold: 43 80% 54%;
+    --brand-gold-foreground: 220 25% 8%;
+
+    --surface: 220 25% 14%;
+    --header-bg: 220 25% 10%;
+
+    color-scheme: dark;
   }
 }
 
