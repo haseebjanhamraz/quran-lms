@@ -41,3 +41,4 @@ model.zip
 livekit-server
 *.pem
 *.key
+bin/

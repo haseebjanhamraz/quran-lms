@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { BookOpen, Mail, Lock, Loader2, ShieldAlert } from 'lucide-react';
+import Image from 'next/image';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  
+
   const { login } = useAuth();
 
   const handleQuickLogin = async (quickEmail: string, quickPass: string) => {
@@ -31,10 +32,10 @@ export default function LoginPage() {
       setFormError('Please enter both email and password.');
       return;
     }
-    
+
     setIsSubmitting(true);
     setFormError(null);
-    
+
     try {
       await login(email, password);
     } catch (err: any) {
@@ -52,14 +53,15 @@ export default function LoginPage() {
       {/* Outer Card Container */}
       <div className="relative w-full max-w-md mx-4 z-10">
         <div className="glass-card rounded-2xl p-8 shadow-2xl flex flex-col items-center">
-          
+
           {/* Brand Header */}
           <div className="mb-6 flex flex-col items-center text-center">
             <div className="h-16 w-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center mb-4 hover:scale-105 transition-transform duration-300">
-              <BookOpen className="h-8 w-8 text-primary" />
+              {/* <BookOpen className="h-8 w-8 text-primary" /> */}
+              <Image src="/logo.png" width={50} height={50} alt="Logo" />
             </div>
             <h1 className="text-3xl font-display font-bold tracking-tight text-foreground">
-              Quran <span className="text-primary">LMS</span>
+              Quran <span className="text-primary">LMS 2</span>
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               E-Learning &amp; Quality Monitoring Portal
