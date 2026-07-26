@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, BadRequestException, UseGuards } from '@nestjs/common';
 import { ClassSessionsService } from './class-sessions.service';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
 import { UpdateClassSessionDto } from './dto/update-class-session.dto';
@@ -46,6 +46,24 @@ export class ClassSessionsController {
   @Get('stats')
   async getStats(@CurrentUser() user: any) {
     return this.classSessionsService.getStats(user);
+  }
+
+  @Get('timetable')
+  @Roles(Role.ADMIN, Role.TEACHER)
+  async getTimetable(
+    @Query('teacherId') teacherId: string,
+    @Query('date') date: string,
+  ) {
+    if (!teacherId || !date) {
+      throw new BadRequestException('teacherId and date query parameters are required');
+    }
+    return this.classSessionsService.getTeacherTimetable(teacherId, date);
+  }
+
+  @Get('weekly-grid')
+  @Roles(Role.ADMIN)
+  async getWeeklyGrid() {
+    return this.classSessionsService.getWeeklyScheduleGrid();
   }
 
   @Get(':id')

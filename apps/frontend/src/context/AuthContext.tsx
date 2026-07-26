@@ -8,6 +8,17 @@ interface User {
   name: string;
   email: string;
   role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER';
+  preferredName?: string;
+  gender?: string;
+  dob?: string;
+  timezone?: string;
+  enrollmentDate?: string;
+  status?: string;
+  trialStatus?: string;
+  isDiscontinued?: boolean;
+  avatar?: string;
+  studentId?: string;
+  type?: 'CHILD' | 'ADULT';
 }
 
 interface AuthContextType {

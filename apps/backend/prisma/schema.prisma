@@ -56,10 +56,34 @@ enum FlagSeverity {
 model User {
   id                  String               @id @default(uuid()) @db.Uuid
   name                String
+  preferredName       String?
   email               String               @unique
   passwordHash        String
   role                Role
   isActive            Boolean              @default(true)
+
+  // Profile fields
+  profilePicture      String?              // relative file path to uploaded avatar
+  gender              String?              // Male, Female, Other
+  dateOfBirth         DateTime?            @db.Date
+  timezone            String               @default("UTC") // IANA timezone e.g. "Asia/Karachi"
+  latitude            Float?
+  longitude           Float?
+
+  // Student-specific fields
+  studentId           Int?                 @unique @default(autoincrement())
+  enrollmentDate      DateTime?            @db.Date
+  studentStatus       String?              @default("ACTIVE") // ACTIVE, INACTIVE
+  trialStatus         String?              @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED
+  discontinued        Boolean              @default(false)
+
+  // Teacher/Reviewer-specific fields
+  salary              Float?
+  employeeId          String?
+  qualification       String?
+  specialization      String?
+  joiningDate         DateTime?            @db.Date
+
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   
@@ -72,6 +96,9 @@ model User {
   auditLogs           AuditLog[]
   aiReports           AIReport[]
   notifications       Notification[]
+  rolePermissions     RolePermission[]     @relation("GrantedByUser")
+  studentSessions     ClassSession[]       @relation("StudentSessions")
+  feedbacks           StudentFeedback[]
 }
 
 model Course {
@@ -107,6 +134,7 @@ model ClassSession {
   id              String        @id @default(uuid()) @db.Uuid
   courseId        String        @db.Uuid
   teacherId       String        @db.Uuid
+  studentId       String?       @db.Uuid
   scheduledAt     DateTime
   durationMinutes Int
   status          ClassStatus   @default(SCHEDULED)
@@ -117,6 +145,7 @@ model ClassSession {
 
   // Relations
   course             Course              @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  student            User?               @relation("StudentSessions", fields: [studentId], references: [id], onDelete: SetNull)
   attendances        Attendance[]
   recording          Recording?
   classReviews       ClassReview[]
@@ -313,6 +342,44 @@ model PipelineLog {
 
   // Relations
   session   ClassSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  name        String           @unique  // e.g. "users.create", "courses.read"
+  description String?
+  module      String           // e.g. "users", "courses", "sessions"
+  action      String           // e.g. "create", "read", "update", "delete"
+  createdAt   DateTime         @default(now())
+
+  rolePermissions RolePermission[]
+}
+
+model RolePermission {
+  id           String     @id @default(uuid()) @db.Uuid
+  role         Role
+  permissionId String     @db.Uuid
+  grantedBy    String?    @db.Uuid
+  createdAt    DateTime   @default(now())
+
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedByUser User?     @relation("GrantedByUser", fields: [grantedBy], references: [id], onDelete: SetNull)
+
+  @@unique([role, permissionId])
+}
+
+model StudentFeedback {
+  id          String   @id @default(uuid()) @db.Uuid
+  studentId   String   @db.Uuid
+  category    String   // COMPLAINT, TECHNICAL_ISSUE, PARENT_FEEDBACK, GENERAL
+  subject     String
+  message     String   @db.Text
+  status      String   @default("OPEN") // OPEN, IN_REVIEW, RESOLVED
+  adminNotes  String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student     User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
 model SystemSetting {

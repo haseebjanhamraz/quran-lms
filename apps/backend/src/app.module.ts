@@ -20,6 +20,8 @@ import { TranscriptModule } from './transcript/transcript.module';
 import { AIAnalysisModule } from './ai-analysis/ai-analysis.module';
 import { ReportsModule } from './reports/reports.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { StudentFeedbackModule } from './student-feedback/student-feedback.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -55,6 +57,8 @@ import { APP_GUARD } from '@nestjs/core';
     AIAnalysisModule,
     ReportsModule,
     NotificationsModule,
+    PermissionsModule,
+    StudentFeedbackModule,
   ],
   controllers: [AppController],
   providers: [

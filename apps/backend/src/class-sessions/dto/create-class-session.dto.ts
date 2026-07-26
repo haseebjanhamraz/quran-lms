@@ -1,8 +1,16 @@
-import { IsDateString, IsInt, IsNotEmpty, IsUUID, Min } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsUUID, Min, IsOptional } from 'class-validator';
 
 export class CreateClassSessionDto {
   @IsUUID()
   courseId: string;
+
+  @IsUUID()
+  @IsOptional()
+  teacherId?: string;
+
+  @IsUUID()
+  @IsOptional()
+  studentId?: string;
 
   @IsDateString()
   @IsNotEmpty()

@@ -1,346 +1,259 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../../context/AuthContext';
-import { Shield, ArrowLeft, Plus, Calendar, Trash2, Loader2, Video, AlertCircle } from 'lucide-react';
-import Link from 'next/link';
-import PipelineMonitorModal from '../../../components/PipelineMonitorModal';
+import React, { useState } from 'react';
+import { Calendar as CalendarIcon, Clock, Filter, Users } from 'lucide-react';
 
-interface SessionItem {
-  id: string;
-  course: {
-    title: string;
-    teacher: {
-      name: string;
-    };
-  };
-  scheduledAt: string;
-  durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
-}
+const TEACHERS = [
+  { name: 'Muneeb', days: 5, color: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30' },
+  { name: 'Abdullah', days: 2, color: 'bg-blue-500/20 text-blue-500 border-blue-500/30' },
+  { name: 'Asad', days: 3, color: 'bg-purple-500/20 text-purple-500 border-purple-500/30' },
+  { name: 'Talha', days: 3, color: 'bg-orange-500/20 text-orange-500 border-orange-500/30' },
+  { name: 'Aziz', days: 2, color: 'bg-red-500/20 text-red-500 border-red-500/30' },
+  { name: 'Aamir', days: 5, color: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30' },
+  { name: 'Aahil', days: 6, color: 'bg-pink-500/20 text-pink-500 border-pink-500/30' },
+];
 
-interface CourseItem {
-  id: string;
-  title: string;
-}
+const TIME_SLOTS = [
+  '09:00 - 09:30', '09:30 - 10:00', '10:00 - 10:30', '10:30 - 11:00',
+  '11:00 - 11:30', '11:30 - 12:00', '12:00 - 12:30', '12:30 - 01:00',
+  '01:00 - 01:30', '01:30 - 02:00', '02:00 - 02:30', '02:30 - 03:00'
+];
+
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+const DAILY_SCHEDULE_DATA = [
+  { id: 1, teacherTime: '12:30 am - 1:00 am', studentTime: '3:30 pm (00:30)', studentName: 'Ali Khan', courseName: 'Quran Reading', history: '5 months', status: 'Regular' },
+  { id: 2, teacherTime: '1:00 am - 1:30 am', studentTime: '4:00 pm (00:30)', studentName: 'Sara Ahmed', courseName: 'Tajweed', history: '2 months', status: 'Trial' },
+  { id: 3, teacherTime: '1:30 am - 2:00 am', studentTime: '4:30 pm (00:30)', studentName: 'Omar Farooq', courseName: 'Hifz', history: '1 year', status: 'Regular' }
+];
 
 export default function ScheduleManagement() {
-  const { logout } = useAuth();
-  const [sessions, setSessions] = useState<SessionItem[]>([]);
-  const [courses, setCourses] = useState<CourseItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<'weekly' | 'daily'>('weekly');
+  const [activeFilter, setActiveFilter] = useState<string | null>(null);
 
-  // Scheduling Modal State
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [courseId, setCourseId] = useState('');
-  const [scheduledAt, setScheduledAt] = useState('');
-  const [durationMinutes, setDurationMinutes] = useState(60);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-
-  const fetchData = async () => {
-    try {
-      // Fetch sessions
-      const sessionsRes = await fetch(`${API_URL}/class-sessions`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const sessionsData = await sessionsRes.json();
-      setSessions(sessionsData);
-
-      // Fetch courses
-      const courseRes = await fetch(`${API_URL}/courses`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const coursesData = await courseRes.json();
-      setCourses(coursesData);
-      if (coursesData.length > 0) {
-        setCourseId(coursesData[0].id);
-      }
-    } catch (err) {
-      console.error('Error fetching schedules data:', err);
-    } finally {
-      setLoading(false);
+  const getCellContent = (day: string, timeIndex: number) => {
+    if (day === 'Saturday' || day === 'Sunday') {
+      return <span className="text-xs font-semibold text-muted-foreground/50">WEEKEND OFF</span>;
     }
+    if ((timeIndex + DAYS.indexOf(day)) % 3 === 0) {
+      const teacher = TEACHERS[(timeIndex + DAYS.indexOf(day)) % TEACHERS.length];
+      if (activeFilter && activeFilter !== teacher.name) return '-';
+      return (
+        <span className={`inline-block px-2 py-1 rounded-md text-[10px] font-bold border ${teacher.color}`}>
+          {teacher.name}
+        </span>
+      );
+    }
+    return <span className="text-muted-foreground/30">-</span>;
   };
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const handleSchedule = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitError(null);
-    setSubmitting(true);
-
-    try {
-      const res = await fetch(`${API_URL}/class-sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          courseId,
-          scheduledAt: new Date(scheduledAt).toISOString(),
-          durationMinutes: Number(durationMinutes),
-        }),
-        credentials: 'include',
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.message || 'Failed to schedule class session');
+  const calculateDailyClasses = (day: string) => {
+    if (day === 'Saturday' || day === 'Sunday') return 0;
+    let count = 0;
+    TIME_SLOTS.forEach((_, index) => {
+      if ((index + DAYS.indexOf(day)) % 3 === 0) {
+        const teacher = TEACHERS[(index + DAYS.indexOf(day)) % TEACHERS.length];
+        if (!activeFilter || activeFilter === teacher.name) count++;
       }
-
-      setShowAddModal(false);
-      fetchData();
-    } catch (err: any) {
-      setSubmitError(err.message || 'An error occurred during scheduling.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const [selectedSession, setSelectedSession] = useState<{ id: string; title: string } | null>(null);
-
-  const handleCancelSession = async (id: string, isCompleted = false) => {
-    const promptMsg = isCompleted
-      ? 'Are you sure you want to permanently delete this recorded class? This will delete the Google Drive recording, transcript database entries, compliance reports, and pipeline logs.'
-      : 'Are you sure you want to cancel this scheduled class session?';
-
-    if (!confirm(promptMsg)) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`${API_URL}/class-sessions/${id}`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      if (res.ok) {
-        fetchData();
-      } else {
-        alert(isCompleted ? 'Failed to delete class recording.' : 'Failed to cancel session.');
-      }
-    } catch (err) {
-      console.error('Error deleting session:', err);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'SCHEDULED':
-        return <span className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-semibold py-1 px-2.5 rounded-full">{status}</span>;
-      case 'LIVE':
-        return <span className="bg-red-500/10 text-red-400 border border-red-500/20 text-xs font-semibold py-1 px-2.5 rounded-full animate-pulse">{status}</span>;
-      case 'COMPLETED':
-        return <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold py-1 px-2.5 rounded-full">{status}</span>;
-      default:
-        return <span className="bg-muted text-muted-foreground border border-border text-xs py-1 px-2.5 rounded-full">{status}</span>;
-    }
+    });
+    return count;
   };
 
   return (
-    <div className="relative mx-auto max-w-7xl">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+    <div className="relative mx-auto max-w-7xl space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-display font-bold">Class Sessions Roster</h1>
-          <p className="text-muted-foreground mt-1">Schedule live classes and check for timing conflicts automatically.</p>
+          <h1 className="text-3xl font-display font-bold">Schedule & Timetable</h1>
+          <p className="text-muted-foreground mt-1">Manage global class timings and teacher schedules efficiently.</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
-        >
-          <Plus className="h-5 w-5" />
-          <span>Schedule Session</span>
-        </button>
+        
+        {/* View Switcher */}
+        <div className="flex items-center p-1 bg-card border border-border rounded-lg shadow-sm">
+          <button
+            onClick={() => setView('weekly')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+              view === 'weekly' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <CalendarIcon size={16} />
+            Weekly Grid View
+          </button>
+          <button
+            onClick={() => setView('daily')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${
+              view === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+            }`}
+          >
+            <Clock size={16} />
+            Daily Timetable View
+          </button>
+        </div>
       </div>
 
-      {/* Schedule List Table */}
-      <div className="glass-panel rounded-xl overflow-hidden shadow-xl">
-        {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Loading schedules...</p>
+      {view === 'weekly' ? (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          {/* Header Metric */}
+          <div className="glass-panel p-6 rounded-2xl flex items-center justify-between shadow-sm">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-brand/10 rounded-xl">
+                <Users className="text-brand h-6 w-6" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Total Daily Capacity</p>
+                <h3 className="text-2xl font-bold font-display">12 CLASSES / 6 HOURS</h3>
+              </div>
+            </div>
           </div>
-        ) : sessions.length === 0 ? (
-          <div className="py-20 text-center text-muted-foreground text-sm">
-            No classes scheduled. Click "Schedule Session" to start.
+
+          {/* Teacher Legend */}
+          <div className="glass-panel p-4 rounded-xl flex items-center flex-wrap gap-3">
+            <div className="flex items-center gap-2 mr-2">
+              <Filter size={16} className="text-muted-foreground" />
+              <span className="text-sm font-semibold text-muted-foreground">Filter:</span>
+            </div>
+            <button
+              onClick={() => setActiveFilter(null)}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                activeFilter === null ? 'bg-foreground text-background border-foreground' : 'bg-card text-foreground hover:bg-muted'
+              }`}
+            >
+              All Teachers
+            </button>
+            {TEACHERS.map(t => (
+              <button
+                key={t.name}
+                onClick={() => setActiveFilter(t.name === activeFilter ? null : t.name)}
+                className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                  activeFilter === t.name ? t.color.replace('/20', '/40') : t.color
+                } hover:opacity-80`}
+              >
+                {t.name} ({t.days} Days)
+              </button>
+            ))}
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm">
-              <thead>
-                <tr className="border-b border-border bg-card/30">
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Course Details</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Teacher</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Scheduled Date / Time</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Duration</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Status</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {sessions.map((s) => (
-                  <tr key={s.id} className="hover:bg-card/20 transition-colors">
-                    <td className="py-4 px-6 font-semibold text-foreground">
-                      {s.course.title}
-                    </td>
-                    <td className="py-4 px-6">
-                      {s.course.teacher.name}
-                    </td>
-                    <td className="py-4 px-6 text-foreground/90 font-mono text-xs">
-                      {new Date(s.scheduledAt).toLocaleString(undefined, {
-                        weekday: 'short',
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </td>
-                    <td className="py-4 px-6 text-muted-foreground">
-                      {s.durationMinutes} mins
-                    </td>
-                    <td className="py-4 px-6">
-                      {getStatusBadge(s.status)}
-                    </td>
-                    <td className="py-4 px-6 text-right">
-                      {s.status === 'COMPLETED' ? (
-                        <div className="flex gap-2 justify-end items-center">
-                          <button
-                            onClick={() => setSelectedSession({ id: s.id, title: s.course.title })}
-                            className="text-xs text-amber-500 hover:text-amber-400 hover:underline font-semibold"
-                          >
-                            Track Process
-                          </button>
-                          <Link
-                            href={`/admin/transcripts/${s.id}`}
-                            className="inline-flex items-center gap-1 text-[#C9A84C] hover:text-[#e0bc5c] hover:underline text-xs font-semibold py-1 px-2.5 rounded-lg bg-[#C9A84C]/10 border border-[#C9A84C]/25 transition"
-                          >
-                            <span>Transcript</span>
-                          </Link>
-                          <button
-                            onClick={() => handleCancelSession(s.id, true)}
-                            className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
-                            title="Delete Recorded Class"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      ) : s.status === 'SCHEDULED' ? (
-                        <button
-                          onClick={() => handleCancelSession(s.id, false)}
-                          className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg inline-block"
-                          title="Cancel Class Session"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">--</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
 
-      {selectedSession && (
-        <PipelineMonitorModal
-          sessionId={selectedSession.id}
-          courseTitle={selectedSession.title}
-          isOpen={!!selectedSession}
-          onClose={() => setSelectedSession(null)}
-        />
-      )}
-
-
-      {/* Schedule Session Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
-          <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <h2 className="text-2xl font-display font-bold mb-4">Schedule Class</h2>
-
-            <form onSubmit={handleSchedule} className="space-y-4">
-              {submitError && (
-                <div className="bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-lg p-3.5 flex items-start gap-2">
-                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-                  <span>{submitError}</span>
-                </div>
-              )}
-
-              {/* Course selector */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Course</label>
-                {courses.length === 0 ? (
-                  <p className="text-xs text-destructive">No active courses registered! Please create a Course first.</p>
-                ) : (
-                  <select
-                    value={courseId}
-                    onChange={(e) => setCourseId(e.target.value)}
-                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
-                  >
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.title}
-                      </option>
+          {/* Weekly Table */}
+          <div className="glass-panel rounded-xl overflow-hidden shadow-xl border border-border">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider w-32 border-r border-border">
+                      Time Slot
+                    </th>
+                    {DAYS.map(day => (
+                      <th key={day} className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider text-center border-r border-border last:border-0">
+                        {day}
+                      </th>
                     ))}
-                  </select>
-                )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {TIME_SLOTS.map((slot, index) => (
+                    <tr key={slot} className="hover:bg-card/30 transition-colors">
+                      <td className="p-3 font-mono text-xs text-foreground/80 border-r border-border whitespace-nowrap">
+                        {slot}
+                      </td>
+                      {DAYS.map(day => (
+                        <td key={`${day}-${slot}`} className="p-3 text-center border-r border-border last:border-0">
+                          {getCellContent(day, index)}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                  {/* Footer Summary */}
+                  <tr className="bg-muted/30 border-t-2 border-border font-semibold">
+                    <td className="p-4 text-xs text-muted-foreground uppercase tracking-wider border-r border-border">
+                      Daily Classes
+                    </td>
+                    {DAYS.map(day => (
+                      <td key={`classes-${day}`} className="p-4 text-center text-foreground border-r border-border last:border-0">
+                        {calculateDailyClasses(day)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="bg-muted/30 font-semibold">
+                    <td className="p-4 text-xs text-muted-foreground uppercase tracking-wider border-r border-border">
+                      Total Duration
+                    </td>
+                    {DAYS.map(day => {
+                      const classes = calculateDailyClasses(day);
+                      return (
+                        <td key={`dur-${day}`} className="p-4 text-center text-foreground border-r border-border last:border-0">
+                          {classes > 0 ? `${classes * 0.5} hrs` : '-'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm">
+            <div>
+              <h2 className="text-xl font-display font-bold">Daily Timetable View</h2>
+              <p className="text-sm text-muted-foreground">Detailed schedule for today</p>
+            </div>
+            <div className="flex flex-col text-right">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dual Timezone Calc</span>
+              <div className="flex gap-4 mt-1">
+                <div className="bg-card px-3 py-1.5 rounded-lg border border-border">
+                  <span className="text-xs text-muted-foreground block">Teacher (PKT)</span>
+                  <span className="text-sm font-bold font-mono">12:30 AM</span>
+                </div>
+                <div className="bg-card px-3 py-1.5 rounded-lg border border-border">
+                  <span className="text-xs text-muted-foreground block">Student (EST)</span>
+                  <span className="text-sm font-bold font-mono">03:30 PM</span>
+                </div>
               </div>
+            </div>
+          </div>
 
-              {/* Scheduled At input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Date &amp; Start Time</label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
-                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
-                />
-              </div>
-
-              {/* Duration input */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Duration (Minutes)</label>
-                <input
-                  type="number"
-                  required
-                  min={5}
-                  max={240}
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
-                />
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-3 justify-end pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="bg-muted hover:bg-muted/80 text-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-colors outline-none"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting || courses.length === 0}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-primary/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  <span>Schedule</span>
-                </button>
-              </div>
-            </form>
+          <div className="glass-panel rounded-xl overflow-hidden shadow-xl border border-border">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead>
+                  <tr className="bg-muted/50 border-b border-border">
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">#</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Teacher Time</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Student Time</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Student Name</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Course Name</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">History</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Status</th>
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {DAILY_SCHEDULE_DATA.map((row) => (
+                    <tr key={row.id} className="hover:bg-card/40 transition-colors">
+                      <td className="p-4 font-medium">{row.id}</td>
+                      <td className="p-4 font-mono text-xs">{row.teacherTime}</td>
+                      <td className="p-4 font-mono text-xs text-brand">{row.studentTime}</td>
+                      <td className="p-4 font-semibold">{row.studentName}</td>
+                      <td className="p-4">{row.courseName}</td>
+                      <td className="p-4 text-muted-foreground">{row.history}</td>
+                      <td className="p-4">
+                        <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold px-2 py-1 rounded-full uppercase">
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right space-x-2">
+                        <button className="text-xs font-semibold bg-secondary/80 hover:bg-secondary text-secondary-foreground px-3 py-1.5 rounded-lg transition-colors">
+                          Leave
+                        </button>
+                        <button className="text-xs font-semibold bg-brand/10 hover:bg-brand/20 text-brand border border-brand/20 px-3 py-1.5 rounded-lg transition-colors">
+                          Advance
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

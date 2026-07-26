@@ -65,10 +65,11 @@ export class ClassSessionsService {
     }
 
     const scheduledDate = new Date(createClassSessionDto.scheduledAt);
+    const teacherId = createClassSessionDto.teacherId || course.teacherId;
 
     // Check teacher conflicts
     const hasConflict = await this.checkTeacherConflict(
-      course.teacherId,
+      teacherId,
       scheduledDate,
       createClassSessionDto.durationMinutes,
     );
@@ -82,7 +83,8 @@ export class ClassSessionsService {
     return this.prisma.classSession.create({
       data: {
         courseId: createClassSessionDto.courseId,
-        teacherId: course.teacherId,
+        teacherId: teacherId,
+        studentId: createClassSessionDto.studentId,
         scheduledAt: scheduledDate,
         durationMinutes: createClassSessionDto.durationMinutes,
         status: ClassStatus.SCHEDULED,
@@ -625,5 +627,59 @@ export class ClassSessionsService {
     }
 
     return {};
+  }
+
+  async getTeacherTimetable(teacherId: string, date: string) {
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return this.prisma.classSession.findMany({
+      where: {
+        teacherId,
+        scheduledAt: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+      },
+      include: {
+        course: { select: { title: true, type: true } },
+        student: { select: { name: true, timezone: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+  }
+
+  async getWeeklyScheduleGrid() {
+    // Generate a weekly grid, returning all sessions from current week, grouped by day and time
+    // For simplicity, we just return the raw sessions for the next 7 days, and group them on the frontend,
+    // OR we can query them here.
+    const startOfWeek = new Date();
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Monday
+
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
+    endOfWeek.setHours(23, 59, 59, 999);
+
+    const sessions = await this.prisma.classSession.findMany({
+      where: {
+        scheduledAt: {
+          gte: startOfWeek,
+          lte: endOfWeek,
+        },
+      },
+      include: {
+        course: {
+          include: {
+            teacher: { select: { id: true, name: true } },
+          },
+        },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+
+    return sessions;
   }
 }
