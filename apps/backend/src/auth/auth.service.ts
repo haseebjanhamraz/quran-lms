@@ -15,7 +15,7 @@ export class AuthService {
     private readonly auditLogsService: AuditLogsService,
   ) {}
 
-  async validateUser(loginDto: LoginDto) {
+  async validateUser(loginDto: LoginDto): Promise<any> {
     const user = await this.usersService.findByEmail(loginDto.email);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
@@ -25,12 +25,13 @@ export class AuthService {
       throw new UnauthorizedException('Your account has been deactivated. Please contact an administrator.');
     }
 
-    const isPasswordValid = await bcrypt.compare(loginDto.password, user.passwordHash);
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    const isPasswordValid = await bcrypt.compare(loginDto.password, userObj.passwordHash);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const { passwordHash: _, ...result } = user;
+    const { passwordHash: _, ...result } = userObj;
     return result;
   }
 

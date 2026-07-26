@@ -1,17 +1,4 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: quran-lms-postgres
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: quran_lms
-    ports:
-      - "${POSTGRES_PORT_BINDING:-5432:5432}"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
   redis:
     image: redis:7-alpine
     container_name: quran-lms-redis
@@ -51,7 +38,7 @@ services:
     ports:
       - "${NESTJS_PORT_BINDING:-4000:4000}"
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgrespassword@postgres:5432/quran_lms?schema=public}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://host.docker.internal:27017/quran_lms}
       PORT: ${PORT:-4000}
       NODE_ENV: ${NODE_ENV:-development}
       JWT_SECRET: ${JWT_SECRET:-your-secret-jwt-key-change-in-prod}
@@ -78,7 +65,6 @@ services:
       - ./apps/backend/recordings:/app/recordings
       - ./apps/backend/recordings:/recordings
     depends_on:
-      - postgres
       - redis
       - vosk
 
@@ -107,5 +93,4 @@ services:
       - nestjs
 
 volumes:
-  postgres_data:
   redis_data:

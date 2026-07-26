@@ -2,7 +2,7 @@ import { Controller, Post, Get, Param, UseGuards, Res, Headers, NotFoundExceptio
 import { RecordingsService } from './recordings.service';
 import { LocalStorageService } from '../local-storage/local-storage.service';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role } from '../schemas';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import type { Response } from 'express';

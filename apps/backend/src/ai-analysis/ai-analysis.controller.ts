@@ -1,7 +1,7 @@
 import { Controller, Post, Get, Param, UseGuards } from '@nestjs/common';
 import { AIAnalysisService } from './ai-analysis.service';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role } from '../schemas';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 
@@ -19,13 +19,13 @@ export class AIAnalysisController {
 
   @Get(':sessionId')
   @Roles(Role.ADMIN, Role.REVIEWER)
-  async getReport(@Param('sessionId') sessionId: string) {
+  async getReport(@Param('sessionId') sessionId: string): Promise<any> {
     return this.aiAnalysisService.getReport(sessionId);
   }
 
   @Get()
   @Roles(Role.ADMIN)
-  async listReports() {
+  async listReports(): Promise<any[]> {
     return this.aiAnalysisService.listReports();
   }
 }

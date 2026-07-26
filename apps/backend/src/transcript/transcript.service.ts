@@ -1,16 +1,21 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { LocalStorageService } from '../local-storage/local-storage.service';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
+import {
+  TranscriptSegment, TranscriptSegmentDocument,
+  ClassSession, ClassSessionDocument,
+  Recording, RecordingDocument,
+  PipelineLog, PipelineLogDocument,
+} from '../schemas';
 import * as fs from 'fs';
 import * as path from 'path';
-// Dynamically require ws to avoid TypeScript compile-time missing types when @types/ws is not installed
-// and to allow the package to be optional at runtime.
+
 const WebSocket: any = (() => {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
     return require('ws');
   } catch (_) {
     return null;
@@ -22,7 +27,10 @@ export class TranscriptService {
   private readonly logger = new Logger(TranscriptService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectModel(TranscriptSegment.name) private readonly transcriptSegmentModel: Model<TranscriptSegmentDocument>,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(Recording.name) private readonly recordingModel: Model<RecordingDocument>,
+    @InjectModel(PipelineLog.name) private readonly pipelineLogModel: Model<PipelineLogDocument>,
     private readonly localStorageService: LocalStorageService,
     private readonly configService: ConfigService,
     @InjectQueue('transcript-generation') private readonly transcriptQueue: Queue,
@@ -34,53 +42,41 @@ export class TranscriptService {
   }
 
   async getTranscript(sessionId: string) {
-    const session = await this.prisma.classSession.findUnique({
-      where: { id: sessionId },
-    });
+    const session = await this.classSessionModel.findById(sessionId);
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
 
-    return this.prisma.transcriptSegment.findMany({
-      where: { sessionId },
-      orderBy: { startTime: 'asc' },
-    });
+    return this.transcriptSegmentModel.find({ sessionId }).sort({ startTime: 1 });
   }
 
   async generateTranscript(sessionId: string): Promise<any[]> {
     this.logger.log(`Starting transcript generation for session: ${sessionId}`);
 
-    const recording = await this.prisma.recording.findUnique({
-      where: { sessionId },
-    });
+    const recording = await this.recordingModel.findOne({ sessionId });
 
     if (!recording) {
       this.logger.warn(`No recording record found for session: ${sessionId}. Generating fallback mock transcript.`);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'TRANSCRIPTION',
-          status: 'FAILED',
-          message: 'No recording record found. Generating mock transcript fallback.',
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'TRANSCRIPTION',
+        status: 'FAILED',
+        message: 'No recording record found. Generating mock transcript fallback.',
       });
       return this.createMockTranscript(sessionId);
     }
 
     if (!recording.filePath) {
       this.logger.warn(`Recording exists but lacks filePath for session: ${sessionId}. Generating fallback mock transcript.`);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'TRANSCRIPTION',
-          status: 'FAILED',
-          message: 'Recording exists but lacks local file path. Generating mock transcript fallback.',
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'TRANSCRIPTION',
+        status: 'FAILED',
+        message: 'Recording exists but lacks local file path. Generating mock transcript fallback.',
       });
       return this.createMockTranscript(sessionId);
     }
 
-    // Set up paths
     const tempDir = path.join(process.cwd(), 'temp-transcripts');
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
@@ -89,14 +85,11 @@ export class TranscriptService {
     const videoPath = this.localStorageService.getFilePath(recording.filePath);
     const audioPath = path.join(tempDir, `${sessionId}.wav`);
 
-    // Log Start of Transcription
-    await this.prisma.pipelineLog.create({
-      data: {
-        sessionId,
-        step: 'TRANSCRIPTION',
-        status: 'STARTED',
-        message: `Beginning transcript generation. Locating local file at: ${videoPath}...`,
-      },
+    await this.pipelineLogModel.create({
+      sessionId,
+      step: 'TRANSCRIPTION',
+      status: 'STARTED',
+      message: `Beginning transcript generation. Locating local file at: ${videoPath}...`,
     });
 
     try {
@@ -104,87 +97,69 @@ export class TranscriptService {
         throw new Error(`Recording file not found on local storage: ${videoPath}`);
       }
 
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'TRANSCRIPTION',
-          status: 'IN_PROGRESS',
-          message: `Local file located. Extracting audio track from video stream...`,
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'TRANSCRIPTION',
+        status: 'IN_PROGRESS',
+        message: `Local file located. Extracting audio track from video stream...`,
       });
 
-      // 1. Perform FFmpeg Audio Extraction
       await this.extractAudio(videoPath, audioPath);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'TRANSCRIPTION',
-          status: 'IN_PROGRESS',
-          message: `Audio extraction successful. Initiating Speech-to-Text translation (Vosk)...`,
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'TRANSCRIPTION',
+        status: 'IN_PROGRESS',
+        message: `Audio extraction successful. Initiating Speech-to-Text translation (Vosk)...`,
       });
 
-      // 2. Speech to Text API Call (Vosk)
       const segments = await this.speechToText(audioPath, sessionId);
 
-      // If Vosk completed successfully but found no speech (silence)
       if (segments.length === 0) {
         this.logger.log(`No speech detected in audio file for session: ${sessionId}. Saving "No Audio" label.`);
-        await this.prisma.pipelineLog.create({
-          data: {
-            sessionId,
-            step: 'TRANSCRIPTION',
-            status: 'SUCCESS',
-            message: 'Speech-to-Text completed with no speech detected. Saved "No Audio" label.',
-          },
+        await this.pipelineLogModel.create({
+          sessionId,
+          step: 'TRANSCRIPTION',
+          status: 'SUCCESS',
+          message: 'Speech-to-Text completed with no speech detected. Saved "No Audio" label.',
         });
         this.cleanupFiles([audioPath]);
         return this.saveNoAudioTranscript(sessionId);
       }
 
-      // Save real Vosk segments to the database
       const savedSegments = await this.saveTranscriptSegments(sessionId, segments);
 
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'TRANSCRIPTION',
-          status: 'SUCCESS',
-          message: `Transcript generation completed successfully. Extracted and saved ${savedSegments.length} segment utterances.`,
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'TRANSCRIPTION',
+        status: 'SUCCESS',
+        message: `Transcript generation completed successfully. Extracted and saved ${savedSegments.length} segment utterances.`,
       });
 
-      // Clean up temp audio file
       this.cleanupFiles([audioPath]);
 
       return savedSegments;
     } catch (err: any) {
       this.cleanupFiles([audioPath]);
 
-      // If explicitly thrown due to missing audio stream
       if (err.message === 'NO_AUDIO') {
         this.logger.warn(`No audio track found in the recording for session: ${sessionId}. Saving "No Audio" label.`);
-        await this.prisma.pipelineLog.create({
-          data: {
-            sessionId,
-            step: 'TRANSCRIPTION',
-            status: 'SUCCESS',
-            message: 'No audio track detected in video file. Saved "No Audio" label.',
-          },
+        await this.pipelineLogModel.create({
+          sessionId,
+          step: 'TRANSCRIPTION',
+          status: 'SUCCESS',
+          message: 'No audio track detected in video file. Saved "No Audio" label.',
         });
         return this.saveNoAudioTranscript(sessionId);
       }
 
       this.logger.error(`Failed to generate transcript: ${err.message}. Generating mock fallback.`);
-      
+
       try {
-        await this.prisma.pipelineLog.create({
-          data: {
-            sessionId,
-            step: 'TRANSCRIPTION',
-            status: 'FAILED',
-            message: `Transcription error: ${err.message}. Initialized mock transcript fallback.`,
-          },
+        await this.pipelineLogModel.create({
+          sessionId,
+          step: 'TRANSCRIPTION',
+          status: 'FAILED',
+          message: `Transcription error: ${err.message}. Initialized mock transcript fallback.`,
         });
       } catch (_) {}
 
@@ -193,23 +168,18 @@ export class TranscriptService {
   }
 
   async saveTranscriptSegments(sessionId: string, segments: any[]): Promise<any[]> {
-    // Clear existing transcript segments for this session first
-    await this.prisma.transcriptSegment.deleteMany({
-      where: { sessionId },
-    });
+    await this.transcriptSegmentModel.deleteMany({ sessionId });
 
     const createdSegments = [];
     for (const segment of segments) {
-      const dbSegment = await this.prisma.transcriptSegment.create({
-        data: {
-          sessionId,
-          startTime: segment.startTime,
-          endTime: segment.endTime,
-          text: segment.text,
-          speakerLabel: segment.speakerLabel || 'Speaker',
-          confidence: segment.confidence || 1.0,
-          language: segment.language || 'en',
-        },
+      const dbSegment = await this.transcriptSegmentModel.create({
+        sessionId,
+        startTime: segment.startTime,
+        endTime: segment.endTime,
+        text: segment.text,
+        speakerLabel: segment.speakerLabel || 'Speaker',
+        confidence: segment.confidence || 1.0,
+        language: segment.language || 'en',
       });
       createdSegments.push(dbSegment);
     }
@@ -248,7 +218,7 @@ export class TranscriptService {
           .on('error', (err: any) => {
             this.logger.error(`FFmpeg error: ${err.message}`);
             if (err.message && (
-              err.message.includes('Output file does not contain any stream') || 
+              err.message.includes('Output file does not contain any stream') ||
               err.message.includes('does not contain any stream') ||
               err.message.includes('no audio')
             )) {
@@ -281,7 +251,7 @@ export class TranscriptService {
       ws.on('open', () => {
         clearTimeout(connectionTimeout);
         this.logger.log(`Connected to Vosk server at ${voskUrl}. Starting audio stream.`);
-        
+
         ws.send(JSON.stringify({
           config: {
             sample_rate: 16000,
@@ -290,7 +260,7 @@ export class TranscriptService {
         }));
 
         const stream = fs.createReadStream(audioPath, { highWaterMark: 8000 });
-        
+
         stream.on('data', (chunk) => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(chunk);
@@ -317,7 +287,7 @@ export class TranscriptService {
             let startTime = 0;
             let endTime = 0;
             const text = response.text.trim();
-            
+
             if (response.result && response.result.length > 0) {
               startTime = response.result[0].start;
               endTime = response.result[response.result.length - 1].end;
@@ -331,7 +301,7 @@ export class TranscriptService {
               endTime,
               text,
               speakerLabel: 'Speaker',
-              confidence: response.result && response.result.length > 0 
+              confidence: response.result && response.result.length > 0
                 ? response.result.reduce((acc: number, w: any) => acc + (w.conf || 0.0), 0) / response.result.length
                 : 0.9,
               language: 'en',
@@ -347,7 +317,7 @@ export class TranscriptService {
         resolve(segments);
       });
 
-      ws.on('error', (err : Error) => {
+      ws.on('error', (err: Error) => {
         clearTimeout(connectionTimeout);
         this.logger.error(`Vosk WebSocket error: ${err.message}`);
         reject(err);
@@ -358,7 +328,6 @@ export class TranscriptService {
   async createMockTranscript(sessionId: string): Promise<any[]> {
     this.logger.log(`Creating mock transcript segments for session: ${sessionId}`);
 
-    // Standard high-quality mock data including policy violations and off-topic discussion for QA review testing
     const mockSegments = [
       {
         startTime: 5.0,

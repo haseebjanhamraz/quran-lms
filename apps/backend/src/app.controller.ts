@@ -1,12 +1,13 @@
 import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { InjectConnection } from '@nestjs/mongoose';
+import { Connection } from 'mongoose';
 import { AppService } from './app.service';
-import { PrismaService } from './prisma/prisma.service';
 
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly prisma: PrismaService,
+    @InjectConnection() private readonly connection: Connection,
   ) {}
 
   @Get()
@@ -17,7 +18,10 @@ export class AppController {
   @Get('health')
   async getHealth() {
     try {
-      await this.prisma.$queryRaw`SELECT 1`;
+      const isConnected = this.connection.readyState === 1;
+      if (!isConnected) {
+        throw new Error('Database connection state is not connected');
+      }
       return {
         status: 'UP',
         database: 'CONNECTED',

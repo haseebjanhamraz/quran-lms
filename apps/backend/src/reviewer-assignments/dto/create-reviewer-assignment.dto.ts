@@ -1,9 +1,9 @@
-import { IsUUID } from 'class-validator';
+import { IsMongoId } from 'class-validator';
 
 export class CreateReviewerAssignmentDto {
-  @IsUUID()
+  @IsMongoId()
   reviewerId: string;
 
-  @IsUUID()
+  @IsMongoId()
   courseId: string;
 }

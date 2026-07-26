@@ -1,5 +1,5 @@
 import { IsDateString, IsEnum, IsInt, IsOptional, Min } from 'class-validator';
-import { ClassStatus } from '@prisma/client';
+import { ClassStatus } from '../../schemas';
 
 export class UpdateClassSessionDto {
   @IsDateString()

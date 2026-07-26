@@ -3,7 +3,7 @@ import { ClassReviewsService } from './class-reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { CreateAnnotationDto } from './dto/create-annotation.dto';
 import { Roles } from '../auth/decorators/roles.decorator';
-import { Role } from '@prisma/client';
+import { Role } from '../schemas';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';

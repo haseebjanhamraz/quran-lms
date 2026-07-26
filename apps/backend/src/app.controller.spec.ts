@@ -1,14 +1,14 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getNativeConnectionToken } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { PrismaService } from './prisma/prisma.service';
 
 describe('AppController', () => {
   let appController: AppController;
 
   beforeEach(async () => {
-    const mockPrisma = {
-      $queryRaw: jest.fn().mockResolvedValue([{ '1': 1 }]),
+    const mockConnection = {
+      readyState: 1,
     };
 
     const app: TestingModule = await Test.createTestingModule({
@@ -16,8 +16,8 @@ describe('AppController', () => {
       providers: [
         AppService,
         {
-          provide: PrismaService,
-          useValue: mockPrisma,
+          provide: getNativeConnectionToken(),
+          useValue: mockConnection,
         },
       ],
     }).compile();

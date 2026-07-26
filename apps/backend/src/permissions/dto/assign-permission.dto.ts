@@ -1,7 +1,7 @@
-import { IsNotEmpty, IsString, IsUUID } from 'class-validator';
+import { IsNotEmpty, IsMongoId } from 'class-validator';
 
 export class AssignPermissionDto {
-  @IsUUID()
+  @IsMongoId()
   @IsNotEmpty()
   permissionId: string;
 }

@@ -1,55 +1,44 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { StudentFeedback, StudentFeedbackDocument } from '../schemas';
 import { CreateFeedbackDto } from './dto/create-feedback.dto';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 
 @Injectable()
 export class StudentFeedbackService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(StudentFeedback.name) private readonly studentFeedbackModel: Model<StudentFeedbackDocument>,
+  ) {}
 
   async create(studentId: string, dto: CreateFeedbackDto) {
-    return this.prisma.studentFeedback.create({
-      data: {
-        studentId,
-        ...dto,
-      },
+    return this.studentFeedbackModel.create({
+      studentId,
+      ...dto,
     });
   }
 
   async findMyFeedback(studentId: string) {
-    return this.prisma.studentFeedback.findMany({
-      where: { studentId },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.studentFeedbackModel.find({ studentId }).sort({ createdAt: -1 });
   }
 
   async findAll() {
-    return this.prisma.studentFeedback.findMany({
-      include: {
-        student: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.studentFeedbackModel.find()
+      .populate('student', 'id name email')
+      .sort({ createdAt: -1 });
   }
 
   async updateStatus(id: string, dto: UpdateFeedbackDto) {
-    const feedback = await this.prisma.studentFeedback.findUnique({
-      where: { id },
-    });
+    const feedback = await this.studentFeedbackModel.findById(id);
 
     if (!feedback) {
       throw new NotFoundException('Feedback not found');
     }
 
-    return this.prisma.studentFeedback.update({
-      where: { id },
-      data: dto,
-    });
+    return this.studentFeedbackModel.findByIdAndUpdate(
+      id,
+      { $set: dto },
+      { new: true },
+    );
   }
 }

@@ -63,7 +63,6 @@ export default function LoginPage() {
           {/* Brand Header */}
           <div className="mb-6 flex flex-col items-center text-center">
             <div className="h-16 w-16 bg-primary/10 border border-primary/20 rounded-2xl flex items-center justify-center mb-4 hover:scale-105 transition-transform duration-300">
-              {/* <BookOpen className="h-8 w-8 text-primary" /> */}
               <Image src="/logo.png" width={50} height={50} alt="Logo" />
             </div>
             <h1 className="text-3xl font-display font-bold tracking-tight text-foreground">
@@ -152,30 +151,34 @@ export default function LoginPage() {
             </p>
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => handleQuickLogin('admin@lms.com', 'adminpassword')}
+                type="button"
+                onClick={() => handleQuickLogin('admin1@lms.com', 'password123')}
                 disabled={isSubmitting}
                 className="border border-blue-500/30 hover:bg-blue-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none"
               >
                 Admin Portal
               </button>
               <button
-                onClick={() => handleQuickLogin('teacher@lms.com', 'teacherpassword')}
+                type="button"
+                onClick={() => handleQuickLogin('muneeb@lms.com', 'password123')}
                 disabled={isSubmitting}
-                className="border border-emerald-500/30 hover:bg-emerald-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none"
+                className="border border-emerald-500/30 hover:bg-emerald-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift"
               >
                 Teacher Portal
               </button>
               <button
-                onClick={() => handleQuickLogin('student@lms.com', 'studentpassword')}
+                type="button"
+                onClick={() => handleQuickLogin('rayyan@lms.com', 'password123')}
                 disabled={isSubmitting}
-                className="border border-purple-500/30 hover:bg-purple-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none"
+                className="border border-purple-500/30 hover:bg-purple-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift"
               >
                 Student Portal
               </button>
               <button
-                onClick={() => handleQuickLogin('reviewer@lms.com', 'reviewerpassword')}
+                type="button"
+                onClick={() => handleQuickLogin('rev1@lms.com', 'password123')}
                 disabled={isSubmitting}
-                className="border border-amber-500/30 hover:bg-amber-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none"
+                className="border border-amber-500/30 hover:bg-amber-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift"
               >
                 Reviewer Portal
               </button>

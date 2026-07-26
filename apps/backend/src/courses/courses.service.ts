@@ -1,62 +1,49 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Course, CourseDocument, User, UserDocument, Enrollment, EnrollmentDocument, ClassSession, ClassSessionDocument, Role } from '../schemas';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
 @Injectable()
 export class CoursesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+  ) {}
 
   async create(createCourseDto: CreateCourseDto) {
-    const teacher = await this.prisma.user.findUnique({
-      where: { id: createCourseDto.teacherId },
-    });
-    if (!teacher || teacher.role !== 'TEACHER') {
+    const teacher = await this.userModel.findById(createCourseDto.teacherId);
+    if (!teacher || teacher.role !== Role.TEACHER) {
       throw new NotFoundException('The specified teacher does not exist or does not hold the TEACHER role.');
     }
 
-    return this.prisma.course.create({
-      data: {
-        title: createCourseDto.title,
-        type: createCourseDto.type,
-        curriculum: createCourseDto.curriculum,
-        teacherId: createCourseDto.teacherId,
-      },
-      include: {
-        teacher: {
-          select: { id: true, name: true, email: true },
-        },
-      },
+    const course = await this.courseModel.create({
+      title: createCourseDto.title,
+      type: createCourseDto.type,
+      curriculum: createCourseDto.curriculum,
+      teacherId: createCourseDto.teacherId,
     });
+
+    return this.courseModel.findById(course._id).populate('teacher', 'id name email');
   }
 
   async findAll() {
-    return this.prisma.course.findMany({
-      include: {
-        teacher: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.courseModel.find().populate('teacher', 'id name email').sort({ createdAt: -1 });
   }
 
   async findOne(id: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id },
-      include: {
-        teacher: {
-          select: { id: true, name: true, email: true },
+    const course = await this.courseModel.findById(id)
+      .populate('teacher', 'id name email')
+      .populate({
+        path: 'enrollments',
+        populate: {
+          path: 'student',
+          select: 'id name email',
         },
-        enrollments: {
-          include: {
-            student: {
-              select: { id: true, name: true, email: true },
-            },
-          },
-        },
-      },
-    });
+      });
 
     if (!course) {
       throw new NotFoundException('Course not found');
@@ -65,58 +52,57 @@ export class CoursesService {
   }
 
   async update(id: string, updateCourseDto: UpdateCourseDto) {
-    const course = await this.prisma.course.findUnique({
-      where: { id },
-    });
+    const course = await this.courseModel.findById(id);
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
     if (updateCourseDto.teacherId) {
-      const teacher = await this.prisma.user.findUnique({
-        where: { id: updateCourseDto.teacherId },
-      });
-      if (!teacher || teacher.role !== 'TEACHER') {
+      const teacher = await this.userModel.findById(updateCourseDto.teacherId);
+      if (!teacher || teacher.role !== Role.TEACHER) {
         throw new NotFoundException('The specified teacher does not exist or does not hold the TEACHER role.');
       }
     }
 
-    return this.prisma.course.update({
-      where: { id },
-      data: updateCourseDto,
-      include: {
-        teacher: {
-          select: { id: true, name: true, email: true },
-        },
-      },
-    });
+    const updated = await this.courseModel.findByIdAndUpdate(
+      id,
+      { $set: updateCourseDto },
+      { new: true },
+    ).populate('teacher', 'id name email');
+
+    return updated;
   }
 
   async remove(id: string) {
-    const course = await this.prisma.course.findUnique({
-      where: { id },
-    });
+    const course = await this.courseModel.findById(id);
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
-    return this.prisma.course.delete({
-      where: { id },
-    });
+    return this.courseModel.findByIdAndDelete(id);
   }
 
   async findByTeacher(teacherId: string) {
-    return this.prisma.course.findMany({
-      where: { teacherId },
-      include: {
-        _count: {
-          select: {
-            enrollments: true,
-            classSessions: true,
+    const courses = await this.courseModel.find({ teacherId }).sort({ createdAt: -1 });
+
+    const results = await Promise.all(
+      courses.map(async (course) => {
+        const [enrollmentCount, sessionCount] = await Promise.all([
+          this.enrollmentModel.countDocuments({ courseId: course._id }),
+          this.classSessionModel.countDocuments({ courseId: course._id }),
+        ]);
+
+        const obj = course.toObject();
+        return {
+          ...obj,
+          _count: {
+            enrollments: enrollmentCount,
+            classSessions: sessionCount,
           },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        };
+      }),
+    );
+
+    return results;
   }
 }

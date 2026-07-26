@@ -18,7 +18,7 @@ class EnvironmentVariables {
   PORT: number = 4000;
 
   @IsString()
-  DATABASE_URL: string;
+  MONGODB_URI: string;
 
   @IsString()
   JWT_SECRET: string;

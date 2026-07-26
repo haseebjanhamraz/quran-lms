@@ -1,5 +1,5 @@
 import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength, IsOptional, IsNumber, IsBoolean, IsDateString } from 'class-validator';
-import { Role } from '@prisma/client';
+import { Role } from '../../schemas';
 
 export class CreateUserDto {
   @IsEmail()

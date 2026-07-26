@@ -137,7 +137,7 @@ export default function UserManagement() {
     <div className="relative mx-auto max-w-7xl">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-3xl font-display font-bold">User Management & Admission</h1>
+          <h1 className="text-3xl font-display font-bold">Students Management & Admission</h1>
           <p className="text-muted-foreground mt-1">Admit students, create accounts, and manage roster.</p>
         </div>
         <button
@@ -208,7 +208,7 @@ export default function UserManagement() {
                       </td>
                       <td className="py-3 px-4">{u.gender || '-'}</td>
                       <td className="py-3 px-4 text-xs">
-                        {u.dob ? <>{u.dob} <br/><span className="text-muted-foreground">({age}y)</span></> : '-'}
+                        {u.dob ? <>{u.dob} <br /><span className="text-muted-foreground">({age}y)</span></> : '-'}
                       </td>
                       <td className="py-3 px-4">
                         {type === 'Child' ? (

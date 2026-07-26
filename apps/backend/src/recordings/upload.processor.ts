@@ -1,10 +1,16 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { LocalStorageService } from '../local-storage/local-storage.service';
 import { TranscriptService } from '../transcript/transcript.service';
-import { RecordingStatus } from '@prisma/client';
+import {
+  Recording, RecordingDocument, RecordingStatus,
+  PipelineLog, PipelineLogDocument,
+  ClassSession, ClassSessionDocument,
+  Notification, NotificationDocument, NotificationType
+} from '../schemas';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -14,7 +20,10 @@ export class UploadProcessor extends WorkerHost {
   private readonly logger = new Logger(UploadProcessor.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectModel(Recording.name) private readonly recordingModel: Model<RecordingDocument>,
+    @InjectModel(PipelineLog.name) private readonly pipelineLogModel: Model<PipelineLogDocument>,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
     private readonly localStorageService: LocalStorageService,
     private readonly transcriptService: TranscriptService,
   ) {
@@ -37,45 +46,37 @@ export class UploadProcessor extends WorkerHost {
 
     this.logger.log(`Processing recording upload job for session: ${sessionId}, raw file: ${rawFilePath}, resolved: ${filePath}`);
 
-    // Check if recording is already successfully processed or currently being processed
-    const existingRec = await this.prisma.recording.findUnique({
-      where: { sessionId },
-    });
+    const existingRec = await this.recordingModel.findOne({ sessionId });
     if (existingRec && (existingRec.status === RecordingStatus.READY || existingRec.status === RecordingStatus.UPLOADING)) {
       this.logger.log(`Recording for session ${sessionId} is already ${existingRec.status}. Skipping duplicate job.`);
       return { success: true, message: 'Already completed or in progress' };
     }
 
-    // Update or create recording record to show status is UPLOADING
-    await this.prisma.recording.upsert({
-      where: { sessionId },
-      update: {
-        status: RecordingStatus.UPLOADING,
-        localPath: filePath,
+    await this.recordingModel.findOneAndUpdate(
+      { sessionId },
+      {
+        $set: {
+          status: RecordingStatus.UPLOADING,
+          localPath: filePath,
+        },
+        $setOnInsert: {
+          sessionId,
+          durationSeconds: 0,
+        },
       },
-      create: {
-        sessionId,
-        status: RecordingStatus.UPLOADING,
-        localPath: filePath,
-        durationSeconds: 0,
-      },
+      { upsert: true, new: true },
+    );
+
+    await this.pipelineLogModel.create({
+      sessionId,
+      step: 'UPLOAD',
+      status: 'STARTED',
+      message: `Starting transfer of recording file to local storage. Local path: ${filePath}`,
     });
 
-    // Write starting log to PipelineLog table
-    await this.prisma.pipelineLog.create({
-      data: {
-        sessionId,
-        step: 'UPLOAD',
-        status: 'STARTED',
-        message: `Starting transfer of recording file to local storage. Local path: ${filePath}`,
-      },
-    });
-
-    // Wait for the file to be ready (Egress might still be writing it after room deletion)
     let fileExists = fs.existsSync(filePath);
     if (!fileExists) {
       this.logger.log(`Recording file not found at ${filePath}. Polling for file readiness (up to 90s)...`);
-      // Poll every 3 seconds for up to 90 seconds (30 attempts)
       for (let i = 0; i < 30; i++) {
         await new Promise((resolve) => setTimeout(resolve, 3000));
         if (fs.existsSync(filePath)) {
@@ -97,9 +98,7 @@ export class UploadProcessor extends WorkerHost {
     }
 
     try {
-      // Check if file exists locally before starting upload
       if (!fileExists) {
-        // If not found, check if we can run fallback in dev environment immediately
         const isDev = process.env.NODE_ENV !== 'production';
         const samplePath = path.join(path.dirname(filePath), 'sample.mp4');
         const hasSample = fs.existsSync(samplePath);
@@ -109,14 +108,12 @@ export class UploadProcessor extends WorkerHost {
           this.logger.log(`Local file ${filePath} not found. Cloning dev sample video from ${samplePath}`);
           fs.copyFileSync(samplePath, filePath);
         } else {
-          // In production or if no sample is available, retry via BullMQ
           const maxAttempts = job.opts.attempts || 1;
           this.logger.log(`Recording file not found at ${filePath}. attemptsMade=${job.attemptsMade}, maxAttempts=${maxAttempts}`);
           if (job.attemptsMade < maxAttempts - 1) {
             throw new Error(`Recording file not ready yet at: ${filePath}. Egress is likely still writing it.`);
           }
 
-          // Final attempt fallback: clone sample if available, or create dummy file as last resort
           this.logger.warn(`Recording file still not found after all retries. Falling back to dev sample or dummy file.`);
           if (hasSample) {
             this.logger.log(`Cloning dev sample video from ${samplePath}`);
@@ -134,66 +131,53 @@ export class UploadProcessor extends WorkerHost {
         }
       }
 
-      // Save to local storage
       const saveResult = await this.localStorageService.saveFile(filePath, filename);
 
-      // Get session to read duration
-      const session = await this.prisma.classSession.findUnique({
-        where: { id: sessionId },
-      });
+      const session = await this.classSessionModel.findById(sessionId);
       const durationSeconds = session ? session.durationMinutes * 60 : 0;
 
-      // Update recording record with final path and status READY
-      await this.prisma.recording.update({
-        where: { sessionId },
-        data: {
-          status: RecordingStatus.READY,
-          filePath: saveResult.filePath,
-          fileSize: saveResult.fileSize,
-          durationSeconds,
-          localPath: null, // Clear local path reference
+      await this.recordingModel.findOneAndUpdate(
+        { sessionId },
+        {
+          $set: {
+            status: RecordingStatus.READY,
+            filePath: saveResult.filePath,
+            fileSize: saveResult.fileSize,
+            durationSeconds,
+            localPath: null,
+          },
         },
+      );
+
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'UPLOAD',
+        status: 'SUCCESS',
+        message: `Recording saved successfully to local storage. File path: ${saveResult.filePath}. Size: ${saveResult.fileSize} bytes`,
       });
 
-      // Write success log to PipelineLog table
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'UPLOAD',
-          status: 'SUCCESS',
-          message: `Recording saved successfully to local storage. File path: ${saveResult.filePath}. Size: ${saveResult.fileSize} bytes`,
-        },
-      });
-
-      // Automatically queue transcript generation job
       try {
         await this.transcriptService.queueTranscriptJob(sessionId);
       } catch (err: any) {
         this.logger.error(`Failed to auto-queue transcript job: ${err.message}`);
       }
 
-      // Auto-create notification for the teacher
       try {
-        const sessionWithTeacher = await this.prisma.classSession.findUnique({
-          where: { id: sessionId },
-          select: { teacherId: true, course: { select: { title: true } } },
-        });
+        const sessionWithTeacher: any = await this.classSessionModel.findById(sessionId).populate('course', 'title');
         if (sessionWithTeacher) {
-          await this.prisma.notification.create({
-            data: {
-              userId: sessionWithTeacher.teacherId,
-              title: 'Class Recording Saved',
-              message: `The recording for your class "${sessionWithTeacher.course.title}" has been successfully saved to local storage.`,
-              type: 'RECORDING_READY',
-              metadata: { sessionId },
-            },
+          const courseObj: any = sessionWithTeacher.course;
+          await this.notificationModel.create({
+            userId: sessionWithTeacher.teacherId,
+            title: 'Class Recording Saved',
+            message: `The recording for your class "${courseObj?.title || ''}" has been successfully saved to local storage.`,
+            type: NotificationType.RECORDING_READY,
+            metadata: { sessionId },
           });
         }
       } catch (err: any) {
         this.logger.error(`Failed to create recording saved notification: ${err.message}`);
       }
 
-      // Cleanup local temp file only if it is NOT the destination file
       const resolvedSource = path.resolve(filePath);
       const resolvedDest = path.resolve(this.localStorageService.getFilePath(filename));
       if (resolvedSource !== resolvedDest && fs.existsSync(filePath)) {
@@ -206,28 +190,21 @@ export class UploadProcessor extends WorkerHost {
     } catch (err: any) {
       this.logger.error(`Failed to process recording upload: ${err.message}`);
 
-      // Only update database to FAILED on the final attempt
       const maxAttempts = job.opts.attempts || 1;
       if (job.attemptsMade >= maxAttempts - 1) {
-        // Write error log to PipelineLog table
         try {
-          await this.prisma.pipelineLog.create({
-            data: {
-              sessionId,
-              step: 'UPLOAD',
-              status: 'FAILED',
-              message: `Recording local save failed after all retries. Error details: ${err.message}`,
-            },
+          await this.pipelineLogModel.create({
+            sessionId,
+            step: 'UPLOAD',
+            status: 'FAILED',
+            message: `Recording local save failed after all retries. Error details: ${err.message}`,
           });
         } catch (_) { }
 
-        // Update recording record status to FAILED
-        await this.prisma.recording.update({
-          where: { sessionId },
-          data: {
-            status: RecordingStatus.FAILED,
-          },
-        });
+        await this.recordingModel.findOneAndUpdate(
+          { sessionId },
+          { $set: { status: RecordingStatus.FAILED } },
+        );
       }
 
       throw err;

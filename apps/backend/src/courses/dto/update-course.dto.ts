@@ -1,5 +1,5 @@
-import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
-import { CourseType } from '@prisma/client';
+import { IsEnum, IsOptional, IsString, IsMongoId } from 'class-validator';
+import { CourseType } from '../../schemas';
 
 export class UpdateCourseDto {
   @IsString()
@@ -14,7 +14,7 @@ export class UpdateCourseDto {
   @IsOptional()
   curriculum?: string;
 
-  @IsUUID()
+  @IsMongoId()
   @IsOptional()
   teacherId?: string;
 }

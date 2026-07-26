@@ -1,12 +1,15 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { NotificationType } from '@prisma/client';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Notification, NotificationDocument, NotificationType } from '../schemas';
 
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
+  ) {}
 
   async createNotification(
     userId: string,
@@ -16,47 +19,37 @@ export class NotificationsService {
     metadata?: any,
   ) {
     this.logger.log(`Creating notification of type ${type} for user: ${userId}`);
-    return this.prisma.notification.create({
-      data: {
-        userId,
-        title,
-        message,
-        type,
-        metadata: metadata ?? {},
-      },
+    return this.notificationModel.create({
+      userId,
+      title,
+      message,
+      type,
+      metadata: metadata ?? {},
     });
   }
 
   async getUserNotifications(userId: string) {
-    return this.prisma.notification.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-    });
+    return this.notificationModel.find({ userId }).sort({ createdAt: -1 });
   }
 
   async markAsRead(id: string, userId: string) {
-    const notification = await this.prisma.notification.findUnique({
-      where: { id },
-    });
+    const notification = await this.notificationModel.findById(id);
 
-    if (!notification) {
+    if (!notification || notification.userId.toString() !== userId) {
       throw new NotFoundException('Notification not found');
     }
 
-    if (notification.userId !== userId) {
-      throw new NotFoundException('Notification not found');
-    }
-
-    return this.prisma.notification.update({
-      where: { id },
-      data: { isRead: true },
-    });
+    return this.notificationModel.findByIdAndUpdate(
+      id,
+      { $set: { isRead: true } },
+      { new: true },
+    );
   }
 
   async markAllAsRead(userId: string) {
-    return this.prisma.notification.updateMany({
-      where: { userId, isRead: false },
-      data: { isRead: true },
-    });
+    return this.notificationModel.updateMany(
+      { userId, isRead: false },
+      { $set: { isRead: true } },
+    );
   }
 }

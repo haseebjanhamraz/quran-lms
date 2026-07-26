@@ -1,9 +1,19 @@
 import { ConflictException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
 import { UpdateClassSessionDto } from './dto/update-class-session.dto';
-import { ClassStatus, Role } from '@prisma/client';
+import {
+  ClassSession, ClassSessionDocument, ClassStatus,
+  Course, CourseDocument,
+  User, UserDocument, Role,
+  Attendance, AttendanceDocument,
+  PipelineLog, PipelineLogDocument,
+  Enrollment, EnrollmentDocument,
+  ReviewerAssignment, ReviewerAssignmentDocument,
+  ClassReview, ClassReviewDocument, ReviewStatus
+} from '../schemas';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { RecordingsService } from '../recordings/recordings.service';
 import { LocalStorageService } from '../local-storage/local-storage.service';
@@ -11,7 +21,14 @@ import { LocalStorageService } from '../local-storage/local-storage.service';
 @Injectable()
 export class ClassSessionsService {
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Attendance.name) private readonly attendanceModel: Model<AttendanceDocument>,
+    @InjectModel(PipelineLog.name) private readonly pipelineLogModel: Model<PipelineLogDocument>,
+    @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
+    @InjectModel(ReviewerAssignment.name) private readonly reviewerAssignmentModel: Model<ReviewerAssignmentDocument>,
+    @InjectModel(ClassReview.name) private readonly classReviewModel: Model<ClassReviewDocument>,
     private readonly configService: ConfigService,
     private readonly recordingsService: RecordingsService,
     private readonly localStorageService: LocalStorageService,
@@ -26,27 +43,23 @@ export class ClassSessionsService {
     const scheduledTime = new Date(scheduledAt).getTime();
     const endTime = scheduledTime + durationMinutes * 60 * 1000;
 
-    // Load active sessions for the teacher around that day (+/- 24 hours)
-    const daySessions = await this.prisma.classSession.findMany({
-      where: {
-        teacherId,
-        status: { in: [ClassStatus.SCHEDULED, ClassStatus.LIVE, ClassStatus.COMPLETED] },
-        scheduledAt: {
-          gte: new Date(scheduledTime - 24 * 60 * 60 * 1000),
-          lte: new Date(endTime + 24 * 60 * 60 * 1000),
-        },
+    const daySessions = await this.classSessionModel.find({
+      teacherId,
+      status: { $in: [ClassStatus.SCHEDULED, ClassStatus.LIVE, ClassStatus.COMPLETED] },
+      scheduledAt: {
+        $gte: new Date(scheduledTime - 24 * 60 * 60 * 1000),
+        $lte: new Date(endTime + 24 * 60 * 60 * 1000),
       },
     });
 
     for (const session of daySessions) {
-      if (excludeSessionId && session.id === excludeSessionId) {
+      if (excludeSessionId && session._id.toString() === excludeSessionId) {
         continue;
       }
 
       const existingStart = new Date(session.scheduledAt).getTime();
       const existingEnd = existingStart + session.durationMinutes * 60 * 1000;
 
-      // Check if intervals overlap
       if (scheduledTime < existingEnd && existingStart < endTime) {
         return true;
       }
@@ -56,18 +69,14 @@ export class ClassSessionsService {
   }
 
   async create(createClassSessionDto: CreateClassSessionDto) {
-    // Validate course
-    const course = await this.prisma.course.findUnique({
-      where: { id: createClassSessionDto.courseId },
-    });
+    const course = await this.courseModel.findById(createClassSessionDto.courseId);
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
     const scheduledDate = new Date(createClassSessionDto.scheduledAt);
-    const teacherId = createClassSessionDto.teacherId || course.teacherId;
+    const teacherId = createClassSessionDto.teacherId || course.teacherId.toString();
 
-    // Check teacher conflicts
     const hasConflict = await this.checkTeacherConflict(
       teacherId,
       scheduledDate,
@@ -80,52 +89,37 @@ export class ClassSessionsService {
       );
     }
 
-    return this.prisma.classSession.create({
-      data: {
-        courseId: createClassSessionDto.courseId,
-        teacherId: teacherId,
-        studentId: createClassSessionDto.studentId,
-        scheduledAt: scheduledDate,
-        durationMinutes: createClassSessionDto.durationMinutes,
-        status: ClassStatus.SCHEDULED,
-      },
-      include: {
-        course: {
-          select: { title: true, type: true },
-        },
-      },
+    const created = await this.classSessionModel.create({
+      courseId: createClassSessionDto.courseId,
+      teacherId: teacherId,
+      studentId: createClassSessionDto.studentId,
+      scheduledAt: scheduledDate,
+      durationMinutes: createClassSessionDto.durationMinutes,
+      status: ClassStatus.SCHEDULED,
     });
+
+    return this.classSessionModel.findById(created._id).populate('course', 'title type');
   }
 
   async findAll() {
-    return this.prisma.classSession.findMany({
-      include: {
-        course: {
-          include: {
-            teacher: { select: { id: true, name: true } },
-          },
-        },
-      },
-      orderBy: { scheduledAt: 'asc' },
-    });
+    return this.classSessionModel.find()
+      .populate({
+        path: 'course',
+        populate: { path: 'teacher', select: 'id name' },
+      })
+      .sort({ scheduledAt: 1 });
   }
 
   async findOne(id: string) {
-    const session = await this.prisma.classSession.findUnique({
-      where: { id },
-      include: {
-        course: {
-          include: {
-            teacher: { select: { id: true, name: true, email: true } },
-          },
-        },
-        attendances: {
-          include: {
-            user: { select: { id: true, name: true, role: true } },
-          },
-        },
-      },
-    });
+    const session = await this.classSessionModel.findById(id)
+      .populate({
+        path: 'course',
+        populate: { path: 'teacher', select: 'id name email' },
+      })
+      .populate({
+        path: 'attendances',
+        populate: { path: 'user', select: 'id name role' },
+      });
 
     if (!session) {
       throw new NotFoundException('Class session not found');
@@ -134,9 +128,7 @@ export class ClassSessionsService {
   }
 
   async update(id: string, updateClassSessionDto: UpdateClassSessionDto) {
-    const session = await this.prisma.classSession.findUnique({
-      where: { id },
-    });
+    const session = await this.classSessionModel.findById(id);
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
@@ -147,10 +139,9 @@ export class ClassSessionsService {
 
     let newDuration = updateClassSessionDto.durationMinutes ?? session.durationMinutes;
 
-    // Check conflicts if scheduling is changed
     if (updateClassSessionDto.scheduledAt || updateClassSessionDto.durationMinutes) {
       const hasConflict = await this.checkTeacherConflict(
-        session.teacherId,
+        session.teacherId.toString(),
         newScheduledAt,
         newDuration,
         id,
@@ -165,20 +156,15 @@ export class ClassSessionsService {
 
     let startedAt = session.startedAt;
 
-    // If status changes from SCHEDULED to LIVE, set startedAt
-    // Recording is started in generateLivekitToken() when the teacher actually joins the room
     if (updateClassSessionDto.status === ClassStatus.LIVE && session.status === ClassStatus.SCHEDULED) {
       startedAt = new Date();
     }
 
-    // If status changes from LIVE to COMPLETED, calculate actual duration and close the room.
-    // Upload is triggered by the egress_ended webhook (after the file is written to disk),
-    // NOT here, to avoid a race condition where the processor looks for the file before egress finishes.
     if (updateClassSessionDto.status === ClassStatus.COMPLETED && session.status === ClassStatus.LIVE) {
-      const elapsed = Math.round((Date.now() - session.updatedAt.getTime()) / 60000);
+      const updatedAtTime = session.updatedAt ? session.updatedAt.getTime() : Date.now();
+      const elapsed = Math.round((Date.now() - updatedAtTime) / 60000);
       newDuration = Math.max(1, elapsed);
 
-      // Close the LiveKit room — this triggers room_finished and egress_ended webhooks
       try {
         const livekitHost = this.configService.getOrThrow<string>('LIVEKIT_HOST');
         const apiKey = this.configService.getOrThrow<string>('LIVEKIT_API_KEY');
@@ -191,115 +177,76 @@ export class ClassSessionsService {
       }
     }
 
-    return this.prisma.classSession.update({
-      where: { id },
-      data: {
-        scheduledAt: newScheduledAt,
-        durationMinutes: newDuration,
-        status: updateClassSessionDto.status,
-        startedAt,
-      },
-      include: {
-        course: {
-          select: { title: true },
+    return this.classSessionModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          scheduledAt: newScheduledAt,
+          durationMinutes: newDuration,
+          status: updateClassSessionDto.status,
+          startedAt,
         },
       },
-    });
+      { new: true },
+    ).populate('course', 'title');
   }
 
   async remove(id: string) {
-    const session = await this.prisma.classSession.findUnique({
-      where: { id },
-      include: { recording: true },
-    });
+    const session = await this.classSessionModel.findById(id).populate('recording');
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
 
-    // If there is a recording in local storage, delete it
-    if (session.recording?.filePath) {
+    const recording: any = session.get ? session.get('recording') : (session as any).recording;
+    if (recording?.filePath) {
       try {
-        await this.localStorageService.deleteFile(session.recording.filePath);
+        await this.localStorageService.deleteFile(recording.filePath);
         Logger.log(`Successfully deleted local recording file for session: ${id}`, 'ClassSessionsService');
       } catch (err: any) {
         Logger.error(`Failed to delete local recording file for session ${id}: ${err.message}`, 'ClassSessionsService');
       }
     }
 
-    // Delete class session entirely (cascades to recording, transcript, report, log)
-    return this.prisma.classSession.delete({
-      where: { id },
-    });
+    return this.classSessionModel.findByIdAndDelete(id);
   }
 
   async getPipelineLogs(sessionId: string) {
-    return this.prisma.pipelineLog.findMany({
-      where: { sessionId },
-      orderBy: { createdAt: 'asc' },
-    });
+    return this.pipelineLogModel.find({ sessionId }).sort({ createdAt: 1 });
   }
 
   async logPipelineStep(sessionId: string, step: string, status: string, message: string) {
     try {
-      await this.prisma.pipelineLog.create({
-        data: { sessionId, step, status, message }
-      });
+      await this.pipelineLogModel.create({ sessionId, step, status, message });
     } catch (err: any) {
       Logger.error(`Failed to create pipeline log for session ${sessionId}: ${err.message}`, 'ClassSessionsService');
     }
   }
 
   async findTeacherCalendar(teacherId: string) {
-    return this.prisma.classSession.findMany({
-      where: { teacherId },
-      include: {
-        course: { select: { title: true, type: true } },
-        recording: true,
-      },
-      orderBy: { scheduledAt: 'asc' },
-    });
+    return this.classSessionModel.find({ teacherId })
+      .populate('course', 'title type')
+      .populate('recording')
+      .sort({ scheduledAt: 1 });
   }
 
   async findStudentCalendar(studentId: string) {
-    // Find courses the student is enrolled in
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: { studentId },
-      select: { courseId: true },
-    });
-
+    const enrollments = await this.enrollmentModel.find({ studentId }, 'courseId');
     const courseIds = enrollments.map((e) => e.courseId);
 
-    return this.prisma.classSession.findMany({
-      where: {
-        courseId: { in: courseIds },
-      },
-      include: {
-        course: { select: { title: true, type: true } },
-        recording: true,
-      },
-      orderBy: { scheduledAt: 'asc' },
-    });
+    return this.classSessionModel.find({ courseId: { $in: courseIds } })
+      .populate('course', 'title type')
+      .populate('recording')
+      .sort({ scheduledAt: 1 });
   }
 
   async findReviewerCalendar(reviewerId: string) {
-    // Find courses assigned to this reviewer
-    const assignments = await this.prisma.reviewerAssignment.findMany({
-      where: { reviewerId, isActive: true },
-      select: { courseId: true },
-    });
-
+    const assignments = await this.reviewerAssignmentModel.find({ reviewerId, isActive: true }, 'courseId');
     const courseIds = assignments.map((a) => a.courseId);
 
-    return this.prisma.classSession.findMany({
-      where: {
-        courseId: { in: courseIds },
-      },
-      include: {
-        course: { select: { title: true, type: true } },
-        recording: true,
-      },
-      orderBy: { scheduledAt: 'asc' },
-    });
+    return this.classSessionModel.find({ courseId: { $in: courseIds } })
+      .populate('course', 'title type')
+      .populate('recording')
+      .sort({ scheduledAt: 1 });
   }
 
   async logAttendance(
@@ -309,74 +256,57 @@ export class ClassSessionsService {
     leaveTime?: Date,
     durationSeconds?: number,
   ) {
-    const student = await this.prisma.user.findUnique({
-      where: { id: userId },
-    });
+    const student = await this.userModel.findById(userId);
     if (!student) {
       throw new NotFoundException('Student not found');
     }
 
-    const session = await this.prisma.classSession.findUnique({
-      where: { id: sessionId },
-    });
+    const session = await this.classSessionModel.findById(sessionId);
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
 
-    return this.prisma.attendance.upsert({
-      where: {
-        sessionId_userId: {
+    return this.attendanceModel.findOneAndUpdate(
+      { sessionId, userId },
+      {
+        $set: {
+          joinTime,
+          leaveTime,
+          ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+        },
+        $setOnInsert: {
           sessionId,
           userId,
+          durationSeconds: durationSeconds ?? 0,
         },
       },
-      update: {
-        joinTime,
-        leaveTime,
-        durationSeconds: durationSeconds ?? undefined,
-      },
-      create: {
-        sessionId,
-        userId,
-        joinTime,
-        leaveTime,
-        durationSeconds: durationSeconds ?? 0,
-      },
-    });
+      { upsert: true, new: true },
+    );
   }
 
   async getAttendance(sessionId: string) {
-    const session = await this.prisma.classSession.findUnique({
-      where: { id: sessionId },
-    });
+    const session = await this.classSessionModel.findById(sessionId);
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
 
-    return this.prisma.attendance.findMany({
-      where: { sessionId },
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-      },
-    });
+    return this.attendanceModel.find({ sessionId }).populate('user', 'id name email');
   }
 
   async generateLivekitToken(sessionId: string, user: any) {
-    const session = await this.prisma.classSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        course: {
-          include: {
-            enrollments: true,
-            reviewerAssignments: true,
-          },
-        },
-      },
+    const session = await this.classSessionModel.findById(sessionId).populate({
+      path: 'course',
+      populate: [
+        { path: 'enrollments' },
+        { path: 'reviewerAssignments' },
+      ],
     });
 
     if (!session) {
       throw new NotFoundException('Class session not found');
     }
+
+    const course: any = session.get ? session.get('course') : (session as any).course;
 
     let isAuthorized = false;
     let isReviewer = false;
@@ -385,12 +315,14 @@ export class ClassSessionsService {
       isAuthorized = true;
       isReviewer = true;
     } else if (user.role === Role.TEACHER) {
-      isAuthorized = session.teacherId === user.id;
+      isAuthorized = session.teacherId.toString() === user.id;
     } else if (user.role === Role.STUDENT) {
-      isAuthorized = session.course.enrollments.some((e) => e.studentId === user.id);
+      const enrollments: any[] = course?.enrollments || [];
+      isAuthorized = enrollments.some((e: any) => e.studentId.toString() === user.id);
     } else if (user.role === Role.REVIEWER) {
-      isAuthorized = session.course.reviewerAssignments.some(
-        (a) => a.reviewerId === user.id && a.isActive,
+      const reviewerAssignments: any[] = course?.reviewerAssignments || [];
+      isAuthorized = reviewerAssignments.some(
+        (a: any) => a.reviewerId.toString() === user.id && a.isActive,
       );
       isReviewer = true;
     }
@@ -424,7 +356,7 @@ export class ClassSessionsService {
       grants.canPublishData = true;
       grants.canSubscribe = true;
       grants.hidden = false;
-      grants.canPublishSources = [1, 2]; // 1 = CAMERA, 2 = MICROPHONE
+      grants.canPublishSources = [1, 2];
     } else {
       grants.canPublish = true;
       grants.canPublishData = true;
@@ -434,21 +366,15 @@ export class ClassSessionsService {
 
     token.addGrant(grants);
 
-    // When teacher joins, ensure session is LIVE and start recording
     if (user.role === Role.TEACHER && session.status !== ClassStatus.COMPLETED && session.status !== ClassStatus.CANCELLED) {
       if (session.status === ClassStatus.SCHEDULED) {
-        await this.prisma.classSession.update({
-          where: { id: sessionId },
-          data: { 
+        await this.classSessionModel.findByIdAndUpdate(sessionId, {
+          $set: {
             status: ClassStatus.LIVE,
             startedAt: new Date(),
           },
         });
       }
-      // Egress recording is NOT started here. It is started in the
-      // participant_joined webhook handler after the teacher actually connects
-      // to the LiveKit room. This avoids the egress timing out with
-      // "Start signal not received" when no media arrives in time.
     }
 
     return {
@@ -463,25 +389,25 @@ export class ClassSessionsService {
     const userId = user.id;
 
     if (role === Role.ADMIN) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
       const [total, scheduled, live, completed, cancelled, today] = await Promise.all([
-        this.prisma.classSession.count(),
-        this.prisma.classSession.count({ where: { status: ClassStatus.SCHEDULED } }),
-        this.prisma.classSession.count({ where: { status: ClassStatus.LIVE } }),
-        this.prisma.classSession.count({ where: { status: ClassStatus.COMPLETED } }),
-        this.prisma.classSession.count({ where: { status: ClassStatus.CANCELLED } }),
-        this.prisma.classSession.count({
-          where: {
-            scheduledAt: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              lt: new Date(new Date().setHours(23, 59, 59, 999)),
-            },
-          },
+        this.classSessionModel.countDocuments(),
+        this.classSessionModel.countDocuments({ status: ClassStatus.SCHEDULED }),
+        this.classSessionModel.countDocuments({ status: ClassStatus.LIVE }),
+        this.classSessionModel.countDocuments({ status: ClassStatus.COMPLETED }),
+        this.classSessionModel.countDocuments({ status: ClassStatus.CANCELLED }),
+        this.classSessionModel.countDocuments({
+          scheduledAt: { $gte: todayStart, $lt: todayEnd },
         }),
       ]);
 
-      const totalTeachers = await this.prisma.user.count({ where: { role: Role.TEACHER } });
-      const totalStudents = await this.prisma.user.count({ where: { role: Role.STUDENT } });
-      const totalCourses = await this.prisma.course.count();
+      const totalTeachers = await this.userModel.countDocuments({ role: Role.TEACHER });
+      const totalStudents = await this.userModel.countDocuments({ role: Role.STUDENT });
+      const totalCourses = await this.courseModel.countDocuments();
 
       return {
         total,
@@ -497,38 +423,32 @@ export class ClassSessionsService {
     }
 
     if (role === Role.TEACHER) {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+
       const [total, scheduled, live, completed, cancelled, today, courses] = await Promise.all([
-        this.prisma.classSession.count({ where: { teacherId: userId } }),
-        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.SCHEDULED } }),
-        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.LIVE } }),
-        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.COMPLETED } }),
-        this.prisma.classSession.count({ where: { teacherId: userId, status: ClassStatus.CANCELLED } }),
-        this.prisma.classSession.count({
-          where: {
-            teacherId: userId,
-            scheduledAt: {
-              gte: new Date(new Date().setHours(0, 0, 0, 0)),
-              lt: new Date(new Date().setHours(23, 59, 59, 999)),
-            },
-          },
+        this.classSessionModel.countDocuments({ teacherId: userId }),
+        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.SCHEDULED }),
+        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.LIVE }),
+        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.COMPLETED }),
+        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.CANCELLED }),
+        this.classSessionModel.countDocuments({
+          teacherId: userId,
+          scheduledAt: { $gte: todayStart, $lt: todayEnd },
         }),
-        this.prisma.course.findMany({
-          where: { teacherId: userId },
-          select: { id: true },
-        }),
+        this.courseModel.find({ teacherId: userId }, 'id'),
       ]);
 
-      const completedSessions = await this.prisma.classSession.findMany({
-        where: { teacherId: userId, status: ClassStatus.COMPLETED },
-        select: { durationMinutes: true },
-      });
+      const completedSessions = await this.classSessionModel.find(
+        { teacherId: userId, status: ClassStatus.COMPLETED },
+        'durationMinutes',
+      );
       const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
 
-      const courseIds = courses.map((c) => c.id);
-      const studentCountResult = await this.prisma.enrollment.groupBy({
-        by: ['studentId'],
-        where: { courseId: { in: courseIds } },
-      });
+      const courseIds = courses.map((c) => c._id);
+      const studentCountResult = await this.enrollmentModel.distinct('studentId', { courseId: { $in: courseIds } });
 
       return {
         total,
@@ -543,24 +463,21 @@ export class ClassSessionsService {
     }
 
     if (role === Role.STUDENT) {
-      const enrollments = await this.prisma.enrollment.findMany({
-        where: { studentId: userId },
-        select: { courseId: true },
-      });
+      const enrollments = await this.enrollmentModel.find({ studentId: userId }, 'courseId');
       const courseIds = enrollments.map((e) => e.courseId);
 
       const [total, scheduled, live, completed, cancelled] = await Promise.all([
-        this.prisma.classSession.count({ where: { courseId: { in: courseIds } } }),
-        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.SCHEDULED } }),
-        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.LIVE } }),
-        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.COMPLETED } }),
-        this.prisma.classSession.count({ where: { courseId: { in: courseIds }, status: ClassStatus.CANCELLED } }),
+        this.classSessionModel.countDocuments({ courseId: { $in: courseIds } }),
+        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.SCHEDULED }),
+        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.LIVE }),
+        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.COMPLETED }),
+        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.CANCELLED }),
       ]);
 
-      const completedSessions = await this.prisma.classSession.findMany({
-        where: { courseId: { in: courseIds }, status: ClassStatus.COMPLETED },
-        select: { durationMinutes: true },
-      });
+      const completedSessions = await this.classSessionModel.find(
+        { courseId: { $in: courseIds }, status: ClassStatus.COMPLETED },
+        'durationMinutes',
+      );
       const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
 
       return {
@@ -575,44 +492,32 @@ export class ClassSessionsService {
     }
 
     if (role === Role.REVIEWER) {
-      const assignments = await this.prisma.reviewerAssignment.findMany({
-        where: { reviewerId: userId, isActive: true },
-        select: { courseId: true },
-      });
+      const assignments = await this.reviewerAssignmentModel.find({ reviewerId: userId, isActive: true }, 'courseId');
       const courseIds = assignments.map((a) => a.courseId);
 
-      const [total, pendingCount, flaggedCount] = await Promise.all([
-        this.prisma.classSession.count({ where: { courseId: { in: courseIds } } }),
-        this.prisma.classSession.count({
-          where: {
-            courseId: { in: courseIds },
-            status: ClassStatus.COMPLETED,
-            classReviews: {
-              none: {
-                status: 'SUBMITTED',
-              },
-            },
-          },
-        }),
-        this.prisma.classReview.count({
-          where: {
-            reviewerId: userId,
-            isFlagged: true,
-          },
-        }),
+      // Find sessions completed for these courses that don't have SUBMITTED reviews by reviewer
+      const completedSessions = await this.classSessionModel.find({
+        courseId: { $in: courseIds },
+        status: ClassStatus.COMPLETED,
+      }, '_id');
+
+      const completedSessionIds = completedSessions.map((s) => s._id);
+
+      const submittedReviews = await this.classReviewModel.find({
+        sessionId: { $in: completedSessionIds },
+        status: ReviewStatus.SUBMITTED,
+      }, 'sessionId');
+
+      const submittedSessionIds = new Set(submittedReviews.map((r) => r.sessionId.toString()));
+      const pendingCount = completedSessionIds.filter((id) => !submittedSessionIds.has(id.toString())).length;
+
+      const [total, flaggedCount, completedReviews] = await Promise.all([
+        this.classSessionModel.countDocuments({ courseId: { $in: courseIds } }),
+        this.classReviewModel.countDocuments({ reviewerId: userId, isFlagged: true }),
+        this.classReviewModel.countDocuments({ reviewerId: userId, status: ReviewStatus.SUBMITTED }),
       ]);
 
-      const completedReviews = await this.prisma.classReview.count({
-        where: {
-          reviewerId: userId,
-          status: 'SUBMITTED',
-        },
-      });
-
-      const reviews = await this.prisma.classReview.findMany({
-        where: { reviewerId: userId },
-        select: { overallScore: true },
-      });
+      const reviews = await this.classReviewModel.find({ reviewerId: userId }, 'overallScore');
       const avgScore = reviews.length
         ? Math.round((reviews.reduce((acc, r) => acc + r.overallScore, 0) / reviews.length) * 10) / 10
         : 0;
@@ -635,51 +540,37 @@ export class ClassSessionsService {
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
-    return this.prisma.classSession.findMany({
-      where: {
-        teacherId,
-        scheduledAt: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
+    return this.classSessionModel.find({
+      teacherId,
+      scheduledAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
       },
-      include: {
-        course: { select: { title: true, type: true } },
-        student: { select: { name: true, timezone: true } },
-      },
-      orderBy: { scheduledAt: 'asc' },
-    });
+    })
+      .populate('course', 'title type')
+      .populate('student', 'name timezone')
+      .sort({ scheduledAt: 1 });
   }
 
   async getWeeklyScheduleGrid() {
-    // Generate a weekly grid, returning all sessions from current week, grouped by day and time
-    // For simplicity, we just return the raw sessions for the next 7 days, and group them on the frontend,
-    // OR we can query them here.
     const startOfWeek = new Date();
     startOfWeek.setHours(0, 0, 0, 0);
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1); // Monday
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay() + 1);
 
     const endOfWeek = new Date(startOfWeek);
-    endOfWeek.setDate(startOfWeek.getDate() + 6); // Sunday
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
     endOfWeek.setHours(23, 59, 59, 999);
 
-    const sessions = await this.prisma.classSession.findMany({
-      where: {
-        scheduledAt: {
-          gte: startOfWeek,
-          lte: endOfWeek,
-        },
+    return this.classSessionModel.find({
+      scheduledAt: {
+        $gte: startOfWeek,
+        $lte: endOfWeek,
       },
-      include: {
-        course: {
-          include: {
-            teacher: { select: { id: true, name: true } },
-          },
-        },
-      },
-      orderBy: { scheduledAt: 'asc' },
-    });
-
-    return sessions;
+    })
+      .populate({
+        path: 'course',
+        populate: { path: 'teacher', select: 'id name' },
+      })
+      .sort({ scheduledAt: 1 });
   }
 }

@@ -18,8 +18,9 @@ export class AIAnalysisProcessor extends WorkerHost {
 
     try {
       const report = await this.aiAnalysisService.analyzeSession(sessionId);
-      this.logger.log(`AI Analysis completed successfully for session: ${sessionId}. Created report: ${report.id} with ${report.violations.length} violations.`);
-      return { success: true, reportId: report.id, violationsCount: report.violations.length };
+      const reportId = report?._id ? report._id.toString() : report?.id;
+      this.logger.log(`AI Analysis completed successfully for session: ${sessionId}. Created report: ${reportId} with ${report?.violations?.length || 0} violations.`);
+      return { success: true, reportId, violationsCount: report?.violations?.length || 0 };
     } catch (err: any) {
       this.logger.error(`Failed to process AI analysis: ${err.message}`);
       throw err;

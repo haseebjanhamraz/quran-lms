@@ -1,9 +1,9 @@
-import { IsUUID } from 'class-validator';
+import { IsMongoId } from 'class-validator';
 
 export class CreateEnrollmentDto {
-  @IsUUID()
+  @IsMongoId()
   studentId: string;
 
-  @IsUUID()
+  @IsMongoId()
   courseId: string;
 }

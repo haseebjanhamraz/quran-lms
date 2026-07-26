@@ -1,16 +1,25 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { ClassStatus, Role, RecordingStatus } from '@prisma/client';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { RecordingsService } from '../recordings/recordings.service';
 import { ConfigService } from '@nestjs/config';
 import { RoomServiceClient } from 'livekit-server-sdk';
+import {
+  ClassSession, ClassSessionDocument, ClassStatus,
+  Recording, RecordingDocument, RecordingStatus,
+  User, UserDocument, Role,
+  Attendance, AttendanceDocument,
+} from '../schemas';
 
 @Injectable()
 export class LivekitService {
   private readonly logger = new Logger(LivekitService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(Recording.name) private readonly recordingModel: Model<RecordingDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Attendance.name) private readonly attendanceModel: Model<AttendanceDocument>,
     private readonly recordingsService: RecordingsService,
     private readonly configService: ConfigService,
   ) {}
@@ -45,21 +54,14 @@ export class LivekitService {
   private async handleRoomFinished(sessionId: string) {
     this.logger.log(`Class session room finished: ${sessionId}`);
     try {
-      const session = await this.prisma.classSession.findUnique({
-        where: { id: sessionId },
-      });
+      const session = await this.classSessionModel.findById(sessionId);
       if (session && session.status === ClassStatus.LIVE) {
-        await this.prisma.classSession.update({
-          where: { id: sessionId },
-          data: { status: ClassStatus.COMPLETED },
+        await this.classSessionModel.findByIdAndUpdate(sessionId, {
+          $set: { status: ClassStatus.COMPLETED },
         });
       }
 
-      // Fallback: if egress_ended webhook hasn't queued the upload yet,
-      // queue it after a delay to give the egress time to finalize the file.
-      const recording = await this.prisma.recording.findUnique({
-        where: { sessionId },
-      });
+      const recording = await this.recordingModel.findOne({ sessionId });
       if (recording && recording.status === RecordingStatus.PROCESSING) {
         const filePath = `recordings/room-${sessionId}.mp4`;
         const filename = `recording-${sessionId}.mp4`;
@@ -84,10 +86,10 @@ export class LivekitService {
 
     if (!isEgressSuccess) {
       this.logger.warn(`Egress ended without successful status (status=${status}) for session ${sessionId}. Marking recording as FAILED.`);
-      await this.prisma.recording.update({
-        where: { sessionId },
-        data: { status: RecordingStatus.FAILED },
-      }).catch(() => {});
+      await this.recordingModel.findOneAndUpdate(
+        { sessionId },
+        { $set: { status: RecordingStatus.FAILED } },
+      ).catch(() => {});
       return;
     }
 
@@ -106,28 +108,17 @@ export class LivekitService {
     this.logger.log(`Participant joined: user=${userId}, room=${sessionId}`);
 
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.userModel.findById(userId);
 
       if (user && user.role === Role.STUDENT) {
-        await this.prisma.attendance.upsert({
-          where: {
-            sessionId_userId: {
-              sessionId,
-              userId,
-            },
+        await this.attendanceModel.findOneAndUpdate(
+          { sessionId, userId },
+          {
+            $set: { joinTime: new Date() },
+            $setOnInsert: { sessionId, userId, durationSeconds: 0 },
           },
-          update: {
-            joinTime: new Date(),
-          },
-          create: {
-            sessionId,
-            userId,
-            joinTime: new Date(),
-            durationSeconds: 0,
-          },
-        });
+          { upsert: true, new: true },
+        );
       }
     } catch (err: any) {
       this.logger.error(`Error updating join attendance: ${err.message}`);
@@ -142,15 +133,10 @@ export class LivekitService {
     this.logger.log(`Track published by user=${userId} in session=${sessionId}`);
 
     try {
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-      });
+      const user = await this.userModel.findById(userId);
 
-      // Only start egress when the TEACHER publishes their first track
       if (user && user.role === Role.TEACHER) {
-        const recording = await this.prisma.recording.findUnique({
-          where: { sessionId },
-        });
+        const recording = await this.recordingModel.findOne({ sessionId });
         if (!recording || recording.status === RecordingStatus.FAILED) {
           this.logger.log(`Teacher published track — starting egress recording for session: ${sessionId}`);
           await this.recordingsService.startRoomRecording(sessionId);
@@ -168,33 +154,19 @@ export class LivekitService {
     this.logger.log(`Participant left: user=${userId}, room=${sessionId}`);
 
     try {
-      const attendance = await this.prisma.attendance.findUnique({
-        where: {
-          sessionId_userId: {
-            sessionId,
-            userId,
-          },
-        },
-      });
+      const attendance = await this.attendanceModel.findOne({ sessionId, userId });
 
       if (attendance && attendance.joinTime) {
         const leaveTime = new Date();
         const sessionDuration = Math.round((leaveTime.getTime() - attendance.joinTime.getTime()) / 1000);
-        
-        await this.prisma.attendance.update({
-          where: {
-            sessionId_userId: {
-              sessionId,
-              userId,
-            },
+
+        await this.attendanceModel.findOneAndUpdate(
+          { sessionId, userId },
+          {
+            $set: { leaveTime },
+            $inc: { durationSeconds: sessionDuration > 0 ? sessionDuration : 0 },
           },
-          data: {
-            leaveTime,
-            durationSeconds: {
-              increment: sessionDuration > 0 ? sessionDuration : 0,
-            },
-          },
-        });
+        );
       }
     } catch (err: any) {
       this.logger.error(`Error updating leave attendance: ${err.message}`);

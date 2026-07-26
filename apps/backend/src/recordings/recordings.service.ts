@@ -1,10 +1,11 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { EgressClient, EncodedFileOutput, RoomServiceClient, EncodingOptionsPreset } from 'livekit-server-sdk';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { RecordingStatus } from '@prisma/client';
+import { Recording, RecordingDocument, RecordingStatus } from '../schemas';
 
 @Injectable()
 export class RecordingsService {
@@ -12,7 +13,7 @@ export class RecordingsService {
   private egressClient: EgressClient;
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectModel(Recording.name) private readonly recordingModel: Model<RecordingDocument>,
     private readonly configService: ConfigService,
     @InjectQueue('recording-uploads') private readonly uploadQueue: Queue,
   ) {
@@ -23,8 +24,7 @@ export class RecordingsService {
   }
 
   async startRoomRecording(sessionId: string) {
-    // Guard: skip if recording already exists and is not failed
-    const existing = await this.prisma.recording.findUnique({ where: { sessionId } });
+    const existing = await this.recordingModel.findOne({ sessionId });
     if (existing && (existing.status === RecordingStatus.PROCESSING || existing.status === RecordingStatus.READY || existing.status === RecordingStatus.UPLOADING)) {
       this.logger.log(`Recording already ${existing.status} for session ${sessionId}. Skipping duplicate egress start.`);
       return { egressId: 'already-running' };
@@ -33,7 +33,6 @@ export class RecordingsService {
     const roomName = `room-${sessionId}`;
     this.logger.log(`Pre-creating LiveKit room and starting Composite Egress for room: ${roomName}`);
 
-    // Pre-create the room explicitly so Egress does not fail with "requested room does not exist"
     try {
       const host = this.configService.get<string>('LIVEKIT_HOST') || 'http://localhost:7880';
       const apiKey = this.configService.get<string>('LIVEKIT_API_KEY') || 'devkey';
@@ -41,7 +40,7 @@ export class RecordingsService {
       const roomService = new RoomServiceClient(host, apiKey, apiSecret);
       await roomService.createRoom({
         name: roomName,
-        emptyTimeout: 300, // keep alive for 5 minutes if empty
+        emptyTimeout: 300,
       });
       this.logger.log(`LiveKit room ${roomName} pre-created successfully.`);
     } catch (err: any) {
@@ -64,34 +63,28 @@ export class RecordingsService {
 
       const egressId = egressInfo.egressId;
 
-      await this.prisma.recording.upsert({
-        where: { sessionId },
-        update: {
-          status: RecordingStatus.PROCESSING,
+      await this.recordingModel.findOneAndUpdate(
+        { sessionId },
+        {
+          $set: { status: RecordingStatus.PROCESSING },
+          $setOnInsert: { sessionId, durationSeconds: 0 },
         },
-        create: {
-          sessionId,
-          status: RecordingStatus.PROCESSING,
-          durationSeconds: 0,
-        },
-      });
+        { upsert: true, new: true },
+      );
 
       this.logger.log(`Egress composite recording successfully started. Egress ID: ${egressId}`);
       return { egressId };
     } catch (err: any) {
       this.logger.error(`Failed to start Room Composite Egress: ${err.message}`);
       this.logger.warn(`Dev Mode Fallback: Mocking local recording initialization.`);
-      await this.prisma.recording.upsert({
-        where: { sessionId },
-        update: {
-          status: RecordingStatus.PROCESSING,
+      await this.recordingModel.findOneAndUpdate(
+        { sessionId },
+        {
+          $set: { status: RecordingStatus.PROCESSING },
+          $setOnInsert: { sessionId, durationSeconds: 0 },
         },
-        create: {
-          sessionId,
-          status: RecordingStatus.PROCESSING,
-          durationSeconds: 0,
-        },
-      });
+        { upsert: true, new: true },
+      );
       return { egressId: 'mock-egress-id' };
     }
   }
@@ -108,14 +101,12 @@ export class RecordingsService {
           type: 'fixed',
           delay: 5000,
         },
-      }
+      },
     );
   }
 
   async getRecordingBySession(sessionId: string) {
-    const rec = await this.prisma.recording.findUnique({
-      where: { sessionId },
-    });
+    const rec = await this.recordingModel.findOne({ sessionId });
     if (!rec) {
       throw new NotFoundException('No recording found for this class session');
     }
@@ -123,9 +114,7 @@ export class RecordingsService {
   }
 
   async retryUpload(sessionId: string) {
-    const rec = await this.prisma.recording.findUnique({
-      where: { sessionId },
-    });
+    const rec = await this.recordingModel.findOne({ sessionId });
     if (!rec) {
       throw new NotFoundException('No recording record found for this session');
     }
@@ -133,13 +122,15 @@ export class RecordingsService {
     const filePath = rec.localPath || `recordings/room-${sessionId}.mp4`;
     const filename = filePath.split('/').pop() || `room-${sessionId}.mp4`;
 
-    await this.prisma.recording.update({
-      where: { sessionId },
-      data: {
-        status: RecordingStatus.PROCESSING,
-        localPath: filePath,
+    await this.recordingModel.findOneAndUpdate(
+      { sessionId },
+      {
+        $set: {
+          status: RecordingStatus.PROCESSING,
+          localPath: filePath,
+        },
       },
-    });
+    );
 
     await this.queueUploadJob(sessionId, filePath, filename);
 

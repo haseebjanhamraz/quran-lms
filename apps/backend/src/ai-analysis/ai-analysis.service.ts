@@ -1,19 +1,32 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ViolationType, FlagSeverity } from '@prisma/client';
-
 import { SystemSettingsService } from '../system-settings/system-settings.service';
+import {
+  AIReport, AIReportDocument, ViolationType,
+  ClassSession, ClassSessionDocument,
+  PipelineLog, PipelineLogDocument,
+  User, UserDocument, Role,
+  Notification, NotificationDocument, NotificationType,
+  TranscriptSegment, TranscriptSegmentDocument,
+  FlagSeverity
+} from '../schemas';
 
 @Injectable()
 export class AIAnalysisService {
   private readonly logger = new Logger(AIAnalysisService.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    @InjectModel(AIReport.name) private readonly aiReportModel: Model<AIReportDocument>,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(PipelineLog.name) private readonly pipelineLogModel: Model<PipelineLogDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
+    @InjectModel(TranscriptSegment.name) private readonly transcriptSegmentModel: Model<TranscriptSegmentDocument>,
     private readonly configService: ConfigService,
     @InjectQueue('ai-analysis') private readonly aiAnalysisQueue: Queue,
     private readonly systemSettingsService: SystemSettingsService,
@@ -24,79 +37,65 @@ export class AIAnalysisService {
     await this.aiAnalysisQueue.add('analyze', { sessionId });
   }
 
-  async getReport(sessionId: string) {
-    const report = await this.prisma.aIReport.findUnique({
-      where: { sessionId },
-      include: {
-        violations: true,
-        session: {
-          include: {
-            course: {
-              include: {
-                teacher: {
-                  select: { name: true, email: true },
-                },
-              },
-            },
-            recording: {
-              select: { filePath: true },
-            },
+  async getReport(sessionId: string): Promise<any> {
+    const report = await this.aiReportModel.findOne({ sessionId })
+      .populate({
+        path: 'session',
+        populate: [
+          {
+            path: 'course',
+            populate: { path: 'teacher', select: 'name email' },
           },
-        },
-      },
-    });
+          { path: 'recording', select: 'filePath' },
+        ],
+      });
 
     if (!report) {
       throw new NotFoundException('AI Report not found for this class session');
     }
 
+    const reportObj: any = report.toObject ? report.toObject() : report;
+    const sessionObj: any = reportObj.session || {};
+    const teacher = sessionObj.course?.teacher;
+
     return {
-      ...report,
+      ...reportObj,
       session: {
-        ...report.session,
-        teacher: report.session.course.teacher,
+        ...sessionObj,
+        teacher,
       },
     };
   }
 
-  async listReports() {
-    const reports = await this.prisma.aIReport.findMany({
-      include: {
-        violations: true,
-        session: {
-          include: {
-            course: {
-              include: {
-                teacher: {
-                  select: { name: true, email: true },
-                },
-              },
-            },
-          },
+  async listReports(): Promise<any[]> {
+    const reports = await this.aiReportModel.find()
+      .populate({
+        path: 'session',
+        populate: {
+          path: 'course',
+          populate: { path: 'teacher', select: 'name email' },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+      })
+      .sort({ createdAt: -1 });
 
-    return reports.map((r) => ({
-      ...r,
-      session: {
-        ...r.session,
-        teacher: r.session.course.teacher,
-      },
-    }));
+    return reports.map((r) => {
+      const reportObj: any = r.toObject ? r.toObject() : r;
+      const sessionObj: any = reportObj.session || {};
+      const teacher = sessionObj.course?.teacher;
+      return {
+        ...reportObj,
+        session: {
+          ...sessionObj,
+          teacher,
+        },
+      };
+    });
   }
 
   async analyzeSession(sessionId: string): Promise<any> {
     this.logger.log(`Starting AI transcript analysis for session: ${sessionId}`);
 
-    const session = await this.prisma.classSession.findUnique({
-      where: { id: sessionId },
-      include: {
-        transcriptSegments: true,
-        recording: true,
-      },
-    });
+    const session = await this.classSessionModel.findById(sessionId).populate('transcriptSegments').populate('recording');
 
     if (!session) {
       throw new NotFoundException('Class session not found');
@@ -105,40 +104,33 @@ export class AIAnalysisService {
     const aiEnabled = await this.systemSettingsService.isAiAnalysisEnabled();
     if (!aiEnabled) {
       this.logger.log(`AI Analysis is disabled globally. Skipping for session: ${sessionId}`);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'SUCCESS',
-          message: 'AI compliance audit skipped because AI Mode is disabled in system settings.',
-        },
-      });
-      return this.generateMockReport(sessionId, session.teacherId);
-    }
-
-    const segments = session.transcriptSegments;
-
-    // Log Start of AI Audit
-    await this.prisma.pipelineLog.create({
-      data: {
+      await this.pipelineLogModel.create({
         sessionId,
         step: 'AI_AUDIT',
-        status: 'STARTED',
-        message: `Initiating AI compliance audit. Segments count: ${segments.length}.`,
-      },
+        status: 'SUCCESS',
+        message: 'AI compliance audit skipped because AI Mode is disabled in system settings.',
+      });
+      return this.generateMockReport(sessionId, session.teacherId.toString());
+    }
+
+    const segments: any[] = session.get ? (session.get('transcriptSegments') || []) : ((session as any).transcriptSegments || []);
+
+    await this.pipelineLogModel.create({
+      sessionId,
+      step: 'AI_AUDIT',
+      status: 'STARTED',
+      message: `Initiating AI compliance audit. Segments count: ${segments.length}.`,
     });
 
     if (segments.length === 0) {
       this.logger.warn(`No transcript segments found for session: ${sessionId}. Creating mock report.`);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'FAILED',
-          message: 'No transcript segments found for session. Initialized mock report fallback.',
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'FAILED',
+        message: 'No transcript segments found for session. Initialized mock report fallback.',
       });
-      return this.generateMockReport(sessionId, session.teacherId);
+      return this.generateMockReport(sessionId, session.teacherId.toString());
     }
 
     const transcriptText = segments
@@ -148,35 +140,29 @@ export class AIAnalysisService {
     const geminiKey = this.configService.get<string>('GEMINI_API_KEY');
     if (!geminiKey) {
       this.logger.log('GEMINI_API_KEY not configured. Running rule-based parser fallback.');
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'IN_PROGRESS',
-          message: 'GEMINI_API_KEY not set. Running local regex-based keyword & pattern audit...',
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'IN_PROGRESS',
+        message: 'GEMINI_API_KEY not set. Running local regex-based keyword & pattern audit...',
       });
-      const report = await this.runRuleBasedAnalysis(sessionId, session.teacherId, segments);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'SUCCESS',
-          message: `Local pattern-matching audit complete. Risk Score: ${report.riskScore}%. Violations logged: ${report.violations?.length || 0}.`,
-        },
+      const report = await this.runRuleBasedAnalysis(sessionId, session.teacherId.toString(), segments);
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'SUCCESS',
+        message: `Local pattern-matching audit complete. Risk Score: ${report.riskScore}%. Violations logged: ${report.violations?.length || 0}.`,
       });
       return report;
     }
 
     try {
       this.logger.log('Sending transcript to Gemini API...');
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'IN_PROGRESS',
-          message: 'Querying Google Gemini API (gemini-1.5-flash) for context compliance auditing...',
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'IN_PROGRESS',
+        message: 'Querying Google Gemini API (gemini-1.5-flash) for context compliance auditing...',
       });
 
       const genAI = new GoogleGenerativeAI(geminiKey);
@@ -187,36 +173,30 @@ export class AIAnalysisService {
       const responseText = response.response.text();
 
       const parsedData = this.parseGeminiResponse(responseText);
-      const report = await this.saveReportToDatabase(sessionId, session.teacherId, parsedData);
+      const report = await this.saveReportToDatabase(sessionId, session.teacherId.toString(), parsedData);
 
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'SUCCESS',
-          message: `Gemini audit completed. Risk Score: ${report.riskScore}%. Violations logged: ${report.violations?.length || 0}.`,
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'SUCCESS',
+        message: `Gemini audit completed. Risk Score: ${report.riskScore}%. Violations logged: ${report.violations?.length || 0}.`,
       });
 
       return report;
     } catch (err: any) {
       this.logger.error(`Gemini API call failed: ${err.message}. Running rule-based fallback.`);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'FAILED',
-          message: `Gemini API query failed: ${err.message}. Triggering local pattern-matching scanner...`,
-        },
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'FAILED',
+        message: `Gemini API query failed: ${err.message}. Triggering local pattern-matching scanner...`,
       });
-      const report = await this.runRuleBasedAnalysis(sessionId, session.teacherId, segments);
-      await this.prisma.pipelineLog.create({
-        data: {
-          sessionId,
-          step: 'AI_AUDIT',
-          status: 'SUCCESS',
-          message: `Local pattern-matching audit fallback complete. Risk Score: ${report.riskScore}%.`,
-        },
+      const report = await this.runRuleBasedAnalysis(sessionId, session.teacherId.toString(), segments);
+      await this.pipelineLogModel.create({
+        sessionId,
+        step: 'AI_AUDIT',
+        status: 'SUCCESS',
+        message: `Local pattern-matching audit fallback complete. Risk Score: ${report.riskScore}%.`,
       });
       return report;
     }
@@ -265,77 +245,58 @@ Ensure the JSON response is correctly formatted and does not contain markdown co
   }
 
   private parseGeminiResponse(text: string): any {
-    // Strip markdown formatting if any
     const cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
     return JSON.parse(cleanText);
   }
 
   private async saveReportToDatabase(sessionId: string, teacherId: string, data: any): Promise<any> {
-    // Clear existing report if exists
-    await this.prisma.aIReport.deleteMany({
-      where: { sessionId },
+    await this.aiReportModel.deleteMany({ sessionId });
+
+    const violations = Array.isArray(data.violations)
+      ? data.violations.map((v: any) => ({
+          type: v.type as ViolationType,
+          evidence: v.evidence,
+          severity: v.severity as FlagSeverity,
+          createdAt: new Date(),
+        }))
+      : [];
+
+    const report = await this.aiReportModel.create({
+      sessionId,
+      teacherId,
+      riskScore: data.riskScore ?? 0.0,
+      teachingQualityScore: data.teachingQualityScore ?? 5.0,
+      topicRelevanceScore: data.topicRelevanceScore ?? 5.0,
+      summary: data.summary || 'Summary not provided.',
+      mainTopics: data.mainTopics ?? [],
+      offTopicAnalysis: data.offTopicAnalysis || 'None.',
+      contactSharingDetection: data.contactSharingDetection || 'None.',
+      complianceFindings: data.complianceFindings || 'None.',
+      teachingAssessment: data.teachingAssessment || 'None.',
+      engagementAssessment: data.engagementAssessment || 'None.',
+      recommendations: data.recommendations || 'None.',
+      violations,
     });
 
-    const report = await this.prisma.aIReport.create({
-      data: {
-        sessionId,
-        teacherId,
-        riskScore: data.riskScore ?? 0.0,
-        teachingQualityScore: data.teachingQualityScore ?? 5.0,
-        topicRelevanceScore: data.topicRelevanceScore ?? 5.0,
-        summary: data.summary || 'Summary not provided.',
-        mainTopics: data.mainTopics ?? [],
-        offTopicAnalysis: data.offTopicAnalysis || 'None.',
-        contactSharingDetection: data.contactSharingDetection || 'None.',
-        complianceFindings: data.complianceFindings || 'None.',
-        teachingAssessment: data.teachingAssessment || 'None.',
-        engagementAssessment: data.engagementAssessment || 'None.',
-        recommendations: data.recommendations || 'None.',
-      },
-    });
-
-    if (Array.isArray(data.violations)) {
-      for (const v of data.violations) {
-        await this.prisma.violation.create({
-          data: {
-            reportId: report.id,
-            type: v.type as ViolationType,
-            evidence: v.evidence,
-            severity: v.severity as FlagSeverity,
-          },
-        });
-      }
-    }
-
-    // Auto-create notifications for Admin users
     try {
-      const sessionWithCourse = await this.prisma.classSession.findUnique({
-        where: { id: sessionId },
-        select: { course: { select: { title: true } } },
-      });
-      const courseTitle = sessionWithCourse?.course?.title || 'Class';
-      const admins = await this.prisma.user.findMany({
-        where: { role: 'ADMIN' },
-      });
+      const sessionWithCourse: any = await this.classSessionModel.findById(sessionId).populate('course', 'title');
+      const courseObj: any = sessionWithCourse?.course;
+      const courseTitle = courseObj?.title || 'Class';
+      const admins = await this.userModel.find({ role: Role.ADMIN });
       for (const admin of admins) {
-        await this.prisma.notification.create({
-          data: {
-            userId: admin.id,
-            title: 'AI Compliance Report Ready',
-            message: `The AI analysis report for class "${courseTitle}" is now available. Risk Score: ${data.riskScore.toFixed(0)}%.`,
-            type: 'REPORT_READY',
-            metadata: { sessionId, reportId: report.id },
-          },
+        await this.notificationModel.create({
+          userId: admin._id,
+          title: 'AI Compliance Report Ready',
+          message: `The AI analysis report for class "${courseTitle}" is now available. Risk Score: ${(data.riskScore || 0).toFixed(0)}%.`,
+          type: NotificationType.REPORT_READY,
+          metadata: { sessionId, reportId: report._id.toString() },
         });
       }
     } catch (err: any) {
       this.logger.error(`Failed to create AI report notifications: ${err.message}`);
     }
 
-    return this.prisma.aIReport.findUnique({
-      where: { id: report.id },
-      include: { violations: true },
-    });
+    return this.aiReportModel.findById(report._id);
   }
 
   private async runRuleBasedAnalysis(sessionId: string, teacherId: string, segments: any[]): Promise<any> {
@@ -352,22 +313,18 @@ Ensure the JSON response is correctly formatted and does not contain markdown co
 
     for (const seg of segments) {
       const text = seg.text.toLowerCase();
-      // WhatsApp check
       if (text.includes('whatsapp') || (text.includes('number') && (text.includes('message') || text.includes('phone')))) {
         hasWhatsapp = true;
         whatsappEvidence = `[${seg.speakerLabel}]: "${seg.text}"`;
       }
-      // Phone number pattern
       if (/\+?\d[\d\-\s]{7,}\d/.test(text) && !text.includes('verse')) {
         hasPhone = true;
         phoneEvidence = `[${seg.speakerLabel}]: "${seg.text}"`;
       }
-      // Email check
       if (text.includes('email') || text.includes('@')) {
         hasEmail = true;
         emailEvidence = `[${seg.speakerLabel}]: "${seg.text}"`;
       }
-      // Football/Champions league off topic check
       if (text.includes('football') || text.includes('champions league') || text.includes('real madrid') || text.includes('score')) {
         hasOffTopic = true;
         offTopicEvidence = `[${seg.speakerLabel}]: "${seg.text}"`;

@@ -1,5 +1,5 @@
-import { IsEnum, IsNotEmpty, IsString, IsUUID } from 'class-validator';
-import { CourseType } from '@prisma/client';
+import { IsEnum, IsNotEmpty, IsString, IsMongoId } from 'class-validator';
+import { CourseType } from '../../schemas';
 
 export class CreateCourseDto {
   @IsString()
@@ -13,6 +13,6 @@ export class CreateCourseDto {
   @IsNotEmpty()
   curriculum: string;
 
-  @IsUUID()
+  @IsMongoId()
   teacherId: string;
 }

@@ -1,14 +1,14 @@
-import { IsDateString, IsInt, IsNotEmpty, IsUUID, Min, IsOptional } from 'class-validator';
+import { IsDateString, IsInt, IsNotEmpty, IsMongoId, Min, IsOptional } from 'class-validator';
 
 export class CreateClassSessionDto {
-  @IsUUID()
+  @IsMongoId()
   courseId: string;
 
-  @IsUUID()
+  @IsMongoId()
   @IsOptional()
   teacherId?: string;
 
-  @IsUUID()
+  @IsMongoId()
   @IsOptional()
   studentId?: string;
 

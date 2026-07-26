@@ -1,47 +1,43 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { AIReport, AIReportDocument } from '../schemas';
 import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class ReportsService {
   private readonly logger = new Logger(ReportsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(AIReport.name) private readonly aiReportModel: Model<AIReportDocument>,
+  ) {}
 
   async generateReportPDF(sessionId: string): Promise<Buffer> {
     this.logger.log(`Generating PDF report for session: ${sessionId}`);
 
-    const report = await this.prisma.aIReport.findUnique({
-      where: { sessionId },
-      include: {
-        violations: true,
-        session: {
-          include: {
-            course: {
-              include: {
-                teacher: {
-                  select: { name: true, email: true },
-                },
-              },
-            },
-          },
+    const report = await this.aiReportModel.findOne({ sessionId })
+      .populate({
+        path: 'session',
+        populate: {
+          path: 'course',
+          populate: { path: 'teacher', select: 'name email' },
         },
-      },
-    });
+      });
 
     if (!report) {
       throw new NotFoundException('AI Evaluation Report not found for this session');
     }
 
-    const { session } = report;
-    const { course } = session;
-    const { teacher } = course;
+    const reportObj: any = report.toObject ? report.toObject() : report;
+    const sessionObj: any = reportObj.session || {};
+    const courseObj: any = sessionObj.course || {};
+    const teacherObj: any = courseObj.teacher || {};
 
     return new Promise((resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 });
         const buffers: Buffer[] = [];
-        
+
         doc.on('data', (chunk: Buffer) => buffers.push(chunk));
         doc.on('end', () => resolve(Buffer.concat(buffers)));
         doc.on('error', (err: Error) => {
@@ -83,13 +79,13 @@ export class ReportsService {
            .fontSize(10)
            .text('Course Title: ', 50, doc.y)
            .font('Helvetica')
-           .text(course.title, 150, doc.y);
+           .text(courseObj.title || 'N/A', 150, doc.y);
 
         doc.y = 180;
         doc.font('Helvetica-Bold')
            .text('Instructor: ', 50, doc.y)
            .font('Helvetica')
-           .text(`${teacher.name} (${teacher.email})`, 150, doc.y);
+           .text(`${teacherObj.name || 'N/A'} (${teacherObj.email || 'N/A'})`, 150, doc.y);
 
         doc.y = 200;
         doc.font('Helvetica-Bold')
@@ -101,13 +97,13 @@ export class ReportsService {
         doc.font('Helvetica-Bold')
            .text('Session Date: ', 50, doc.y)
            .font('Helvetica')
-           .text(new Date(session.scheduledAt).toLocaleString(), 150, doc.y);
+           .text(sessionObj.scheduledAt ? new Date(sessionObj.scheduledAt).toLocaleString() : 'N/A', 150, doc.y);
 
         doc.y = 240;
         doc.font('Helvetica-Bold')
            .text('Duration: ', 50, doc.y)
            .font('Helvetica')
-           .text(`${session.durationMinutes} minutes`, 150, doc.y);
+           .text(`${sessionObj.durationMinutes || 0} minutes`, 150, doc.y);
 
         // ── Scores Section ──
         doc.y = 280;
@@ -122,8 +118,7 @@ export class ReportsService {
            .stroke();
 
         doc.y = 310;
-        // Draw risk score box
-        const riskColor = report.riskScore >= 60 ? '#ef4444' : report.riskScore >= 20 ? '#f59e0b' : '#10b981';
+        const riskColor = reportObj.riskScore >= 60 ? '#ef4444' : reportObj.riskScore >= 20 ? '#f59e0b' : '#10b981';
         doc.fillColor('#f8fafc')
            .rect(50, doc.y, 150, 60)
            .fill();
@@ -136,9 +131,8 @@ export class ReportsService {
            .text('COMPLIANCE RISK RATE', 65, doc.y + 12);
         doc.fillColor(riskColor)
            .fontSize(18)
-           .text(`${report.riskScore.toFixed(0)}%`, 65, doc.y + 25);
+           .text(`${(reportObj.riskScore || 0).toFixed(0)}%`, 65, doc.y + 25);
 
-        // Draw teaching quality box
         doc.fillColor('#f8fafc')
            .rect(215, doc.y, 150, 60)
            .fill();
@@ -150,9 +144,8 @@ export class ReportsService {
            .text('TEACHING QUALITY', 230, doc.y + 12);
         doc.fillColor('#3b82f6')
            .fontSize(18)
-           .text(`${report.teachingQualityScore.toFixed(1)} / 5.0`, 230, doc.y + 25);
+           .text(`${(reportObj.teachingQualityScore || 0).toFixed(1)} / 5.0`, 230, doc.y + 25);
 
-        // Draw topic relevance box
         doc.fillColor('#f8fafc')
            .rect(380, doc.y, 170, 60)
            .fill();
@@ -164,7 +157,7 @@ export class ReportsService {
            .text('TOPIC RELEVANCE RATE', 395, doc.y + 12);
         doc.fillColor('#6366f1')
            .fontSize(18)
-           .text(`${report.topicRelevanceScore.toFixed(1)} / 5.0`, 395, doc.y + 25);
+           .text(`${(reportObj.topicRelevanceScore || 0).toFixed(1)} / 5.0`, 395, doc.y + 25);
 
         // ── Summary Section ──
         doc.y = 400;
@@ -185,7 +178,7 @@ export class ReportsService {
            .text('Class Summary:')
            .font('Helvetica')
            .fillColor('#0f172a')
-           .text(report.summary, { width: 500, align: 'justify' });
+           .text(reportObj.summary, { width: 500, align: 'justify' });
 
         doc.y = doc.y + 15;
         doc.fillColor('#334155')
@@ -193,7 +186,7 @@ export class ReportsService {
            .text('Compliance Findings:')
            .font('Helvetica')
            .fillColor('#0f172a')
-           .text(report.complianceFindings, { width: 500, align: 'justify' });
+           .text(reportObj.complianceFindings, { width: 500, align: 'justify' });
 
         // ── Violations Section ──
         doc.y = doc.y + 25;
@@ -208,18 +201,19 @@ export class ReportsService {
            .stroke();
 
         doc.y = doc.y + 20;
-        if (report.violations.length === 0) {
+        const violations = reportObj.violations || [];
+        if (violations.length === 0) {
           doc.fillColor('#10b981')
              .font('Helvetica-Bold')
              .fontSize(10)
              .text('No safety or policy infractions detected in this class session.', 50, doc.y);
         } else {
-          for (const v of report.violations) {
+          for (const v of violations) {
             const vColor = v.severity === 'HIGH' ? '#ef4444' : v.severity === 'MEDIUM' ? '#f59e0b' : '#3b82f6';
             doc.fillColor(vColor)
                .font('Helvetica-Bold')
                .fontSize(10)
-               .text(`[${v.severity} SEVERITY] ${v.type.replace(/_/g, ' ')}`, 50, doc.y);
+               .text(`[${v.severity}] ${(v.type || '').replace(/_/g, ' ')}`, 50, doc.y);
             doc.fillColor('#475569')
                .font('Helvetica-Oblique')
                .fontSize(9)
@@ -247,7 +241,7 @@ export class ReportsService {
            .text('Recommendations:')
            .font('Helvetica')
            .fillColor('#0f172a')
-           .text(report.recommendations, { width: 500, align: 'justify' });
+           .text(reportObj.recommendations, { width: 500, align: 'justify' });
 
         // ── Footer ──
         const bottomY = doc.page.height - 40;

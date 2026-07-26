@@ -6,7 +6,6 @@ COPY package*.json ./
 RUN npm install --legacy-peer-deps
 
 COPY . .
-RUN npx prisma generate
 RUN npm run build
 
 FROM node:24-alpine AS runner
@@ -26,12 +25,10 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nestjs
 
-# Copy runtime node_modules, build outputs, and prisma directory for migrations
+# Copy runtime node_modules and build outputs
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./
 
 # Create recordings and temp-transcripts directories and set ownership
 RUN mkdir -p /app/recordings /app/temp-transcripts \
@@ -41,4 +38,4 @@ USER nestjs
 
 EXPOSE 5000
 
-CMD ["node", "dist/src/main"]
+CMD ["node", "dist/main"]

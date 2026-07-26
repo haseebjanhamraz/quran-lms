@@ -1,8 +1,8 @@
-import { IsString, IsNumber, IsBoolean, IsOptional, IsEnum, Min, Max } from 'class-validator';
-import { ReviewMode, ReviewStatus, FlagSeverity } from '@prisma/client';
+import { IsString, IsNumber, IsBoolean, IsOptional, IsEnum, Min, Max, IsMongoId } from 'class-validator';
+import { ReviewMode, ReviewStatus, FlagSeverity } from '../../schemas';
 
 export class CreateReviewDto {
-  @IsString()
+  @IsMongoId()
   sessionId: string;
 
   @IsEnum(ReviewMode)

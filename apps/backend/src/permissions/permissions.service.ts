@@ -1,74 +1,57 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { Role } from '@prisma/client';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Permission, PermissionDocument, RolePermission, RolePermissionDocument, Role } from '../schemas';
 
 @Injectable()
 export class PermissionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Permission.name) private readonly permissionModel: Model<PermissionDocument>,
+    @InjectModel(RolePermission.name) private readonly rolePermissionModel: Model<RolePermissionDocument>,
+  ) {}
 
   async findAll() {
-    return this.prisma.permission.findMany({
-      orderBy: { module: 'asc' },
-    });
+    return this.permissionModel.find().sort({ module: 1 });
   }
 
   async findByRole(role: Role) {
-    return this.prisma.rolePermission.findMany({
-      where: { role },
-      include: {
-        permission: true,
-      },
-    });
+    return this.rolePermissionModel.find({ role }).populate('permission');
   }
 
   async assignToRole(role: Role, permissionId: string, grantedByUserId: string) {
-    const permission = await this.prisma.permission.findUnique({
-      where: { id: permissionId },
-    });
+    const permission = await this.permissionModel.findById(permissionId);
 
     if (!permission) {
       throw new NotFoundException('Permission not found');
     }
 
-    const existing = await this.prisma.rolePermission.findUnique({
-      where: {
-        role_permissionId: {
-          role,
-          permissionId,
-        },
-      },
+    const existing = await this.rolePermissionModel.findOne({
+      role,
+      permissionId,
     });
 
     if (existing) {
       throw new ConflictException('Permission already assigned to role');
     }
 
-    return this.prisma.rolePermission.create({
-      data: {
-        role,
-        permissionId,
-        grantedBy: grantedByUserId,
-      },
+    return this.rolePermissionModel.create({
+      role,
+      permissionId,
+      grantedBy: grantedByUserId,
     });
   }
 
   async revokeFromRole(role: Role, permissionId: string) {
-    const existing = await this.prisma.rolePermission.findUnique({
-      where: {
-        role_permissionId: {
-          role,
-          permissionId,
-        },
-      },
+    const existing = await this.rolePermissionModel.findOne({
+      role,
+      permissionId,
     });
 
     if (!existing) {
       throw new NotFoundException('Permission not assigned to role');
     }
 
-    return this.prisma.rolePermission.delete({
-      where: { id: existing.id },
-    });
+    return this.rolePermissionModel.findByIdAndDelete(existing._id);
   }
 
   async seedDefaultPermissions() {
@@ -88,11 +71,11 @@ export class PermissionsService {
     ];
 
     for (const p of permissions) {
-      await this.prisma.permission.upsert({
-        where: { name: p.name },
-        update: {},
-        create: p,
-      });
+      await this.permissionModel.findOneAndUpdate(
+        { name: p.name },
+        { $setOnInsert: p },
+        { upsert: true, new: true },
+      );
     }
 
     return { message: 'Permissions seeded successfully' };

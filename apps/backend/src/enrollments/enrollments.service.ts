@@ -1,103 +1,77 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
+import { Enrollment, EnrollmentDocument, User, UserDocument, Course, CourseDocument, Role } from '../schemas';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 
 @Injectable()
 export class EnrollmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
+  ) {}
 
   async create(createEnrollmentDto: CreateEnrollmentDto) {
-    const student = await this.prisma.user.findUnique({
-      where: { id: createEnrollmentDto.studentId },
-    });
-    if (!student || student.role !== 'STUDENT') {
+    const student = await this.userModel.findById(createEnrollmentDto.studentId);
+    if (!student || student.role !== Role.STUDENT) {
       throw new NotFoundException('The specified student does not exist or does not hold the STUDENT role.');
     }
 
-    const course = await this.prisma.course.findUnique({
-      where: { id: createEnrollmentDto.courseId },
-    });
+    const course = await this.courseModel.findById(createEnrollmentDto.courseId);
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
-    const existingEnrollment = await this.prisma.enrollment.findUnique({
-      where: {
-        studentId_courseId: {
-          studentId: createEnrollmentDto.studentId,
-          courseId: createEnrollmentDto.courseId,
-        },
-      },
+    const existingEnrollment = await this.enrollmentModel.findOne({
+      studentId: createEnrollmentDto.studentId,
+      courseId: createEnrollmentDto.courseId,
     });
     if (existingEnrollment) {
       throw new ConflictException('Student is already enrolled in this course.');
     }
 
-    return this.prisma.enrollment.create({
-      data: {
-        studentId: createEnrollmentDto.studentId,
-        courseId: createEnrollmentDto.courseId,
-      },
-      include: {
-        student: {
-          select: { id: true, name: true, email: true },
-        },
-        course: {
-          select: { id: true, title: true },
-        },
-      },
+    const created = await this.enrollmentModel.create({
+      studentId: createEnrollmentDto.studentId,
+      courseId: createEnrollmentDto.courseId,
     });
+
+    return this.enrollmentModel.findById(created._id)
+      .populate('student', 'id name email')
+      .populate('course', 'id title');
   }
 
   async findAll() {
-    return this.prisma.enrollment.findMany({
-      include: {
-        student: {
-          select: { id: true, name: true, email: true },
-        },
-        course: {
-          select: { id: true, title: true, type: true },
-        },
-      },
-      orderBy: { enrolledAt: 'desc' },
-    });
+    return this.enrollmentModel.find()
+      .populate('student', 'id name email')
+      .populate('course', 'id title type')
+      .sort({ enrolledAt: -1 });
   }
 
   async remove(id: string) {
-    const enrollment = await this.prisma.enrollment.findUnique({
-      where: { id },
-    });
+    const enrollment = await this.enrollmentModel.findById(id);
     if (!enrollment) {
       throw new NotFoundException('Enrollment not found');
     }
 
-    return this.prisma.enrollment.delete({
-      where: { id },
-    });
+    return this.enrollmentModel.findByIdAndDelete(id);
   }
 
   async getStats() {
     const [total, recent] = await Promise.all([
-      this.prisma.enrollment.count(),
-      this.prisma.enrollment.count({
-        where: {
-          enrolledAt: {
-            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          },
+      this.enrollmentModel.countDocuments(),
+      this.enrollmentModel.countDocuments({
+        enrolledAt: {
+          $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
         },
       }),
     ]);
 
-    const breakdown = await this.prisma.enrollment.groupBy({
-      by: ['courseId'],
-      _count: {
-        id: true,
-      },
-    });
+    const breakdown = await this.enrollmentModel.aggregate([
+      { $group: { _id: '$courseId', count: { $sum: 1 } } },
+    ]);
 
-    const courses = await this.prisma.course.findMany({
-      select: { id: true, type: true },
-    });
+    const courses = await this.courseModel.find({}, 'id type');
 
     const typeCounts: Record<string, number> = {
       NAZIRA: 0,
@@ -107,9 +81,9 @@ export class EnrollmentsService {
     };
 
     for (const b of breakdown) {
-      const course = courses.find((c) => c.id === b.courseId);
+      const course = courses.find((c) => c._id.toString() === b._id.toString());
       if (course) {
-        typeCounts[course.type] = (typeCounts[course.type] || 0) + b._count.id;
+        typeCounts[course.type] = (typeCounts[course.type] || 0) + b.count;
       }
     }
 
@@ -121,18 +95,14 @@ export class EnrollmentsService {
   }
 
   async findByStudent(studentId: string) {
-    return this.prisma.enrollment.findMany({
-      where: { studentId },
-      include: {
-        course: {
-          include: {
-            teacher: {
-              select: { id: true, name: true, email: true },
-            },
-          },
+    return this.enrollmentModel.find({ studentId })
+      .populate({
+        path: 'course',
+        populate: {
+          path: 'teacher',
+          select: 'id name email',
         },
-      },
-      orderBy: { enrolledAt: 'desc' },
-    });
+      })
+      .sort({ enrolledAt: -1 });
   }
 }
