@@ -14,7 +14,7 @@ keys:
 
 # Redis configuration for cluster coordination and state tracking
 redis:
-  address: localhost:6379
+  address: localhost:6380
   db: 0
 
 # WebRTC media configuration
