@@ -3,6 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Permission, PermissionDocument, RolePermission, RolePermissionDocument, Role } from '../schemas';
 
+const MODULES = [
+  'users', 'students', 'teachers', 'courses', 'schedule',
+  'enrollments', 'fees', 'hr', 'supervisors', 'audit-logs', 'settings', 'feedback'
+];
+
+const ACTIONS = ['create', 'read', 'update', 'delete'] as const;
+
 @Injectable()
 export class PermissionsService {
   constructor(
@@ -11,25 +18,83 @@ export class PermissionsService {
   ) {}
 
   async findAll() {
-    return this.permissionModel.find().sort({ module: 1 });
+    await this.ensureAllModulePermissions();
+    return this.permissionModel.find().sort({ module: 1, action: 1 });
   }
 
   async findByRole(role: Role) {
     return this.rolePermissionModel.find({ role }).populate('permission');
   }
 
+  async getMatrix() {
+    await this.ensureAllModulePermissions();
+    const permissions = await this.permissionModel.find().sort({ module: 1, action: 1 });
+    const rolePermissions = await this.rolePermissionModel.find().populate('permission');
+
+    const matrix: Record<string, Record<string, Record<string, boolean>>> = {};
+    const roles = [Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.SUPERVISOR];
+
+    roles.forEach((r) => {
+      matrix[r] = {};
+      MODULES.forEach((mod) => {
+        matrix[r][mod] = { create: false, read: false, update: false, delete: false };
+      });
+    });
+
+    // Populate matrix from database RolePermissions
+    for (const rp of rolePermissions) {
+      const perm = (rp as any).permission;
+      if (perm && matrix[rp.role] && matrix[rp.role][perm.module]) {
+        matrix[rp.role][perm.module][perm.action] = true;
+      }
+    }
+
+    // Default ADMIN to all true if empty
+    MODULES.forEach((mod) => {
+      ACTIONS.forEach((act) => {
+        matrix[Role.ADMIN][mod][act] = true;
+      });
+    });
+
+    return { permissions, matrix };
+  }
+
+  async updateRoleBatch(role: Role, enabledPermissions: { module: string; action: string }[], grantedByUserId?: string) {
+    // Fetch all permission docs
+    const allPerms = await this.permissionModel.find();
+    const permMap = new Map<string, string>(); // "module:action" -> permId
+    allPerms.forEach((p) => permMap.set(`${p.module}:${p.action}`, p._id.toString()));
+
+    // Target permission IDs to assign
+    const targetPermIds: string[] = [];
+    for (const item of enabledPermissions) {
+      const id = permMap.get(`${item.module}:${item.action}`);
+      if (id) targetPermIds.push(id);
+    }
+
+    // Wipe current role permissions for this role and re-insert target batch
+    await this.rolePermissionModel.deleteMany({ role });
+
+    const newDocs = targetPermIds.map((permissionId) => ({
+      role,
+      permissionId,
+      grantedBy: grantedByUserId,
+    }));
+
+    if (newDocs.length > 0) {
+      await this.rolePermissionModel.insertMany(newDocs);
+    }
+
+    return { message: `Permissions updated successfully for role ${role}`, count: newDocs.length };
+  }
+
   async assignToRole(role: Role, permissionId: string, grantedByUserId: string) {
     const permission = await this.permissionModel.findById(permissionId);
-
     if (!permission) {
       throw new NotFoundException('Permission not found');
     }
 
-    const existing = await this.rolePermissionModel.findOne({
-      role,
-      permissionId,
-    });
-
+    const existing = await this.rolePermissionModel.findOne({ role, permissionId });
     if (existing) {
       throw new ConflictException('Permission already assigned to role');
     }
@@ -42,42 +107,30 @@ export class PermissionsService {
   }
 
   async revokeFromRole(role: Role, permissionId: string) {
-    const existing = await this.rolePermissionModel.findOne({
-      role,
-      permissionId,
-    });
-
+    const existing = await this.rolePermissionModel.findOne({ role, permissionId });
     if (!existing) {
       throw new NotFoundException('Permission not assigned to role');
     }
-
     return this.rolePermissionModel.findByIdAndDelete(existing._id);
   }
 
-  async seedDefaultPermissions() {
-    const permissions = [
-      { name: 'users.create', description: 'Create users', module: 'users', action: 'create' },
-      { name: 'users.read', description: 'Read users', module: 'users', action: 'read' },
-      { name: 'users.update', description: 'Update users', module: 'users', action: 'update' },
-      { name: 'users.delete', description: 'Delete users', module: 'users', action: 'delete' },
-      { name: 'courses.create', description: 'Create courses', module: 'courses', action: 'create' },
-      { name: 'courses.read', description: 'Read courses', module: 'courses', action: 'read' },
-      { name: 'courses.update', description: 'Update courses', module: 'courses', action: 'update' },
-      { name: 'courses.delete', description: 'Delete courses', module: 'courses', action: 'delete' },
-      { name: 'sessions.create', description: 'Create sessions', module: 'sessions', action: 'create' },
-      { name: 'sessions.read', description: 'Read sessions', module: 'sessions', action: 'read' },
-      { name: 'sessions.update', description: 'Update sessions', module: 'sessions', action: 'update' },
-      { name: 'sessions.delete', description: 'Delete sessions', module: 'sessions', action: 'delete' },
-    ];
-
-    for (const p of permissions) {
-      await this.permissionModel.findOneAndUpdate(
-        { name: p.name },
-        { $setOnInsert: p },
-        { upsert: true, new: true },
-      );
+  private async ensureAllModulePermissions() {
+    for (const mod of MODULES) {
+      for (const act of ACTIONS) {
+        const name = `${mod}.${act}`;
+        await this.permissionModel.findOneAndUpdate(
+          { name },
+          {
+            $setOnInsert: {
+              name,
+              module: mod,
+              action: act,
+              description: `Can ${act} ${mod}`,
+            },
+          },
+          { upsert: true, new: true }
+        );
+      }
     }
-
-    return { message: 'Permissions seeded successfully' };
   }
 }

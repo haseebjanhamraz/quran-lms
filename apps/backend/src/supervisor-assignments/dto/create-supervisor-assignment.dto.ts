@@ -1,8 +1,8 @@
 import { IsMongoId } from 'class-validator';
 
-export class CreateReviewerAssignmentDto {
+export class CreateSupervisorAssignmentDto {
   @IsMongoId()
-  reviewerId: string;
+  supervisorId: string;
 
   @IsMongoId()
   courseId: string;

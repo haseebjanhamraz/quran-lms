@@ -46,7 +46,7 @@ export class ClassReview {
   sessionId: MongooseSchema.Types.ObjectId | string;
 
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
-  reviewerId: MongooseSchema.Types.ObjectId | string;
+  supervisorId: MongooseSchema.Types.ObjectId | string;
 
   @Prop({ required: true, enum: ReviewMode })
   reviewMode: ReviewMode;
@@ -105,9 +105,9 @@ ClassReviewSchema.virtual('session', {
   foreignField: '_id',
   justOne: true,
 });
-ClassReviewSchema.virtual('reviewer', {
+ClassReviewSchema.virtual('supervisor', {
   ref: 'User',
-  localField: 'reviewerId',
+  localField: 'supervisorId',
   foreignField: '_id',
   justOne: true,
 });

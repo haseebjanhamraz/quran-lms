@@ -27,7 +27,7 @@ export class RecordingsController {
   }
 
   @Get(':sessionId/stream')
-  @Roles(Role.ADMIN, Role.TEACHER, Role.REVIEWER, Role.STUDENT)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.SUPERVISOR, Role.STUDENT)
   async streamRecording(
     @Param('sessionId') sessionId: string,
     @Res() res: Response,

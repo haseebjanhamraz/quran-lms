@@ -9,7 +9,7 @@ import { AuthModule } from './auth/auth.module';
 import { CoursesModule } from './courses/courses.module';
 import { EnrollmentsModule } from './enrollments/enrollments.module';
 import { ClassSessionsModule } from './class-sessions/class-sessions.module';
-import { ReviewerAssignmentsModule } from './reviewer-assignments/reviewer-assignments.module';
+import { SupervisorAssignmentsModule } from './supervisor-assignments/supervisor-assignments.module';
 import { LivekitModule } from './livekit/livekit.module';
 import { BullModule } from '@nestjs/bullmq';
 import { RecordingsModule } from './recordings/recordings.module';
@@ -22,6 +22,9 @@ import { ReportsModule } from './reports/reports.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { StudentFeedbackModule } from './student-feedback/student-feedback.module';
+import { SalaryPaymentsModule } from './salary-payments/salary-payments.module';
+import { EmailModule } from './email/email.module';
+import { FeesModule } from './fees/fees.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 
@@ -60,7 +63,7 @@ import * as path from 'path';
     CoursesModule,
     EnrollmentsModule,
     ClassSessionsModule,
-    ReviewerAssignmentsModule,
+    SupervisorAssignmentsModule,
     LivekitModule,
     RecordingsModule,
     LocalStorageModule,
@@ -72,6 +75,9 @@ import * as path from 'path';
     NotificationsModule,
     PermissionsModule,
     StudentFeedbackModule,
+    SalaryPaymentsModule,
+    EmailModule,
+    FeesModule,
   ],
   controllers: [AppController],
   providers: [

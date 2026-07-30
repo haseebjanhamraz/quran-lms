@@ -20,22 +20,31 @@ import {
   ChevronDown,
   User as UserIcon,
   Shield,
-  Clock
+  Clock,
+  GraduationCap,
+  BookUser,
+  CreditCard,
+  Briefcase
 } from 'lucide-react';
 import Image from 'next/image';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
+import Footer from '@/components/Footer';
 
 const PRIMARY_NAV = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
-  { label: 'Users', icon: Users, href: '/admin/users' },
+  { label: 'Students', icon: GraduationCap, href: '/admin/students' },
+  { label: 'Teachers', icon: BookUser, href: '/admin/teachers' },
   { label: 'Courses', icon: BookOpen, href: '/admin/courses' },
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
-  { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
 ];
 
 const MORE_NAV = [
-  { label: 'Reviewer Assignments', icon: ShieldCheck, href: '/admin/reviewer-assignments' },
+  { label: 'Users & Accounts', icon: Users, href: '/admin/users' },
+  { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
+  { label: 'Fees & Payments', icon: CreditCard, href: '/admin/fees' },
+  { label: 'HR Management', icon: Briefcase, href: '/admin/hr' },
+  { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments' },
   { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports' },
   { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs' },
@@ -152,7 +161,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </button>
 
               {isMoreOpen && (
-                <div className="absolute top-full left-0 mt-1 w-56 rounded-xl bg-card border border-border shadow-lg py-2 flex flex-col z-50">
+                <div className="absolute top-full left-0 mt-1 w-60 rounded-xl bg-card border border-border shadow-xl py-2 flex flex-col z-50">
                   {MORE_NAV.map((item) => {
                     const isActive = pathname === item.href;
                     const Icon = item.icon;
@@ -206,14 +215,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   <p className="text-sm font-semibold text-foreground">{user?.name}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
                 </div>
-                <Link 
-                  href="/admin/profile" 
-                  onClick={() => setIsProfileOpen(false)}
-                  className="flex items-center gap-3 px-4 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                >
-                  <UserIcon size={16} />
-                  My Profile
-                </Link>
                 <button
                   onClick={() => {
                     setIsProfileOpen(false);
@@ -267,10 +268,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       )}
 
-      {/* Sub Header for Page Title */}
+      {/* Sub Header */}
       <div className="mt-16 bg-header/50 backdrop-blur border-b border-border px-6 py-2">
         <h1 className="font-display font-semibold text-sm tracking-wide text-muted-foreground">
-          Compliance Administration Dashboard
+          Compliance & Academy Administration Portal
         </h1>
       </div>
 
@@ -280,6 +281,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {children}
         </div>
       </main>
+
+      {/* Universal Footer */}
+      <Footer />
     </div>
   );
 }

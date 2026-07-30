@@ -12,7 +12,7 @@ export class ReportsController {
   constructor(private readonly reportsService: ReportsService) {}
 
   @Get(':sessionId/pdf')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async downloadPDF(
     @Param('sessionId') sessionId: string,
     @Res() res: express.Response,

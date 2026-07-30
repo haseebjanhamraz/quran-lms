@@ -11,7 +11,7 @@ import {
   Attendance, AttendanceDocument,
   PipelineLog, PipelineLogDocument,
   Enrollment, EnrollmentDocument,
-  ReviewerAssignment, ReviewerAssignmentDocument,
+  SupervisorAssignment, SupervisorAssignmentDocument,
   ClassReview, ClassReviewDocument, ReviewStatus
 } from '../schemas';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
@@ -27,7 +27,7 @@ export class ClassSessionsService {
     @InjectModel(Attendance.name) private readonly attendanceModel: Model<AttendanceDocument>,
     @InjectModel(PipelineLog.name) private readonly pipelineLogModel: Model<PipelineLogDocument>,
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
-    @InjectModel(ReviewerAssignment.name) private readonly reviewerAssignmentModel: Model<ReviewerAssignmentDocument>,
+    @InjectModel(SupervisorAssignment.name) private readonly supervisorAssignmentModel: Model<SupervisorAssignmentDocument>,
     @InjectModel(ClassReview.name) private readonly classReviewModel: Model<ClassReviewDocument>,
     private readonly configService: ConfigService,
     private readonly recordingsService: RecordingsService,
@@ -239,8 +239,8 @@ export class ClassSessionsService {
       .sort({ scheduledAt: 1 });
   }
 
-  async findReviewerCalendar(reviewerId: string) {
-    const assignments = await this.reviewerAssignmentModel.find({ reviewerId, isActive: true }, 'courseId');
+  async findSupervisorCalendar(supervisorId: string) {
+    const assignments = await this.supervisorAssignmentModel.find({ supervisorId, isActive: true }, 'courseId');
     const courseIds = assignments.map((a) => a.courseId);
 
     return this.classSessionModel.find({ courseId: { $in: courseIds } })
@@ -298,7 +298,7 @@ export class ClassSessionsService {
       path: 'course',
       populate: [
         { path: 'enrollments' },
-        { path: 'reviewerAssignments' },
+        { path: 'supervisorAssignments' },
       ],
     });
 
@@ -319,10 +319,10 @@ export class ClassSessionsService {
     } else if (user.role === Role.STUDENT) {
       const enrollments: any[] = course?.enrollments || [];
       isAuthorized = enrollments.some((e: any) => e.studentId.toString() === user.id);
-    } else if (user.role === Role.REVIEWER) {
-      const reviewerAssignments: any[] = course?.reviewerAssignments || [];
-      isAuthorized = reviewerAssignments.some(
-        (a: any) => a.reviewerId.toString() === user.id && a.isActive,
+    } else if (user.role === Role.SUPERVISOR) {
+      const supervisorAssignments: any[] = course?.supervisorAssignments || [];
+      isAuthorized = supervisorAssignments.some(
+        (a: any) => a.supervisorId.toString() === user.id && a.isActive,
       );
       isReviewer = true;
     }
@@ -491,11 +491,11 @@ export class ClassSessionsService {
       };
     }
 
-    if (role === Role.REVIEWER) {
-      const assignments = await this.reviewerAssignmentModel.find({ reviewerId: userId, isActive: true }, 'courseId');
+    if (role === Role.SUPERVISOR) {
+      const assignments = await this.supervisorAssignmentModel.find({ supervisorId: userId, isActive: true }, 'courseId');
       const courseIds = assignments.map((a) => a.courseId);
 
-      // Find sessions completed for these courses that don't have SUBMITTED reviews by reviewer
+      // Find sessions completed for these courses that don't have SUBMITTED reviews by supervisor
       const completedSessions = await this.classSessionModel.find({
         courseId: { $in: courseIds },
         status: ClassStatus.COMPLETED,
@@ -513,11 +513,11 @@ export class ClassSessionsService {
 
       const [total, flaggedCount, completedReviews] = await Promise.all([
         this.classSessionModel.countDocuments({ courseId: { $in: courseIds } }),
-        this.classReviewModel.countDocuments({ reviewerId: userId, isFlagged: true }),
-        this.classReviewModel.countDocuments({ reviewerId: userId, status: ReviewStatus.SUBMITTED }),
+        this.classReviewModel.countDocuments({ supervisorId: userId, isFlagged: true }),
+        this.classReviewModel.countDocuments({ supervisorId: userId, status: ReviewStatus.SUBMITTED }),
       ]);
 
-      const reviews = await this.classReviewModel.find({ reviewerId: userId }, 'overallScore');
+      const reviews = await this.classReviewModel.find({ supervisorId: userId }, 'overallScore');
       const avgScore = reviews.length
         ? Math.round((reviews.reduce((acc, r) => acc + r.overallScore, 0) / reviews.length) * 10) / 10
         : 0;

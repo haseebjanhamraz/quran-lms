@@ -7,7 +7,7 @@ export enum Role {
   ADMIN = 'ADMIN',
   TEACHER = 'TEACHER',
   STUDENT = 'STUDENT',
-  REVIEWER = 'REVIEWER',
+  SUPERVISOR = 'SUPERVISOR',
 }
 
 @Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
@@ -30,15 +30,8 @@ export class User {
   @Prop({ default: true })
   isActive: boolean;
 
-  // Profile fields
   @Prop()
   profilePicture?: string;
-
-  @Prop()
-  gender?: string;
-
-  @Prop()
-  dateOfBirth?: Date;
 
   @Prop({ default: 'UTC' })
   timezone: string;
@@ -49,38 +42,6 @@ export class User {
   @Prop()
   longitude?: number;
 
-  // Student-specific fields
-  @Prop({ unique: true, sparse: true })
-  studentId?: number;
-
-  @Prop()
-  enrollmentDate?: Date;
-
-  @Prop({ default: 'ACTIVE' })
-  studentStatus?: string;
-
-  @Prop({ default: 'ACTIVE' })
-  trialStatus?: string;
-
-  @Prop({ default: false })
-  discontinued?: boolean;
-
-  // Teacher/Reviewer-specific fields
-  @Prop()
-  salary?: number;
-
-  @Prop()
-  employeeId?: string;
-
-  @Prop()
-  qualification?: string;
-
-  @Prop()
-  specialization?: string;
-
-  @Prop()
-  joiningDate?: Date;
-
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -89,4 +50,18 @@ export const UserSchema = SchemaFactory.createForClass(User);
 
 UserSchema.virtual('id').get(function (this: Document) {
   return this._id.toHexString();
+});
+
+UserSchema.virtual('teacherProfile', {
+  ref: 'Teacher',
+  localField: '_id',
+  foreignField: 'userId',
+  justOne: true,
+});
+
+UserSchema.virtual('studentProfile', {
+  ref: 'Student',
+  localField: '_id',
+  foreignField: 'userId',
+  justOne: true,
 });

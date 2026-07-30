@@ -49,3 +49,13 @@ CourseSchema.virtual('classSessions', {
   localField: '_id',
   foreignField: 'courseId',
 });
+CourseSchema.virtual('supervisorAssignments', {
+  ref: 'SupervisorAssignment',
+  localField: '_id',
+  foreignField: 'courseId',
+});
+CourseSchema.virtual('reviewerAssignments', {
+  ref: 'SupervisorAssignment',
+  localField: '_id',
+  foreignField: 'courseId',
+});

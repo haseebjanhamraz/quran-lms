@@ -5,7 +5,7 @@ import { ClassReviewsController } from './class-reviews.controller';
 import {
   ClassReview, ClassReviewSchema,
   ClassSession, ClassSessionSchema,
-  ReviewerAssignment, ReviewerAssignmentSchema,
+  SupervisorAssignment, SupervisorAssignmentSchema,
   User, UserSchema,
 } from '../schemas';
 
@@ -14,7 +14,7 @@ import {
     MongooseModule.forFeature([
       { name: ClassReview.name, schema: ClassReviewSchema },
       { name: ClassSession.name, schema: ClassSessionSchema },
-      { name: ReviewerAssignment.name, schema: ReviewerAssignmentSchema },
+      { name: SupervisorAssignment.name, schema: SupervisorAssignmentSchema },
       { name: User.name, schema: UserSchema },
     ]),
   ],

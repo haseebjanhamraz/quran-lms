@@ -18,7 +18,7 @@ export class TranscriptController {
   }
 
   @Get(':sessionId')
-  @Roles(Role.ADMIN, Role.TEACHER, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.SUPERVISOR)
   async getTranscript(@Param('sessionId') sessionId: string) {
     return this.transcriptService.getTranscript(sessionId);
   }

@@ -61,7 +61,7 @@ export default function AIReportsListPage() {
       router.push('/login');
       return;
     }
-    if (user && user.role !== 'ADMIN' && user.role !== 'REVIEWER') {
+    if (user && user.role !== 'ADMIN' && user.role !== 'SUPERVISOR') {
       router.push('/');
       return;
     }

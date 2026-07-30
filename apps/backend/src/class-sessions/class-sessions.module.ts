@@ -11,7 +11,7 @@ import {
   Attendance, AttendanceSchema,
   PipelineLog, PipelineLogSchema,
   Enrollment, EnrollmentSchema,
-  ReviewerAssignment, ReviewerAssignmentSchema,
+  SupervisorAssignment, SupervisorAssignmentSchema,
   ClassReview, ClassReviewSchema,
 } from '../schemas';
 
@@ -26,7 +26,7 @@ import {
       { name: Attendance.name, schema: AttendanceSchema },
       { name: PipelineLog.name, schema: PipelineLogSchema },
       { name: Enrollment.name, schema: EnrollmentSchema },
-      { name: ReviewerAssignment.name, schema: ReviewerAssignmentSchema },
+      { name: SupervisorAssignment.name, schema: SupervisorAssignmentSchema },
       { name: ClassReview.name, schema: ClassReviewSchema },
     ]),
   ],

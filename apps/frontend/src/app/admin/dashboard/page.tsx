@@ -46,7 +46,8 @@ interface FlaggedReview {
   session: {
     course: { title: string; teacher: { name: string } };
   };
-  reviewer: { name: string };
+  supervisor?: { name: string };
+  reviewer?: { name: string };
 }
 
 interface AuditLogItem {
@@ -522,7 +523,7 @@ export default function AdminDashboardPage() {
                       </span>
                     </p>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>Reviewer: <span className="text-foreground/80">{f.reviewer?.name ?? 'N/A'}</span></span>
+                      <span>Supervisor: <span className="text-foreground/80">{f.supervisor?.name ?? f.reviewer?.name ?? 'N/A'}</span></span>
                       <span>Score: <span className="text-amber-500 font-bold font-mono">{f.overallScore.toFixed(1)}/5.0</span></span>
                     </div>
                     {f.flagReason && (
@@ -568,10 +569,10 @@ export default function AdminDashboardPage() {
               desc: 'Roster timing check.',
             },
             {
-              href: '/admin/reviewer-assignments',
+              href: '/admin/supervisor-assignments',
               icon: <ShieldCheck size={24} />,
               iconColor: '#8b5cf6',
-              title: 'QA Reviewers',
+              title: 'QA Supervisors',
               desc: 'Syllabus compliance assigning.',
             },
             {

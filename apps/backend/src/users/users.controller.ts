@@ -67,7 +67,7 @@ export class UsersController {
   }
 
   @Get('role/:role')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async findByRole(@Param('role') role: string) {
     const roleEnum = Role[role as keyof typeof Role];
     if (!roleEnum) {

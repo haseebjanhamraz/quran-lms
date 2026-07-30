@@ -84,4 +84,11 @@ export class CreateUserDto {
   @IsDateString()
   @IsOptional()
   joiningDate?: string | Date;
+
+  @IsString()
+  @IsOptional()
+  bio?: string;
+
+  @IsOptional()
+  guarantors?: any[];
 }

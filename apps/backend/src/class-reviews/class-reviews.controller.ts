@@ -14,7 +14,7 @@ export class ClassReviewsController {
   constructor(private readonly classReviewsService: ClassReviewsService) {}
 
   @Get('session/:sessionId')
-  @Roles(Role.ADMIN, Role.REVIEWER, Role.TEACHER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR, Role.TEACHER)
   async getReviewBySession(
     @Param('sessionId') sessionId: string,
     @CurrentUser() user: any,
@@ -23,7 +23,7 @@ export class ClassReviewsController {
   }
 
   @Post()
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async saveReview(
     @Body() dto: CreateReviewDto,
     @CurrentUser() user: any,
@@ -32,7 +32,7 @@ export class ClassReviewsController {
   }
 
   @Post(':id/annotations')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async addAnnotation(
     @Param('id') reviewId: string,
     @Body() dto: CreateAnnotationDto,
@@ -42,7 +42,7 @@ export class ClassReviewsController {
   }
 
   @Delete('annotations/:id')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async deleteAnnotation(
     @Param('id') id: string,
     @CurrentUser() user: any,
@@ -51,7 +51,7 @@ export class ClassReviewsController {
   }
 
   @Get('pending')
-  @Roles(Role.REVIEWER)
+  @Roles(Role.SUPERVISOR)
   async getPendingReviews(@CurrentUser() user: any) {
     return this.classReviewsService.getPendingReviews(user);
   }
@@ -63,7 +63,7 @@ export class ClassReviewsController {
   }
 
   @Get('history')
-  @Roles(Role.REVIEWER, Role.ADMIN)
+  @Roles(Role.SUPERVISOR, Role.ADMIN)
   async getReviewerHistory(@CurrentUser() user: any) {
     return this.classReviewsService.getReviewerHistory(user.id);
   }

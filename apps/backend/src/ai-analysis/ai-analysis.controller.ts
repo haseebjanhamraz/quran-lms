@@ -18,7 +18,7 @@ export class AIAnalysisController {
   }
 
   @Get(':sessionId')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async getReport(@Param('sessionId') sessionId: string): Promise<any> {
     return this.aiAnalysisService.getReport(sessionId);
   }

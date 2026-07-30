@@ -37,8 +37,8 @@ export class ClassSessionsController {
     if (user.role === Role.STUDENT) {
       return this.classSessionsService.findStudentCalendar(user.id);
     }
-    if (user.role === Role.REVIEWER) {
-      return this.classSessionsService.findReviewerCalendar(user.id);
+    if (user.role === Role.SUPERVISOR) {
+      return this.classSessionsService.findSupervisorCalendar(user.id);
     }
     return [];
   }
@@ -99,7 +99,7 @@ export class ClassSessionsController {
   }
 
   @Get(':id/attendance')
-  @Roles(Role.ADMIN, Role.TEACHER, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.TEACHER, Role.SUPERVISOR)
   async getAttendance(@Param('id') id: string) {
     return this.classSessionsService.getAttendance(id);
   }

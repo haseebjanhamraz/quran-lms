@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import {
   ClassReview, ClassReviewDocument, ReviewStatus, ReviewMode,
   ClassSession, ClassSessionDocument, ClassStatus,
-  ReviewerAssignment, ReviewerAssignmentDocument,
+  SupervisorAssignment, SupervisorAssignmentDocument,
   User, UserDocument, Role
 } from '../schemas';
 import { CreateReviewDto } from './dto/create-review.dto';
@@ -15,7 +15,7 @@ export class ClassReviewsService {
   constructor(
     @InjectModel(ClassReview.name) private readonly classReviewModel: Model<ClassReviewDocument>,
     @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
-    @InjectModel(ReviewerAssignment.name) private readonly reviewerAssignmentModel: Model<ReviewerAssignmentDocument>,
+    @InjectModel(SupervisorAssignment.name) private readonly supervisorAssignmentModel: Model<SupervisorAssignmentDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
   ) {}
 
@@ -25,9 +25,9 @@ export class ClassReviewsService {
       throw new NotFoundException('Class session not found');
     }
 
-    if (user.role === Role.REVIEWER) {
-      const assigned = await this.reviewerAssignmentModel.findOne({
-        reviewerId: user.id,
+    if (user.role === Role.SUPERVISOR) {
+      const assigned = await this.supervisorAssignmentModel.findOne({
+        supervisorId: user.id,
         courseId: session.courseId,
         isActive: true,
       });
@@ -54,10 +54,10 @@ export class ClassReviewsService {
       });
 
     if (!review) {
-      const reviewerId = user.role === Role.REVIEWER ? user.id : (await this.findDefaultReviewerId(sessionId));
+      const supervisorId = user.role === Role.SUPERVISOR ? user.id : (await this.findDefaultSupervisorId(sessionId));
       const created = await this.classReviewModel.create({
         sessionId,
-        reviewerId,
+        supervisorId,
         reviewMode: ReviewMode.RECORDING_REVIEW,
         curriculumAdherenceScore: 5,
         teachingQualityScore: 5,
@@ -94,16 +94,16 @@ export class ClassReviewsService {
     return result;
   }
 
-  private async findDefaultReviewerId(sessionId: string): Promise<string> {
+  private async findDefaultSupervisorId(sessionId: string): Promise<string> {
     const session = await this.classSessionModel.findById(sessionId);
     if (session) {
-      const assignment = await this.reviewerAssignmentModel.findOne({ courseId: session.courseId, isActive: true });
+      const assignment = await this.supervisorAssignmentModel.findOne({ courseId: session.courseId, isActive: true });
       if (assignment) {
-        return assignment.reviewerId.toString();
+        return assignment.supervisorId.toString();
       }
     }
     const admin = await this.userModel.findOne({ role: Role.ADMIN });
-    if (!admin) throw new NotFoundException('No available reviewer or administrator found');
+    if (!admin) throw new NotFoundException('No available supervisor or administrator found');
     return admin._id.toString();
   }
 
@@ -113,8 +113,8 @@ export class ClassReviewsService {
     const review = await this.classReviewModel.findOne({ sessionId: dto.sessionId });
 
     if (review) {
-      if (user.role === Role.REVIEWER && review.reviewerId.toString() !== user.id) {
-        throw new ForbiddenException('You cannot modify reviews created by another reviewer');
+      if (user.role === Role.SUPERVISOR && (review as any).supervisorId?.toString() !== user.id) {
+        throw new ForbiddenException('You cannot modify reviews created by another supervisor');
       }
 
       return this.classReviewModel.findByIdAndUpdate(
@@ -140,7 +140,7 @@ export class ClassReviewsService {
     } else {
       return this.classReviewModel.create({
         sessionId: dto.sessionId,
-        reviewerId: user.id,
+        supervisorId: user.id,
         reviewMode: dto.reviewMode,
         curriculumAdherenceScore: dto.curriculumAdherenceScore,
         teachingQualityScore: dto.teachingQualityScore,
@@ -161,7 +161,7 @@ export class ClassReviewsService {
     const review = await this.classReviewModel.findById(reviewId);
     if (!review) throw new NotFoundException('Review not found');
 
-    if (user.role === Role.REVIEWER && review.reviewerId.toString() !== user.id) {
+    if (user.role === Role.SUPERVISOR && (review as any).supervisorId?.toString() !== user.id) {
       throw new ForbiddenException('You cannot modify this review');
     }
 
@@ -191,7 +191,7 @@ export class ClassReviewsService {
     const review = await this.classReviewModel.findOne({ 'annotations._id': annotationId });
     if (!review) throw new NotFoundException('Annotation not found');
 
-    if (user.role === Role.REVIEWER && review.reviewerId.toString() !== user.id) {
+    if (user.role === Role.SUPERVISOR && (review as any).supervisorId?.toString() !== user.id) {
       throw new ForbiddenException('You cannot modify this review');
     }
 
@@ -203,7 +203,7 @@ export class ClassReviewsService {
   }
 
   async getPendingReviews(user: any) {
-    const assignments = await this.reviewerAssignmentModel.find({ reviewerId: user.id, isActive: true }, 'courseId');
+    const assignments = await this.supervisorAssignmentModel.find({ supervisorId: user.id, isActive: true }, 'courseId');
     const courseIds = assignments.map((a) => a.courseId);
 
     const sessions = await this.classSessionModel.find({
@@ -219,11 +219,11 @@ export class ClassReviewsService {
       .populate('classReviews')
       .sort({ scheduledAt: -1 });
 
-    // Filter sessions: either no reviews OR draft review by this reviewer
+    // Filter sessions: either no reviews OR draft review by this supervisor
     return sessions.filter((s: any) => {
       const reviews: any[] = s.get ? s.get('classReviews') : (s as any).classReviews || [];
       if (!reviews.length) return true;
-      return reviews.some((r: any) => r.reviewerId.toString() === user.id && r.status === ReviewStatus.DRAFT);
+      return reviews.some((r: any) => r.supervisorId?.toString() === user.id && r.status === ReviewStatus.DRAFT);
     });
   }
 
@@ -240,13 +240,13 @@ export class ClassReviewsService {
           { path: 'recording' },
         ],
       })
-      .populate('reviewer', 'id name email')
+      .populate('supervisor', 'id name email')
       .sort({ reviewedAt: -1 });
   }
 
-  async getReviewerHistory(reviewerId: string) {
+  async getReviewerHistory(supervisorId: string) {
     return this.classReviewModel.find({
-      reviewerId,
+      supervisorId,
       status: ReviewStatus.SUBMITTED,
     })
       .populate({
@@ -275,7 +275,7 @@ export class ClassReviewsService {
         path: 'session',
         populate: { path: 'course', select: 'id title type' },
       })
-      .populate('reviewer', 'id name')
+      .populate('supervisor', 'id name')
       .sort({ reviewedAt: -1 });
   }
 }

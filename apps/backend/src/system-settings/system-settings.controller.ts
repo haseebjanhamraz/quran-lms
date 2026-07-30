@@ -11,20 +11,20 @@ export class SystemSettingsController {
   constructor(private readonly settingsService: SystemSettingsService) {}
 
   @Get()
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async getAll() {
     return this.settingsService.getAllSettings();
   }
 
   @Get(':key')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async getByKey(@Param('key') key: string) {
     const value = await this.settingsService.getSetting(key, 'false');
     return { key, value };
   }
 
   @Put(':key')
-  @Roles(Role.ADMIN, Role.REVIEWER)
+  @Roles(Role.ADMIN, Role.SUPERVISOR)
   async updateSetting(@Param('key') key: string, @Body('value') value: string) {
     return this.settingsService.setSetting(key, value);
   }

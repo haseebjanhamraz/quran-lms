@@ -1,7 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User, UserDocument, Role, Counter, CounterDocument } from '../schemas';
+import {
+  User, UserDocument, Role,
+  Teacher, TeacherDocument,
+  Student, StudentDocument,
+  Counter, CounterDocument,
+} from '../schemas';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
@@ -12,6 +17,8 @@ import * as bcrypt from 'bcrypt';
 export class UsersService {
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @InjectModel(Teacher.name) private readonly teacherModel: Model<TeacherDocument>,
+    @InjectModel(Student.name) private readonly studentModel: Model<StudentDocument>,
     @InjectModel(Counter.name) private readonly counterModel: Model<CounterDocument>,
   ) {}
 
@@ -29,6 +36,20 @@ export class UsersService {
     const obj = userDoc.toObject ? userDoc.toObject() : { ...userDoc };
     delete obj.passwordHash;
     delete obj.__v;
+
+    // Flatten embedded profile fields for smooth API compatibility
+    if (obj.studentProfile) {
+      obj.studentId = obj.studentProfile.studentId;
+      if (obj.studentProfile.profile) {
+        Object.assign(obj, obj.studentProfile.profile);
+      }
+    }
+    if (obj.teacherProfile) {
+      if (obj.teacherProfile.profile) {
+        Object.assign(obj, obj.teacherProfile.profile);
+      }
+    }
+
     return obj;
   }
 
@@ -41,35 +62,63 @@ export class UsersService {
       throw new ConflictException('Email already registered');
     }
 
-    const { password, dateOfBirth, enrollmentDate, joiningDate, ...rest } = createUserDto;
+    const {
+      password, dateOfBirth, enrollmentDate, joiningDate,
+      gender, studentStatus, trialStatus, discontinued,
+      qualification, specialization, salary, employeeId, bio, guarantors,
+      ...baseUserDto
+    } = createUserDto;
+
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const data: any = {
-      ...rest,
-      email: rest.email.toLowerCase().trim(),
+    const createdUser = await this.userModel.create({
+      ...baseUserDto,
+      email: baseUserDto.email.toLowerCase().trim(),
       passwordHash,
-    };
+    });
 
-    if (dateOfBirth) data.dateOfBirth = new Date(dateOfBirth);
-    if (enrollmentDate) data.enrollmentDate = new Date(enrollmentDate);
-    if (joiningDate) data.joiningDate = new Date(joiningDate);
-
-    if (rest.role === Role.STUDENT && !data.studentId) {
-      data.studentId = await this.getNextStudentId();
+    if (baseUserDto.role === Role.STUDENT) {
+      const studentId = await this.getNextStudentId();
+      await this.studentModel.create({
+        userId: createdUser._id,
+        studentId,
+        profile: {
+          gender,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+          enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : new Date(),
+          studentStatus: studentStatus || 'ACTIVE',
+          trialStatus: trialStatus || 'ACTIVE',
+          discontinued: discontinued || false,
+        },
+      });
+    } else if (baseUserDto.role === Role.TEACHER) {
+      await this.teacherModel.create({
+        userId: createdUser._id,
+        profile: {
+          qualification,
+          specialization,
+          joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
+          salary,
+          employeeId,
+          bio,
+          guarantors: guarantors || [],
+        },
+      });
     }
 
-    const createdUser = await this.userModel.create(data);
-    return this.sanitizeUser(createdUser);
+    return this.findById(createdUser._id.toString());
   }
 
   async findByEmail(email: string) {
     return this.userModel.findOne({
       email: email.toLowerCase().trim(),
-    });
+    }).populate('studentProfile').populate('teacherProfile');
   }
 
   async findById(id: string) {
-    const user = await this.userModel.findById(id);
+    const user = await this.userModel.findById(id)
+      .populate('studentProfile')
+      .populate('teacherProfile');
 
     if (!user) {
       throw new NotFoundException('User not found');
@@ -79,12 +128,20 @@ export class UsersService {
   }
 
   async findAll() {
-    const users = await this.userModel.find().sort({ createdAt: -1 });
+    const users = await this.userModel.find()
+      .populate('studentProfile')
+      .populate('teacherProfile')
+      .sort({ createdAt: -1 });
+
     return users.map((u) => this.sanitizeUser(u));
   }
 
   async findByRole(role: Role) {
-    const users = await this.userModel.find({ role }).sort({ createdAt: -1 });
+    const users = await this.userModel.find({ role })
+      .populate('studentProfile')
+      .populate('teacherProfile')
+      .sort({ createdAt: -1 });
+
     return users.map((u) => this.sanitizeUser(u));
   }
 
@@ -95,8 +152,14 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const { password, dateOfBirth, enrollmentDate, joiningDate, ...rest } = updateUserDto;
-    const data: any = { ...rest };
+    const {
+      password, dateOfBirth, enrollmentDate, joiningDate,
+      gender, studentStatus, trialStatus, discontinued,
+      qualification, specialization, salary, employeeId, bio, guarantors,
+      ...baseData
+    } = updateUserDto;
+
+    const data: any = { ...baseData };
 
     if (data.email) {
       data.email = data.email.toLowerCase().trim();
@@ -106,12 +169,44 @@ export class UsersService {
       data.passwordHash = await bcrypt.hash(password, 10);
     }
 
-    if (dateOfBirth !== undefined) data.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
-    if (enrollmentDate !== undefined) data.enrollmentDate = enrollmentDate ? new Date(enrollmentDate) : null;
-    if (joiningDate !== undefined) data.joiningDate = joiningDate ? new Date(joiningDate) : null;
+    await this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true });
 
-    const updatedUser = await this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true });
-    return this.sanitizeUser(updatedUser);
+    if (user.role === Role.STUDENT) {
+      const studentUpdate: any = {};
+      if (gender !== undefined) studentUpdate['profile.gender'] = gender;
+      if (dateOfBirth !== undefined) studentUpdate['profile.dateOfBirth'] = dateOfBirth ? new Date(dateOfBirth) : null;
+      if (enrollmentDate !== undefined) studentUpdate['profile.enrollmentDate'] = enrollmentDate ? new Date(enrollmentDate) : null;
+      if (studentStatus !== undefined) studentUpdate['profile.studentStatus'] = studentStatus;
+      if (trialStatus !== undefined) studentUpdate['profile.trialStatus'] = trialStatus;
+      if (discontinued !== undefined) studentUpdate['profile.discontinued'] = discontinued;
+
+      if (Object.keys(studentUpdate).length > 0) {
+        await this.studentModel.findOneAndUpdate(
+          { userId: id },
+          { $set: studentUpdate },
+          { upsert: true },
+        );
+      }
+    } else if (user.role === Role.TEACHER) {
+      const teacherUpdate: any = {};
+      if (qualification !== undefined) teacherUpdate['profile.qualification'] = qualification;
+      if (specialization !== undefined) teacherUpdate['profile.specialization'] = specialization;
+      if (joiningDate !== undefined) teacherUpdate['profile.joiningDate'] = joiningDate ? new Date(joiningDate) : null;
+      if (salary !== undefined) teacherUpdate['profile.salary'] = salary;
+      if (employeeId !== undefined) teacherUpdate['profile.employeeId'] = employeeId;
+      if (bio !== undefined) teacherUpdate['profile.bio'] = bio;
+      if (guarantors !== undefined) teacherUpdate['profile.guarantors'] = guarantors;
+
+      if (Object.keys(teacherUpdate).length > 0) {
+        await this.teacherModel.findOneAndUpdate(
+          { userId: id },
+          { $set: teacherUpdate },
+          { upsert: true },
+        );
+      }
+    }
+
+    return this.findById(id);
   }
 
   async updateProfile(id: string, dto: UpdateProfileDto) {
@@ -121,8 +216,8 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const { password, dateOfBirth, ...rest } = dto;
-    const data: any = { ...rest };
+    const { password, dateOfBirth, gender, ...baseData } = dto as any;
+    const data: any = { ...baseData };
 
     if (data.email) {
       data.email = data.email.toLowerCase().trim();
@@ -132,10 +227,21 @@ export class UsersService {
       data.passwordHash = await bcrypt.hash(password, 10);
     }
 
-    if (dateOfBirth !== undefined) data.dateOfBirth = dateOfBirth ? new Date(dateOfBirth) : null;
+    await this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true });
 
-    const updatedUser = await this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true });
-    return this.sanitizeUser(updatedUser);
+    if (user.role === Role.STUDENT && (gender !== undefined || dateOfBirth !== undefined)) {
+      const studentUpdate: any = {};
+      if (gender !== undefined) studentUpdate['profile.gender'] = gender;
+      if (dateOfBirth !== undefined) studentUpdate['profile.dateOfBirth'] = dateOfBirth ? new Date(dateOfBirth) : null;
+
+      await this.studentModel.findOneAndUpdate(
+        { userId: id },
+        { $set: studentUpdate },
+        { upsert: true },
+      );
+    }
+
+    return this.findById(id);
   }
 
   async updateProfilePicture(id: string, filePath: string) {
@@ -145,7 +251,7 @@ export class UsersService {
       { new: true },
     );
     if (!updatedUser) throw new NotFoundException('User not found');
-    return this.sanitizeUser(updatedUser);
+    return this.findById(id);
   }
 
   async remove(id: string) {
@@ -155,13 +261,13 @@ export class UsersService {
       throw new NotFoundException('User not found');
     }
 
-    const deactivatedUser = await this.userModel.findByIdAndUpdate(
+    await this.userModel.findByIdAndUpdate(
       id,
       { $set: { isActive: false } },
       { new: true },
     );
 
-    return this.sanitizeUser(deactivatedUser);
+    return this.findById(id);
   }
 
   async changePassword(id: string, dto: ChangePasswordDto) {
