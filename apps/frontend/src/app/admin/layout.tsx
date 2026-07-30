@@ -31,7 +31,14 @@ import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
 import Footer from '@/components/Footer';
 
-const PRIMARY_NAV = [
+interface NavItem {
+  label: string;
+  icon: any;
+  href: string;
+  isFlaggedReviews?: boolean;
+}
+
+const PRIMARY_NAV: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
   { label: 'Students', icon: GraduationCap, href: '/admin/students' },
   { label: 'Teachers', icon: BookUser, href: '/admin/teachers' },
@@ -39,7 +46,7 @@ const PRIMARY_NAV = [
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
 ];
 
-const MORE_NAV = [
+const MORE_NAV: NavItem[] = [
   { label: 'Users & Accounts', icon: Users, href: '/admin/users' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
   { label: 'Fees & Payments', icon: CreditCard, href: '/admin/fees' },
@@ -116,7 +123,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <div className="flex min-h-screen flex-col bg-background text-foreground overflow-x-hidden">
       {/* Fixed Top Nav */}
       <header className="fixed top-0 left-0 right-0 z-50 h-16 bg-sidebar/95 backdrop-blur-xl border-b border-sidebar-border px-4 md:px-6 flex items-center justify-between">
-        
+
         {/* Left: Logo and Primary Nav */}
         <div className="flex items-center gap-6 h-full">
           <div className="flex items-center gap-2">
@@ -135,11 +142,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`flex h-full items-center gap-2 px-3 text-sm font-medium transition-colors ${
-                    isActive 
-                      ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]' 
-                      : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
-                  }`}
+                  className={`flex h-full items-center gap-2 px-3 text-sm font-medium transition-colors ${isActive
+                    ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
+                    : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
+                    }`}
                 >
                   <Icon size={16} className={isActive ? 'text-brand' : 'text-sidebar-foreground/70'} />
                   {item.label}
@@ -149,13 +155,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {/* More Dropdown */}
             <div className="relative h-full flex items-center" ref={moreRef}>
-              <button 
+              <button
                 onClick={() => setIsMoreOpen(!isMoreOpen)}
-                className={`flex h-full items-center gap-1 px-3 text-sm font-medium transition-colors ${
-                  MORE_NAV.some(item => pathname === item.href)
-                    ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
-                    : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
-                }`}
+                className={`flex h-full items-center gap-1 px-3 text-sm font-medium transition-colors ${MORE_NAV.some(item => pathname === item.href)
+                  ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
+                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
+                  }`}
               >
                 More <ChevronDown size={14} className={`transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
               </button>
@@ -170,9 +175,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         key={item.label}
                         href={item.href}
                         onClick={() => setIsMoreOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${
-                          isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                        }`}
+                        className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                          }`}
                       >
                         <Icon size={16} />
                         {item.label}
@@ -194,9 +198,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-3 md:gap-4 h-full">
           <ThemeToggle />
           <NotificationsDropdown />
-          
+
           <div className="relative h-full flex items-center" ref={profileRef}>
-            <button 
+            <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="flex items-center gap-2 hover:bg-sidebar-foreground/5 p-1 rounded-full md:rounded-lg md:pr-3 transition-colors"
             >
@@ -250,9 +254,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   key={item.label}
                   href={item.href}
                   onClick={() => setIsMobileOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand/15 text-brand' : 'text-foreground/80 hover:bg-muted'
-                  }`}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive ? 'bg-brand/15 text-brand' : 'text-foreground/80 hover:bg-muted'
+                    }`}
                 >
                   <Icon size={18} className={isActive ? 'text-brand' : 'text-muted-foreground'} />
                   {item.label}

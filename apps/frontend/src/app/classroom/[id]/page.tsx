@@ -165,7 +165,7 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
 
   const room = useRoomContext();
 
-  const handleExit = async () => {
+  const handleLeave = async () => {
     if (room) {
       await room.disconnect();
     }

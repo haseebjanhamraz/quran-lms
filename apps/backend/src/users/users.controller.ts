@@ -40,16 +40,10 @@ export class UsersController {
   @Post('profile/picture')
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: multer.diskStorage({
-        destination: './uploads/avatars',
-        filename: (req: any, file: any, cb: any) => {
-          const uniqueSuffix = randomUUID() + extname(file.originalname);
-          cb(null, uniqueSuffix);
-        },
-      }),
+      storage: multer.memoryStorage(),
       fileFilter: (req: any, file: any, cb: any) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
-          return cb(new BadRequestException('Only image files are allowed!'), false);
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|gif)$/)) {
+          return cb(new BadRequestException('Only image files (jpg, jpeg, png, webp, gif) are allowed!'), false);
         }
         cb(null, true);
       },
@@ -62,8 +56,62 @@ export class UsersController {
     if (!file) {
       throw new BadRequestException('File is required');
     }
-    const filePath = `/uploads/avatars/${file.filename}`;
+    const filename = `${randomUUID()}.png`;
+    const fs = require('fs');
+    const path = require('path');
+    const sharp = require('sharp');
+
+    const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+    const avatarsDir = path.join(uploadsDir, 'avatars');
+    if (!fs.existsSync(avatarsDir)) {
+      fs.mkdirSync(avatarsDir, { recursive: true });
+    }
+
+    const outPath = path.join(avatarsDir, filename);
+    await sharp(file.buffer)
+      .resize(400, 400, { fit: 'cover', position: 'center' })
+      .png({ quality: 90 })
+      .toFile(outPath);
+
+    const filePath = `/uploads/avatars/${filename}`;
     return this.usersService.updateProfilePicture(user.id, filePath);
+  }
+
+  @Post('upload-avatar')
+  @Roles(Role.ADMIN)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: multer.memoryStorage(),
+      fileFilter: (req: any, file: any, cb: any) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|gif)$/)) {
+          return cb(new BadRequestException('Only image files are allowed!'), false);
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadStandaloneAvatar(@UploadedFile() file: any) {
+    if (!file) {
+      throw new BadRequestException('File is required');
+    }
+    const filename = `${randomUUID()}.png`;
+    const fs = require('fs');
+    const path = require('path');
+    const sharp = require('sharp');
+
+    const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+    const avatarsDir = path.join(uploadsDir, 'avatars');
+    if (!fs.existsSync(avatarsDir)) {
+      fs.mkdirSync(avatarsDir, { recursive: true });
+    }
+
+    const outPath = path.join(avatarsDir, filename);
+    await sharp(file.buffer)
+      .resize(400, 400, { fit: 'cover', position: 'center' })
+      .png({ quality: 90 })
+      .toFile(outPath);
+
+    return { filePath: `/uploads/avatars/${filename}` };
   }
 
   @Get('role/:role')
@@ -110,15 +158,9 @@ export class UsersController {
   @Roles(Role.ADMIN)
   @UseInterceptors(
     FileInterceptor('file', {
-      storage: multer.diskStorage({
-        destination: './uploads/avatars',
-        filename: (req: any, file: any, cb: any) => {
-          const uniqueSuffix = randomUUID() + extname(file.originalname);
-          cb(null, uniqueSuffix);
-        },
-      }),
+      storage: multer.memoryStorage(),
       fileFilter: (req: any, file: any, cb: any) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|gif)$/)) {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|gif)$/)) {
           return cb(new BadRequestException('Only image files are allowed!'), false);
         }
         cb(null, true);
@@ -132,7 +174,24 @@ export class UsersController {
     if (!file) {
       throw new BadRequestException('File is required');
     }
-    const filePath = `/uploads/avatars/${file.filename}`;
+    const filename = `${randomUUID()}.png`;
+    const fs = require('fs');
+    const path = require('path');
+    const sharp = require('sharp');
+
+    const uploadsDir = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+    const avatarsDir = path.join(uploadsDir, 'avatars');
+    if (!fs.existsSync(avatarsDir)) {
+      fs.mkdirSync(avatarsDir, { recursive: true });
+    }
+
+    const outPath = path.join(avatarsDir, filename);
+    await sharp(file.buffer)
+      .resize(400, 400, { fit: 'cover', position: 'center' })
+      .png({ quality: 90 })
+      .toFile(outPath);
+
+    const filePath = `/uploads/avatars/${filename}`;
     return this.usersService.updateProfilePicture(id, filePath);
   }
 }

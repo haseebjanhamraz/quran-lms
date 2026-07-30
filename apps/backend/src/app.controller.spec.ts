@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { getNativeConnectionToken } from '@nestjs/mongoose';
+import { getConnectionToken } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -16,7 +16,7 @@ describe('AppController', () => {
       providers: [
         AppService,
         {
-          provide: getNativeConnectionToken(),
+          provide: getConnectionToken(),
           useValue: mockConnection,
         },
       ],

@@ -39,6 +39,22 @@ export class UpdateUserDto {
   @IsOptional()
   dateOfBirth?: string | Date;
 
+  @IsDateString()
+  @IsOptional()
+  dob?: string | Date;
+
+  @IsString()
+  @IsOptional()
+  guardianName?: string;
+
+  @IsString()
+  @IsOptional()
+  guardianPhone?: string;
+
+  @IsString()
+  @IsOptional()
+  guardianEmail?: string;
+
   @IsString()
   @IsOptional()
   timezone?: string;

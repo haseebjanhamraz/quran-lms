@@ -64,6 +64,7 @@ services:
     volumes:
       - ./apps/backend/recordings:/app/recordings
       - ./apps/backend/recordings:/recordings
+      - ./apps/backend/uploads:/app/uploads
     depends_on:
       - redis
       - vosk
@@ -94,3 +95,4 @@ services:
 
 volumes:
   redis_data:
+  uploads_data:

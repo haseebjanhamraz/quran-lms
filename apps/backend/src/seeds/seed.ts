@@ -55,21 +55,25 @@ async function main() {
 
   const defaultPassword = await bcrypt.hash('password123', 10);
 
-  // 1. Seed Permissions
-  const permissionsData = [
-    { name: 'users.create', description: 'Create users', module: 'users', action: 'create' },
-    { name: 'users.read', description: 'Read users', module: 'users', action: 'read' },
-    { name: 'users.update', description: 'Update users', module: 'users', action: 'update' },
-    { name: 'users.delete', description: 'Delete users', module: 'users', action: 'delete' },
-    { name: 'courses.create', description: 'Create courses', module: 'courses', action: 'create' },
-    { name: 'courses.read', description: 'Read courses', module: 'courses', action: 'read' },
-    { name: 'courses.update', description: 'Update courses', module: 'courses', action: 'update' },
-    { name: 'courses.delete', description: 'Delete courses', module: 'courses', action: 'delete' },
-    { name: 'sessions.create', description: 'Create sessions', module: 'sessions', action: 'create' },
-    { name: 'sessions.read', description: 'Read sessions', module: 'sessions', action: 'read' },
-    { name: 'sessions.update', description: 'Update sessions', module: 'sessions', action: 'update' },
-    { name: 'sessions.delete', description: 'Delete sessions', module: 'sessions', action: 'delete' },
+  // 1. Seed Permissions across all modules
+  const modulesList = [
+    'users', 'students', 'teachers', 'courses', 'schedule',
+    'enrollments', 'fees', 'hr', 'supervisors', 'audit-logs', 'settings', 'feedback'
   ];
+  const actionsList = ['create', 'read', 'update', 'delete'];
+
+  const permissionsData: any[] = [];
+  for (const mod of modulesList) {
+    for (const act of actionsList) {
+      permissionsData.push({
+        name: `${mod}.${act}`,
+        description: `Can ${act} ${mod}`,
+        module: mod,
+        action: act,
+      });
+    }
+  }
+
   const permissions = await Permission.insertMany(permissionsData);
   console.log(`Seeded ${permissions.length} permissions.`);
 
@@ -82,12 +86,52 @@ async function main() {
   const admin1 = adminUsers[0];
   console.log('Seeded 2 Admin users.');
 
-  // Role Permissions
-  const rolePermDocs = permissions.map((p) => ({
+  // Role Permissions for Admin (all permissions)
+  const rolePermDocs: any[] = permissions.map((p) => ({
     role: Role.ADMIN,
     permissionId: p._id,
     grantedBy: admin1._id,
   }));
+
+  // Role Permissions for Teacher
+  permissions.forEach((p) => {
+    if (['courses', 'schedule', 'students', 'enrollments', 'feedback'].includes(p.module)) {
+      if (p.action === 'read' || (p.action === 'update' && p.module === 'schedule')) {
+        rolePermDocs.push({
+          role: Role.TEACHER,
+          permissionId: p._id,
+          grantedBy: admin1._id,
+        });
+      }
+    }
+  });
+
+  // Role Permissions for Supervisor
+  permissions.forEach((p) => {
+    if (['courses', 'schedule', 'students', 'supervisors', 'feedback'].includes(p.module)) {
+      if (p.action === 'read' || p.action === 'create') {
+        rolePermDocs.push({
+          role: Role.SUPERVISOR,
+          permissionId: p._id,
+          grantedBy: admin1._id,
+        });
+      }
+    }
+  });
+
+  // Role Permissions for Student
+  permissions.forEach((p) => {
+    if (['courses', 'schedule', 'enrollments', 'feedback'].includes(p.module)) {
+      if (p.action === 'read' || (p.action === 'create' && p.module === 'feedback')) {
+        rolePermDocs.push({
+          role: Role.STUDENT,
+          permissionId: p._id,
+          grantedBy: admin1._id,
+        });
+      }
+    }
+  });
+
   await RolePermission.insertMany(rolePermDocs);
 
   // 3. Teachers

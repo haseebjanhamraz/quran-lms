@@ -49,6 +49,7 @@ services:
       - "host.docker.internal:host-gateway"
     volumes:
       - recordings_data:/app/recordings
+      - uploads_data:/app/uploads
     depends_on:
       redis:
         condition: service_healthy
@@ -76,3 +77,5 @@ volumes:
   redis_data:
   # Persistent volume for recording files shared between NestJS and Egress
   recordings_data:
+  # Persistent volume for user profile photos and uploaded media
+  uploads_data:

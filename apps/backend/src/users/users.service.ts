@@ -42,6 +42,9 @@ export class UsersService {
       obj.studentId = obj.studentProfile.studentId;
       if (obj.studentProfile.profile) {
         Object.assign(obj, obj.studentProfile.profile);
+        if (obj.studentProfile.profile.dateOfBirth) {
+          obj.dob = obj.studentProfile.profile.dateOfBirth;
+        }
       }
     }
     if (obj.teacherProfile) {
@@ -63,8 +66,9 @@ export class UsersService {
     }
 
     const {
-      password, dateOfBirth, enrollmentDate, joiningDate,
+      password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
+      guardianName, guardianPhone, guardianEmail,
       qualification, specialization, salary, employeeId, bio, guarantors,
       ...baseUserDto
     } = createUserDto;
@@ -77,6 +81,8 @@ export class UsersService {
       passwordHash,
     });
 
+    const finalDob = dateOfBirth || dob;
+
     if (baseUserDto.role === Role.STUDENT) {
       const studentId = await this.getNextStudentId();
       await this.studentModel.create({
@@ -84,11 +90,14 @@ export class UsersService {
         studentId,
         profile: {
           gender,
-          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+          dateOfBirth: finalDob ? new Date(finalDob) : undefined,
           enrollmentDate: enrollmentDate ? new Date(enrollmentDate) : new Date(),
           studentStatus: studentStatus || 'ACTIVE',
           trialStatus: trialStatus || 'ACTIVE',
           discontinued: discontinued || false,
+          guardianName,
+          guardianPhone,
+          guardianEmail,
         },
       });
     } else if (baseUserDto.role === Role.TEACHER) {
@@ -153,8 +162,9 @@ export class UsersService {
     }
 
     const {
-      password, dateOfBirth, enrollmentDate, joiningDate,
+      password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
+      guardianName, guardianPhone, guardianEmail,
       qualification, specialization, salary, employeeId, bio, guarantors,
       ...baseData
     } = updateUserDto;
@@ -174,11 +184,15 @@ export class UsersService {
     if (user.role === Role.STUDENT) {
       const studentUpdate: any = {};
       if (gender !== undefined) studentUpdate['profile.gender'] = gender;
-      if (dateOfBirth !== undefined) studentUpdate['profile.dateOfBirth'] = dateOfBirth ? new Date(dateOfBirth) : null;
+      const finalDob = dateOfBirth !== undefined ? dateOfBirth : dob;
+      if (finalDob !== undefined) studentUpdate['profile.dateOfBirth'] = finalDob ? new Date(finalDob) : null;
       if (enrollmentDate !== undefined) studentUpdate['profile.enrollmentDate'] = enrollmentDate ? new Date(enrollmentDate) : null;
       if (studentStatus !== undefined) studentUpdate['profile.studentStatus'] = studentStatus;
       if (trialStatus !== undefined) studentUpdate['profile.trialStatus'] = trialStatus;
       if (discontinued !== undefined) studentUpdate['profile.discontinued'] = discontinued;
+      if (guardianName !== undefined) studentUpdate['profile.guardianName'] = guardianName;
+      if (guardianPhone !== undefined) studentUpdate['profile.guardianPhone'] = guardianPhone;
+      if (guardianEmail !== undefined) studentUpdate['profile.guardianEmail'] = guardianEmail;
 
       if (Object.keys(studentUpdate).length > 0) {
         await this.studentModel.findOneAndUpdate(

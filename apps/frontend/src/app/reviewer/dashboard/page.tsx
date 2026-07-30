@@ -17,6 +17,7 @@ import {
   Activity,
   TrendingUp,
   BookOpen,
+  Save,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';

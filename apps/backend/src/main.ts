@@ -23,6 +23,13 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
+  // Serve static uploads directory for profile photos & media
+  const express = require('express');
+  const path = require('path');
+  const uploadsPath = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+  app.use('/uploads', express.static(uploadsPath));
+  app.use('/api/v1/uploads', express.static(uploadsPath));
+
   // Global prefixes and settings
   app.setGlobalPrefix('api/v1');
 

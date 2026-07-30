@@ -7,16 +7,23 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER';
+  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER' | 'SUPERVISOR';
   preferredName?: string;
   gender?: string;
   dob?: string;
+  dateOfBirth?: string;
   timezone?: string;
   enrollmentDate?: string;
   status?: string;
+  studentStatus?: string;
   trialStatus?: string;
   isDiscontinued?: boolean;
+  discontinued?: boolean;
   avatar?: string;
+  profilePicture?: string;
+  guardianName?: string;
+  guardianPhone?: string;
+  guardianEmail?: string;
   studentId?: string;
   type?: 'CHILD' | 'ADULT';
 }
