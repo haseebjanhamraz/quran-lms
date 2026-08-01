@@ -3,6 +3,8 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Camera, Trash2, Check, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 
+import { getImageUrl } from '@/utils/image';
+
 interface ProfilePhotoPickerProps {
   currentPhotoUrl?: string;
   onPhotoSelected: (url: string) => void;
@@ -20,6 +22,10 @@ export default function ProfilePhotoPicker({
   const [zoom, setZoom] = useState(1);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setPreviewUrl(currentPhotoUrl || null);
+  }, [currentPhotoUrl]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -161,7 +167,7 @@ export default function ProfilePhotoPicker({
         <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border-2 border-dashed border-primary/40 bg-muted/30 flex items-center justify-center overflow-hidden shadow-inner relative transition-all group-hover:border-primary">
           {previewUrl ? (
             <img
-              src={getFullImageUrl(previewUrl)}
+              src={getImageUrl(previewUrl)}
               alt="Profile Avatar"
               className="w-full h-full object-cover"
             />

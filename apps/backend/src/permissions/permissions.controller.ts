@@ -23,8 +23,15 @@ export class PermissionsController {
     throw new BadRequestException(`Invalid role: ${roleStr}`);
   }
 
+  @Get('my')
+  async getMyPermissions(@CurrentUser() user: any) {
+    if (!user) return { permissions: [] };
+    const permissions = await this.permissionsService.getUserPermissions(user.role);
+    return { permissions };
+  }
+
   @Get('matrix')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   getMatrix() {
     return this.permissionsService.getMatrix();
   }

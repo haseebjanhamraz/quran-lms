@@ -44,13 +44,13 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Teachers', icon: BookUser, href: '/admin/teachers' },
   { label: 'Courses', icon: BookOpen, href: '/admin/courses' },
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
+  { label: 'HR Management', icon: Briefcase, href: '/admin/hr' },
+  { label: 'Fees & Payments', icon: CreditCard, href: '/admin/fees' },
 ];
 
 const MORE_NAV: NavItem[] = [
   { label: 'Users & Accounts', icon: Users, href: '/admin/users' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
-  { label: 'Fees & Payments', icon: CreditCard, href: '/admin/fees' },
-  { label: 'HR Management', icon: Briefcase, href: '/admin/hr' },
   { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments' },
   { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports' },
   { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },

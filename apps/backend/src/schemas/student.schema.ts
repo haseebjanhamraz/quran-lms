@@ -31,6 +31,15 @@ export class StudentProfile {
 
   @Prop()
   guardianEmail?: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'FeeStructure' })
+  feeStructureId?: MongooseSchema.Types.ObjectId | string;
+
+  @Prop({ type: Number })
+  monthlyFeeOverride?: number;
+
+  @Prop({ default: 0, type: Number })
+  feeWaiverPercent?: number;
 }
 
 export const StudentProfileSchema = SchemaFactory.createForClass(StudentProfile);

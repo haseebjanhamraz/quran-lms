@@ -6,6 +6,8 @@ import { LoginDto } from './dto/login.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import * as bcrypt from 'bcrypt';
 
+import { PermissionsService } from '../permissions/permissions.service';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -13,6 +15,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly auditLogsService: AuditLogsService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   async validateUser(loginDto: LoginDto): Promise<any> {
@@ -36,6 +39,8 @@ export class AuthService {
   }
 
   async login(user: any) {
+    const permissions = await this.permissionsService.getUserPermissions(user.role);
+    const userWithPerms = { ...user, permissions };
     const payload = { email: user.email, sub: user.id, role: user.role };
     
     const accessToken = this.jwtService.sign(payload, {
@@ -54,7 +59,7 @@ export class AuthService {
     } catch (_) {}
 
     return {
-      user,
+      user: userWithPerms,
       accessToken,
       refreshToken,
     };
@@ -71,6 +76,9 @@ export class AuthService {
         throw new UnauthorizedException('Invalid user session');
       }
 
+      const permissions = await this.permissionsService.getUserPermissions(user.role);
+      const userWithPerms = { ...user, permissions };
+
       const newPayload = { email: user.email, sub: user.id, role: user.role };
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
@@ -79,7 +87,7 @@ export class AuthService {
 
       return {
         accessToken: newAccessToken,
-        user,
+        user: userWithPerms,
       };
     } catch (e) {
       throw new UnauthorizedException('Invalid or expired refresh token');

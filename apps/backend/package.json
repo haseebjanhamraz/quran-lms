@@ -1,6 +1,6 @@
 {
-  "name": "backend",
-  "version": "0.0.1",
+  "name": "Quran-LMS-Server",
+  "version": "1.0.1",
   "description": "",
   "author": "",
   "private": true,
@@ -59,6 +59,7 @@
     "@types/bcrypt": "^6.0.0",
     "@types/cookie-parser": "^1.4.10",
     "@types/express": "^5.0.0",
+    "fast-uri": "^3.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
     "@types/passport-jwt": "^4.0.1",

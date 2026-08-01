@@ -69,7 +69,8 @@ export class UsersService {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
       guardianName, guardianPhone, guardianEmail,
-      qualification, specialization, salary, employeeId, bio, guarantors,
+      qualification, specialization, salary, payType, hourlyRate, country, currency,
+      employeeId, bio, guarantors, phone, cnicOrId, canEditProfile,
       ...baseUserDto
     } = createUserDto;
 
@@ -108,8 +109,17 @@ export class UsersService {
           specialization,
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
           salary,
+          payType: payType || 'MONTHLY',
+          hourlyRate: hourlyRate || 0,
+          country: country || 'Pakistan',
+          currency: currency || 'PKR',
           employeeId,
           bio,
+          phone,
+          cnicOrId,
+          gender,
+          dateOfBirth: finalDob ? new Date(finalDob) : undefined,
+          canEditProfile: canEditProfile !== undefined ? canEditProfile : true,
           guarantors: guarantors || [],
         },
       });
@@ -165,7 +175,8 @@ export class UsersService {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
       guardianName, guardianPhone, guardianEmail,
-      qualification, specialization, salary, employeeId, bio, guarantors,
+      qualification, specialization, salary, payType, hourlyRate, country, currency,
+      employeeId, bio, guarantors, phone, cnicOrId, canEditProfile,
       ...baseData
     } = updateUserDto;
 
@@ -207,8 +218,18 @@ export class UsersService {
       if (specialization !== undefined) teacherUpdate['profile.specialization'] = specialization;
       if (joiningDate !== undefined) teacherUpdate['profile.joiningDate'] = joiningDate ? new Date(joiningDate) : null;
       if (salary !== undefined) teacherUpdate['profile.salary'] = salary;
+      if (payType !== undefined) teacherUpdate['profile.payType'] = payType;
+      if (hourlyRate !== undefined) teacherUpdate['profile.hourlyRate'] = hourlyRate;
+      if (country !== undefined) teacherUpdate['profile.country'] = country;
+      if (currency !== undefined) teacherUpdate['profile.currency'] = currency;
       if (employeeId !== undefined) teacherUpdate['profile.employeeId'] = employeeId;
       if (bio !== undefined) teacherUpdate['profile.bio'] = bio;
+      if (phone !== undefined) teacherUpdate['profile.phone'] = phone;
+      if (cnicOrId !== undefined) teacherUpdate['profile.cnicOrId'] = cnicOrId;
+      if (gender !== undefined) teacherUpdate['profile.gender'] = gender;
+      const finalDob = dateOfBirth !== undefined ? dateOfBirth : dob;
+      if (finalDob !== undefined) teacherUpdate['profile.dateOfBirth'] = finalDob ? new Date(finalDob) : null;
+      if (canEditProfile !== undefined) teacherUpdate['profile.canEditProfile'] = canEditProfile;
       if (guarantors !== undefined) teacherUpdate['profile.guarantors'] = guarantors;
 
       if (Object.keys(teacherUpdate).length > 0) {
@@ -228,6 +249,13 @@ export class UsersService {
 
     if (!user) {
       throw new NotFoundException('User not found');
+    }
+
+    if (user.role === Role.TEACHER) {
+      const teacher = await this.teacherModel.findOne({ userId: id });
+      if (teacher && teacher.profile && teacher.profile.canEditProfile === false) {
+        throw new ConflictException('Admin has restricted profile updates for your account.');
+      }
     }
 
     const { password, dateOfBirth, gender, ...baseData } = dto as any;

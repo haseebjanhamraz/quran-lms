@@ -6,6 +6,7 @@ import {
   Invoice, InvoiceDocument, InvoiceStatus,
   Enrollment, EnrollmentDocument,
   User, UserDocument, Course, CourseDocument,
+  Income, IncomeDocument, IncomeSource,
   Role
 } from '../schemas';
 import { CreateFeeStructureDto } from './dto/create-fee-structure.dto';
@@ -22,6 +23,7 @@ export class FeesService {
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(Income.name) private readonly incomeModel: Model<IncomeDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly emailService: EmailService,
   ) {}
@@ -155,6 +157,22 @@ export class FeesService {
         { invoiceId, billingMonth: invoice.billingMonth },
       );
     }
+
+    // Auto-record Income entry
+    try {
+      if (adminId) {
+        await this.incomeModel.create({
+          title: `Student Fee - ${student?.name || 'Student'} (${invoice.billingMonth})`,
+          amount,
+          currency: invoice.currency || 'PKR',
+          source: IncomeSource.FEES,
+          date: new Date(),
+          referenceId: invoice._id.toString(),
+          recordedBy: adminId,
+          description: `Fee collection for course: ${((invoice as any).course as any)?.title || 'N/A'}`,
+        });
+      }
+    } catch (_) {}
 
     return updated;
   }

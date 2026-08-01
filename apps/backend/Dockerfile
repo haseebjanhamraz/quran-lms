@@ -30,8 +30,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 
-# Create recordings and temp-transcripts directories and set ownership
-RUN mkdir -p /app/recordings /app/temp-transcripts \
+# Create recordings, temp-transcripts, and uploads directories and set ownership
+RUN mkdir -p /app/recordings /app/temp-transcripts /app/uploads/avatars \
   && chown -R nestjs:nodejs /app
 
 USER nestjs

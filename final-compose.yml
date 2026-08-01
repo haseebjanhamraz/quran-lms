@@ -82,6 +82,10 @@ services:
         source: recordings_data
         target: /app/recordings
         volume: {}
+      - type: volume
+        source: uploads_data
+        target: /app/uploads
+        volume: {}
   nextjs:
     build:
       context: /mnt/backup4t/quran-lms/apps/frontend
@@ -183,3 +187,5 @@ volumes:
     name: quran-lms_recordings_data
   redis_data:
     name: quran-lms_redis_data
+  uploads_data:
+    name: quran-lms_uploads_data

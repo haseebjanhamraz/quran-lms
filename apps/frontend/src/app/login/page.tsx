@@ -182,6 +182,14 @@ export default function LoginPage() {
               >
                 Reviewer Portal
               </button>
+              <button
+                type="button"
+                onClick={() => handleQuickLogin('hr@lms.com', 'password123')}
+                disabled={isSubmitting}
+                className="border border-cyan-500/30 hover:bg-cyan-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift col-span-2 sm:col-span-1"
+              >
+                HR Portal
+              </button>
             </div>
           </div>
 

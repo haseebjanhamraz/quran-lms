@@ -15,33 +15,33 @@ export class FeesController {
 
   // Fee Structures
   @Post('structures')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async createStructure(@Body() dto: CreateFeeStructureDto) {
     return this.feesService.createStructure(dto);
   }
 
   @Get('structures')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR, Role.TEACHER)
   async findAllStructures() {
     return this.feesService.findAllStructures();
   }
 
   // Invoices
   @Post('invoices')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async createInvoice(@Body() dto: CreateInvoiceDto, @CurrentUser() user: any) {
     return this.feesService.createInvoice(dto, user?.id);
   }
 
   @Post('invoices/generate-monthly')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async autoGenerateMonthlyInvoices(@Body('billingMonth') billingMonth: string, @CurrentUser() user: any) {
     const month = billingMonth || new Date().toISOString().slice(0, 7);
     return this.feesService.autoGenerateMonthlyInvoices(month, user?.id);
   }
 
   @Get('invoices')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async findAllInvoices(
     @Query('billingMonth') billingMonth?: string,
     @Query('status') status?: string,
@@ -51,13 +51,13 @@ export class FeesController {
   }
 
   @Get('invoices/summary')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async getRevenueSummary(@Query('billingMonth') billingMonth?: string) {
     return this.feesService.getRevenueSummary(billingMonth);
   }
 
   @Patch('invoices/:id/pay')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async recordPayment(
     @Param('id') id: string,
     @Body('amount') amount: number,
@@ -70,7 +70,7 @@ export class FeesController {
   }
 
   @Post('invoices/:id/send-reminder')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR)
   async sendReminder(@Param('id') id: string) {
     return this.feesService.sendReminder(id);
   }

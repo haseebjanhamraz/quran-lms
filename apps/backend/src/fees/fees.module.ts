@@ -8,6 +8,7 @@ import {
   Enrollment, EnrollmentSchema,
   User, UserSchema,
   Course, CourseSchema,
+  Income, IncomeSchema,
 } from '../schemas';
 
 @Module({
@@ -18,6 +19,7 @@ import {
       { name: Enrollment.name, schema: EnrollmentSchema },
       { name: User.name, schema: UserSchema },
       { name: Course.name, schema: CourseSchema },
+      { name: Income.name, schema: IncomeSchema },
     ]),
   ],
   controllers: [FeesController],

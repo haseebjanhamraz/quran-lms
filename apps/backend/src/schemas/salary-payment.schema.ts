@@ -16,6 +16,18 @@ export class SalaryPayment {
   @Prop({ required: true })
   amount: number;
 
+  @Prop({ default: 'MONTHLY' })
+  payType?: string; // 'MONTHLY' | 'HOURLY'
+
+  @Prop({ type: Number })
+  hoursWorked?: number;
+
+  @Prop({ type: Number })
+  hourlyRate?: number;
+
+  @Prop({ default: 'PKR' })
+  currency?: string;
+
   @Prop({ required: true, index: true })
   month: string; // e.g. "2026-07"
 

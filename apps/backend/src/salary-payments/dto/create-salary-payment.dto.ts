@@ -19,5 +19,21 @@ export class CreateSalaryPaymentDto {
 
   @IsString()
   @IsOptional()
+  payType?: string;
+
+  @IsNumber()
+  @IsOptional()
+  hoursWorked?: number;
+
+  @IsNumber()
+  @IsOptional()
+  hourlyRate?: number;
+
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @IsString()
+  @IsOptional()
   notes?: string;
 }

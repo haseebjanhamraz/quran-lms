@@ -25,9 +25,10 @@ import { StudentFeedbackModule } from './student-feedback/student-feedback.modul
 import { SalaryPaymentsModule } from './salary-payments/salary-payments.module';
 import { EmailModule } from './email/email.module';
 import { FeesModule } from './fees/fees.module';
+import { FinanceModule } from './finance/finance.module';
+import { SupportModule } from './support/support.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
-
 import * as path from 'path';
 
 @Module({
@@ -78,6 +79,8 @@ import * as path from 'path';
     SalaryPaymentsModule,
     EmailModule,
     FeesModule,
+    FinanceModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [

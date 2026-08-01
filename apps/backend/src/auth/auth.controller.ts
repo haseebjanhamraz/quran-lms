@@ -6,11 +6,14 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { ConfigService } from '@nestjs/config';
 
+import { PermissionsService } from '../permissions/permissions.service';
+
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly configService: ConfigService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   @Post('login')
@@ -89,6 +92,8 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   async me(@CurrentUser() user: any) {
-    return { user };
+    const permissions = await this.permissionsService.getUserPermissions(user.role);
+    const userObj = user.toObject ? user.toObject() : { ...user };
+    return { user: { ...userObj, permissions } };
   }
 }

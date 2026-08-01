@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, ChevronRight, ChevronLeft, User, Shield, GraduationCap, BookOpen,
-  CheckCircle, Loader2, Check, BookUser
+  CheckCircle, Loader2, Check, BookUser, CreditCard
 } from 'lucide-react';
 import ProfilePhotoPicker from './ProfilePhotoPicker';
 
@@ -68,7 +68,15 @@ export default function AdmissionWizard({
     isDiscontinued: false,
   });
 
-  // Step 4: Teacher & Course Assignment
+  // Step 4: Fees & Billing
+  const [feeInfo, setFeeInfo] = useState({
+    feeStructureId: '',
+    monthlyFeeOverride: '',
+    feeWaiverPercent: '0',
+  });
+  const [feeStructures, setFeeStructures] = useState<any[]>([]);
+
+  // Step 5: Teacher & Course Assignment
   const [assignTeacherLater, setAssignTeacherLater] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
@@ -111,6 +119,12 @@ export default function AdmissionWizard({
           isDiscontinued: Boolean(editingStudent.discontinued || editingStudent.isDiscontinued),
         });
 
+        setFeeInfo({
+          feeStructureId: editingStudent.feeStructureId || '',
+          monthlyFeeOverride: editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '',
+          feeWaiverPercent: editingStudent.feeWaiverPercent ? String(editingStudent.feeWaiverPercent) : '0',
+        });
+
         // Fetch student's existing enrollments
         fetchStudentEnrollments(editingStudent.id || editingStudent._id);
       } else {
@@ -136,14 +150,30 @@ export default function AdmissionWizard({
           trialStatus: 'N/A',
           isDiscontinued: false,
         });
+        setFeeInfo({
+          feeStructureId: '',
+          monthlyFeeOverride: '',
+          feeWaiverPercent: '0',
+        });
         setSelectedCourseIds([]);
         setSelectedTeacherId('');
         setAssignTeacherLater(false);
       }
 
       fetchCoursesAndTeachers();
+      fetchFeeStructures();
     }
   }, [isOpen, editingStudent]);
+
+  const fetchFeeStructures = async () => {
+    try {
+      const res = await fetch(`${API_URL}/fees/structures`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        setFeeStructures(Array.isArray(data) ? data : []);
+      }
+    } catch (_) {}
+  };
 
   const fetchStudentEnrollments = async (studentId: string) => {
     try {
@@ -212,7 +242,7 @@ export default function AdmissionWizard({
         return;
       }
     }
-    setStep((prev) => Math.min(prev + 1, 4));
+    setStep((prev) => Math.min(prev + 1, 5));
   };
 
   const handleBack = () => {
@@ -251,6 +281,9 @@ export default function AdmissionWizard({
         guardianName: guardianInfo.guardianName,
         guardianPhone: guardianInfo.guardianPhone,
         guardianEmail: guardianInfo.guardianEmail,
+        feeStructureId: feeInfo.feeStructureId || undefined,
+        monthlyFeeOverride: feeInfo.monthlyFeeOverride ? Number(feeInfo.monthlyFeeOverride) : undefined,
+        feeWaiverPercent: feeInfo.feeWaiverPercent ? Number(feeInfo.feeWaiverPercent) : 0,
       };
 
       if (personalInfo.password) {
@@ -320,7 +353,8 @@ export default function AdmissionWizard({
     { num: 1, label: 'Personal & Photo', icon: User },
     { num: 2, label: 'Guardian / Parent', icon: Shield },
     { num: 3, label: 'Enrollment Status', icon: GraduationCap },
-    { num: 4, label: 'Teacher & Courses', icon: BookOpen },
+    { num: 4, label: 'Fees & Billing', icon: CreditCard },
+    { num: 5, label: 'Teacher & Courses', icon: BookOpen },
   ];
 
   return (
@@ -637,12 +671,74 @@ export default function AdmissionWizard({
               </div>
             )}
 
-            {/* STEP 4: Teacher & Course Assignment */}
+            {/* STEP 4: Fees & Billing */}
             {step === 4 && (
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-brand" />
+                  <span>Step 4: Fees & Billing Setup</span>
+                </h3>
+                <p className="text-xs text-muted-foreground">Select a fee structure or set custom monthly fee for HR fee management.</p>
+
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Assign Fee Structure (Optional)</label>
+                    <select
+                      value={feeInfo.feeStructureId}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        const fs = feeStructures.find((s) => (s.id || s._id) === selectedId);
+                        setFeeInfo({
+                          ...feeInfo,
+                          feeStructureId: selectedId,
+                          monthlyFeeOverride: fs ? String(fs.monthlyFee) : feeInfo.monthlyFeeOverride,
+                        });
+                      }}
+                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                    >
+                      <option value="">No pre-set structure (Custom fee)</option>
+                      {feeStructures.map((fs) => (
+                        <option key={fs.id || fs._id} value={fs.id || fs._id}>
+                          {fs.course?.title || 'General'} — {fs.monthlyFee} {fs.currency || 'PKR'} / month
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">Monthly Fee Override (Optional)</label>
+                      <input
+                        type="number"
+                        placeholder="e.g. 5000"
+                        value={feeInfo.monthlyFeeOverride}
+                        onChange={(e) => setFeeInfo({ ...feeInfo, monthlyFeeOverride: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">Fee Waiver (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        value={feeInfo.feeWaiverPercent}
+                        onChange={(e) => setFeeInfo({ ...feeInfo, feeWaiverPercent: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5: Teacher & Course Assignment */}
+            {step === 5 && (
+              <div className="space-y-4 animate-fadeIn">
+                <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-brand" />
-                  <span>Step 4: Teacher & Course Assignment</span>
+                  <span>Step 5: Teacher & Course Assignment</span>
                 </h3>
 
                 {/* Optional Teacher Assignment Toggle */}
@@ -745,7 +841,7 @@ export default function AdmissionWizard({
                 <div />
               )}
 
-              {step < 4 ? (
+              {step < 5 ? (
                 <button
                   type="button"
                   onClick={handleNext}

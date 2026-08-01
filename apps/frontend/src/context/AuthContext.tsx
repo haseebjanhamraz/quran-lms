@@ -7,7 +7,8 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER' | 'SUPERVISOR';
+  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER' | 'SUPERVISOR' | 'HR';
+  permissions?: string[];
   preferredName?: string;
   gender?: string;
   dob?: string;
@@ -33,6 +34,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  hasPermission: (permission: string) => boolean;
   error: string | null;
 }
 
@@ -131,8 +133,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const hasPermission = (permission: string) => {
+    if (!user) return false;
+    if (user.role === 'ADMIN') return true;
+    const perms = user.permissions || [];
+    return perms.includes(permission) || perms.includes(`${permission.split('.')[0]}.*`);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, error }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, hasPermission, error }}>
       {children}
     </AuthContext.Provider>
   );

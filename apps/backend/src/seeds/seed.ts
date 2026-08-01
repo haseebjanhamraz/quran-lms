@@ -58,7 +58,8 @@ async function main() {
   // 1. Seed Permissions across all modules
   const modulesList = [
     'users', 'students', 'teachers', 'courses', 'schedule',
-    'enrollments', 'fees', 'hr', 'supervisors', 'audit-logs', 'settings', 'feedback'
+    'enrollments', 'fees', 'hr', 'supervisors', 'audit-logs', 'settings', 'feedback',
+    'expenses', 'salary-config', 'support', 'reports'
   ];
   const actionsList = ['create', 'read', 'update', 'delete'];
 
@@ -77,14 +78,15 @@ async function main() {
   const permissions = await Permission.insertMany(permissionsData);
   console.log(`Seeded ${permissions.length} permissions.`);
 
-  // 2. Admins
+  // 2. Admins & HR
   const adminUsersData = [
     { name: 'Admin One', email: 'admin1@lms.com', passwordHash: defaultPassword, role: Role.ADMIN, timezone: 'UTC' },
     { name: 'Admin Two', email: 'admin2@lms.com', passwordHash: defaultPassword, role: Role.ADMIN, timezone: 'UTC' },
+    { name: 'HR Manager', email: 'hr@lms.com', passwordHash: defaultPassword, role: Role.HR, timezone: 'UTC' },
   ];
   const adminUsers = await User.insertMany(adminUsersData);
   const admin1 = adminUsers[0];
-  console.log('Seeded 2 Admin users.');
+  console.log('Seeded Admin & HR users.');
 
   // Role Permissions for Admin (all permissions)
   const rolePermDocs: any[] = permissions.map((p) => ({
@@ -92,6 +94,17 @@ async function main() {
     permissionId: p._id,
     grantedBy: admin1._id,
   }));
+
+  // Role Permissions for HR
+  permissions.forEach((p) => {
+    if (['fees', 'hr', 'expenses', 'salary-config', 'support', 'reports', 'students', 'teachers', 'enrollments'].includes(p.module)) {
+      rolePermDocs.push({
+        role: Role.HR,
+        permissionId: p._id,
+        grantedBy: admin1._id,
+      });
+    }
+  });
 
   // Role Permissions for Teacher
   permissions.forEach((p) => {
@@ -121,8 +134,8 @@ async function main() {
 
   // Role Permissions for Student
   permissions.forEach((p) => {
-    if (['courses', 'schedule', 'enrollments', 'feedback'].includes(p.module)) {
-      if (p.action === 'read' || (p.action === 'create' && p.module === 'feedback')) {
+    if (['courses', 'schedule', 'enrollments', 'feedback', 'support'].includes(p.module)) {
+      if (p.action === 'read' || (p.action === 'create' && (p.module === 'feedback' || p.module === 'support'))) {
         rolePermDocs.push({
           role: Role.STUDENT,
           permissionId: p._id,

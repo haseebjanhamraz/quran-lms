@@ -78,7 +78,7 @@ export class UsersController {
   }
 
   @Post('upload-avatar')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.HR, Role.TEACHER, Role.STUDENT, Role.SUPERVISOR)
   @UseInterceptors(
     FileInterceptor('file', {
       storage: multer.memoryStorage(),

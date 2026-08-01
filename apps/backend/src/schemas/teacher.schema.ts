@@ -40,11 +40,35 @@ export class TeacherProfile {
   @Prop()
   salary?: number;
 
+  @Prop({ default: 'MONTHLY' })
+  payType?: string; // 'MONTHLY' | 'HOURLY'
+
+  @Prop({ type: Number })
+  hourlyRate?: number;
+
+  @Prop()
+  country?: string;
+
+  @Prop({ default: 'PKR' })
+  currency?: string;
+
   @Prop()
   employeeId?: string;
 
   @Prop()
-  bio?: string;
+  phone?: string;
+
+  @Prop()
+  cnicOrId?: string;
+
+  @Prop()
+  gender?: string;
+
+  @Prop({ type: Date })
+  dateOfBirth?: Date;
+
+  @Prop({ default: true, type: Boolean })
+  canEditProfile?: boolean;
 
   @Prop({ type: [GuarantorSchema], default: [] })
   guarantors?: Guarantor[];

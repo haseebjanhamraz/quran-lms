@@ -107,4 +107,32 @@ export class CreateUserDto {
 
   @IsOptional()
   guarantors?: any[];
+
+  @IsString()
+  @IsOptional()
+  payType?: string;
+
+  @IsNumber()
+  @IsOptional()
+  hourlyRate?: number;
+
+  @IsString()
+  @IsOptional()
+  country?: string;
+
+  @IsString()
+  @IsOptional()
+  currency?: string;
+
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @IsString()
+  @IsOptional()
+  cnicOrId?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  canEditProfile?: boolean;
 }

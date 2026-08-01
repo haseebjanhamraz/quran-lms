@@ -8,6 +8,7 @@ export enum Role {
   TEACHER = 'TEACHER',
   STUDENT = 'STUDENT',
   SUPERVISOR = 'SUPERVISOR',
+  HR = 'HR',
 }
 
 @Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
