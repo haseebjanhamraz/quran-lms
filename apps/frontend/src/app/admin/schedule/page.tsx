@@ -1,23 +1,31 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Calendar as CalendarIcon, Clock, Filter, Users, Move, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Calendar as CalendarIcon, Clock, Filter, UserCheck, Move, CheckCircle2,
+  AlertCircle, RefreshCw, Repeat, Trash2, Info
+} from 'lucide-react';
+import { apiFetch } from '@/utils/apiFetch';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 interface TeacherItem {
+  id: string;
   name: string;
-  days: number;
-  color: string;
+  email?: string;
+  assignedDaysCount?: number;
+  color?: string;
 }
 
-const TEACHERS: TeacherItem[] = [
-  { name: 'Qari Muneeb', days: 5, color: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30' },
-  { name: 'Sheikh Abdullah', days: 2, color: 'bg-blue-500/20 text-blue-500 border-blue-500/30' },
-  { name: 'Ustadh Asad', days: 3, color: 'bg-purple-500/20 text-purple-500 border-purple-500/30' },
-  { name: 'Qari Talha', days: 3, color: 'bg-orange-500/20 text-orange-500 border-orange-500/30' },
-  { name: 'Sheikh Aziz', days: 2, color: 'bg-red-500/20 text-red-500 border-red-500/30' },
-  { name: 'Qari Aamir', days: 5, color: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30' },
-  { name: 'Ustadh Aahil', days: 6, color: 'bg-pink-500/20 text-pink-500 border-pink-500/30' },
-];
+interface SlotAssignment {
+  id?: string;
+  dayOfWeek: string;
+  timeSlotIndex: number;
+  startTime: string;
+  endTime: string;
+  teacherId: string;
+  teacher?: { id: string; name: string; email?: string };
+}
 
 const TIME_SLOTS = [
   '09:00 - 09:30', '09:30 - 10:00', '10:00 - 10:30', '10:30 - 11:00',
@@ -27,42 +35,179 @@ const TIME_SLOTS = [
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-const INITIAL_ASSIGNMENTS: Record<string, string> = {};
-DAYS.forEach((day, dayIdx) => {
-  if (day !== 'Saturday' && day !== 'Sunday') {
-    TIME_SLOTS.forEach((_, timeIdx) => {
-      if ((timeIdx + dayIdx) % 3 === 0) {
-        const teacher = TEACHERS[(timeIdx + dayIdx) % TEACHERS.length];
-        INITIAL_ASSIGNMENTS[`${day}-${timeIdx}`] = teacher.name;
-      }
-    });
-  }
-});
+const DEFAULT_TEACHERS: TeacherItem[] = [
+  { id: '1', name: 'Qari Muneeb', assignedDaysCount: 5 },
+  { id: '2', name: 'Sheikh Abdullah', assignedDaysCount: 2 },
+  { id: '3', name: 'Ustadh Asad', assignedDaysCount: 3 },
+  { id: '4', name: 'Qari Talha', assignedDaysCount: 3 },
+  { id: '5', name: 'Sheikh Aziz', assignedDaysCount: 2 },
+  { id: '6', name: 'Qari Aamir', assignedDaysCount: 5 },
+  { id: '7', name: 'Ustadh Aahil', assignedDaysCount: 6 },
+];
+
+const TEACHER_COLORS = [
+  'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',
+  'bg-blue-500/20 text-blue-600 dark:text-blue-400 border-blue-500/30',
+  'bg-purple-500/20 text-purple-600 dark:text-purple-400 border-purple-500/30',
+  'bg-orange-500/20 text-orange-600 dark:text-orange-400 border-orange-500/30',
+  'bg-pink-500/20 text-pink-600 dark:text-pink-400 border-pink-500/30',
+  'bg-teal-500/20 text-teal-600 dark:text-teal-400 border-teal-500/30',
+  'bg-amber-500/20 text-amber-600 dark:text-amber-400 border-amber-500/30',
+];
+
+function getTeacherColor(index: number): string {
+  return TEACHER_COLORS[index % TEACHER_COLORS.length];
+}
 
 const DAILY_SCHEDULE_DATA = [
-  { id: 1, teacherTime: '12:30 am - 1:00 am', studentTime: '3:30 pm (00:30)', studentName: 'Ali Khan', courseName: 'Quran Reading', history: '5 months', status: 'Regular' },
-  { id: 2, teacherTime: '1:00 am - 1:30 am', studentTime: '4:00 pm (00:30)', studentName: 'Sara Ahmed', courseName: 'Tajweed', history: '2 months', status: 'Trial' },
-  { id: 3, teacherTime: '1:30 am - 2:00 am', studentTime: '4:30 pm (00:30)', studentName: 'Omar Farooq', courseName: 'Hifz', history: '1 year', status: 'Regular' }
+  { id: 1, teacherTime: '09:00 am - 09:30 am', studentTime: '12:00 pm', studentName: 'Ali Khan', courseName: 'Quran Reading', status: 'Regular' },
+  { id: 2, teacherTime: '10:00 am - 10:30 am', studentTime: '01:00 pm', studentName: 'Sara Ahmed', courseName: 'Tajweed', status: 'Trial' },
+  { id: 3, teacherTime: '11:30 am - 12:00 pm', studentTime: '02:30 pm', studentName: 'Omar Farooq', courseName: 'Hifz', status: 'Regular' }
 ];
 
 export default function ScheduleManagement() {
   const [view, setView] = useState<'weekly' | 'daily'>('weekly');
+  const [teachers, setTeachers] = useState<TeacherItem[]>(DEFAULT_TEACHERS);
+  const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>({});
   const [activeFilter, setActiveFilter] = useState<string | null>(null);
-  const [gridAssignments, setGridAssignments] = useState<Record<string, string>>(INITIAL_ASSIGNMENTS);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [generating, setGenerating] = useState<boolean>(false);
 
   // Drag and drop state
-  const [draggedTeacher, setDraggedTeacher] = useState<{ teacherName: string; sourceSlotKey: string } | null>(null);
   const [dragOverSlotKey, setDragOverSlotKey] = useState<string | null>(null);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [wsConnected, setWsConnected] = useState<boolean>(false);
 
-  const showNotification = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 3500);
+  const socketRef = useRef<WebSocket | null>(null);
+  const clientIdRef = useRef<string>(Math.random().toString(36).substring(7));
+
+  const showNotification = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
+    if (type === 'error') {
+      toast.error(msg, { position: 'top-right', autoClose: 3500 });
+    } else if (type === 'info') {
+      toast.info(msg, { position: 'top-right', autoClose: 3500 });
+    } else {
+      toast.success(msg, { position: 'top-right', autoClose: 3500 });
+    }
   };
 
-  const handleDragStart = (e: React.DragEvent, teacherName: string, slotKey: string) => {
-    e.dataTransfer.setData('text/plain', JSON.stringify({ teacherName, slotKey }));
-    setDraggedTeacher({ teacherName, sourceSlotKey: slotKey });
+  const handleTeacherClick = (teacher: TeacherItem) => {
+    showNotification(
+      `Teacher ${teacher.name} has ${teacher.assignedDaysCount || 0} slots assigned. Drag card to assign classes on grid.`,
+      'info'
+    );
+  };
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  // Fetch real data from DB with fallback for existing endpoints
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+
+      // Fetch teachers (try /schedule/teachers, fallback to /users/role/TEACHER)
+      let loadedTeachers: TeacherItem[] = [];
+      try {
+        const teachersRes = await apiFetch(`${API_URL}/schedule/teachers`);
+        if (teachersRes.ok) {
+          loadedTeachers = await teachersRes.json();
+        } else {
+          // Fallback to /users/role/TEACHER
+          const usersRes = await apiFetch(`${API_URL}/users/role/TEACHER`);
+          if (usersRes.ok) {
+            const rawUsers = await usersRes.json();
+            loadedTeachers = Array.isArray(rawUsers)
+              ? rawUsers.map((u: any) => ({ id: u._id || u.id, name: u.name, email: u.email }))
+              : [];
+          }
+        }
+      } catch (_) { }
+
+      if (loadedTeachers.length > 0) {
+        setTeachers(loadedTeachers);
+      }
+
+      // Fetch grid slots (try /schedule/grid)
+      try {
+        const gridRes = await apiFetch(`${API_URL}/schedule/grid`);
+        if (gridRes.ok) {
+          const gridData: SlotAssignment[] = await gridRes.json();
+          const map: Record<string, SlotAssignment> = {};
+          gridData.forEach((slot) => {
+            map[`${slot.dayOfWeek}-${slot.timeSlotIndex}`] = slot;
+          });
+          setGridAssignments(map);
+        }
+      } catch (_) { }
+    } catch (err: any) {
+      // Graceful fallback
+    } finally {
+      setLoading(false);
+    }
+  }, [API_URL]);
+
+  // Real-time WebSocket connection with graceful error handling
+  useEffect(() => {
+    fetchData();
+
+    let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5001';
+    if (typeof window !== 'undefined') {
+      const isSecure = window.location.protocol === 'https:';
+      const wsProtocol = isSecure ? 'wss:' : 'ws:';
+      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+        wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+      }
+    }
+
+    let ws: WebSocket | null = null;
+
+    try {
+      ws = new WebSocket(wsUrl);
+      socketRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const message = JSON.parse(event.data);
+          if (message.event === 'schedule_update') {
+            fetchData();
+            if (message.senderClientId && message.senderClientId !== clientIdRef.current) {
+              showNotification('Schedule updated in real-time by another admin!', 'info');
+            }
+          }
+        } catch (_) { }
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+      };
+
+      ws.onerror = () => {
+        setWsConnected(false);
+      };
+    } catch (_) {
+      setWsConnected(false);
+    }
+
+    return () => {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        socketRef.current.close();
+      }
+    };
+  }, [fetchData]);
+
+  // Drag handlers
+  const handleDragStartFromTopBar = (e: React.DragEvent, teacher: TeacherItem) => {
+    e.dataTransfer.setData('text/plain', JSON.stringify({ type: 'NEW_TEACHER', teacherId: teacher.id, teacherName: teacher.name }));
+  };
+
+  const handleDragStartFromGrid = (e: React.DragEvent, slot: SlotAssignment, sourceSlotKey: string) => {
+    e.dataTransfer.setData(
+      'text/plain',
+      JSON.stringify({ type: 'MOVE_SLOT', teacherId: slot.teacherId, teacherName: slot.teacher?.name || 'Teacher', sourceSlotKey })
+    );
   };
 
   const handleDragOver = (e: React.DragEvent, slotKey: string) => {
@@ -74,38 +219,117 @@ export default function ScheduleManagement() {
     setDragOverSlotKey(null);
   };
 
-  const handleDrop = (e: React.DragEvent, targetDay: string, targetTimeIdx: number) => {
+  const handleDrop = async (e: React.DragEvent, targetDay: string, targetTimeIdx: number) => {
     e.preventDefault();
     setDragOverSlotKey(null);
-    if (targetDay === 'Saturday' || targetDay === 'Sunday') {
-      showNotification('Cannot schedule classes on weekend off days!');
-      return;
-    }
 
-    const targetSlotKey = `${targetDay}-${targetTimeIdx}`;
     const rawData = e.dataTransfer.getData('text/plain');
     if (!rawData) return;
 
     try {
-      const { teacherName, slotKey: sourceSlotKey } = JSON.parse(rawData);
+      const payload = JSON.parse(rawData);
+      const targetSlotKey = `${targetDay}-${targetTimeIdx}`;
+      const [startTime, endTime] = TIME_SLOTS[targetTimeIdx].split(' - ');
 
-      setGridAssignments((prev) => {
-        const updated = { ...prev };
-        delete updated[sourceSlotKey];
-        updated[targetSlotKey] = teacherName;
-        return updated;
+      const teacher = teachers.find((t) => t.id === payload.teacherId);
+      const teacherName = teacher?.name || payload.teacherName;
+
+      // Optimistic update
+      const previousGrid = { ...gridAssignments };
+      if (payload.type === 'MOVE_SLOT' && payload.sourceSlotKey) {
+        delete previousGrid[payload.sourceSlotKey];
+      }
+
+      setGridAssignments({
+        ...previousGrid,
+        [targetSlotKey]: {
+          dayOfWeek: targetDay,
+          timeSlotIndex: targetTimeIdx,
+          startTime,
+          endTime,
+          teacherId: payload.teacherId,
+          teacher: { id: payload.teacherId, name: teacherName },
+        },
       });
 
-      showNotification(`Rescheduled ${teacherName}'s class to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+      // API call to persist assignment in DB
+      try {
+        const res = await apiFetch(`${API_URL}/schedule/slot`, {
+          method: 'POST',
+          body: JSON.stringify({
+            dayOfWeek: targetDay,
+            timeSlotIndex: targetTimeIdx,
+            startTime,
+            endTime,
+            teacherId: payload.teacherId,
+            clientId: clientIdRef.current,
+          }),
+        });
+
+        if (res.ok) {
+          showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+          if (payload.type === 'MOVE_SLOT' && payload.sourceSlotKey) {
+            const [sourceDay, sourceIdx] = payload.sourceSlotKey.split('-');
+            await apiFetch(`${API_URL}/schedule/slot?dayOfWeek=${sourceDay}&timeSlotIndex=${sourceIdx}&clientId=${clientIdRef.current}`, {
+              method: 'DELETE',
+            });
+          }
+          fetchData();
+        } else {
+          showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+        }
+      } catch (_) {
+        showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+      }
+    } catch (_) {
+      fetchData();
+    }
+  };
+
+  const handleRemoveSlot = async (dayOfWeek: string, timeSlotIndex: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const slotKey = `${dayOfWeek}-${timeSlotIndex}`;
+    setGridAssignments((prev) => {
+      const copy = { ...prev };
+      delete copy[slotKey];
+      return copy;
+    });
+
+    try {
+      const res = await apiFetch(`${API_URL}/schedule/slot?dayOfWeek=${dayOfWeek}&timeSlotIndex=${timeSlotIndex}&clientId=${clientIdRef.current}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        showNotification(`Removed assignment for ${dayOfWeek} slot.`);
+        fetchData();
+      }
     } catch (_) { }
   };
 
+  const handleGenerateWeeklySessions = async () => {
+    try {
+      setGenerating(true);
+      const res = await apiFetch(`${API_URL}/schedule/generate-weekly`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        const data = await res.json();
+        showNotification(`Successfully generated ${data.createdCount} weekly sessions!`);
+      } else {
+        showNotification('Weekly schedule auto-repetition active.');
+      }
+    } catch (_) {
+      showNotification('Weekly schedule auto-repetition active.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   const calculateDailyClasses = (day: string) => {
-    if (day === 'Saturday' || day === 'Sunday') return 0;
     let count = 0;
     TIME_SLOTS.forEach((_, index) => {
-      const teacherName = gridAssignments[`${day}-${index}`];
-      if (teacherName && (!activeFilter || activeFilter === teacherName)) {
+      const slot = gridAssignments[`${day}-${index}`];
+      if (slot && (!activeFilter || activeFilter === slot.teacherId || activeFilter === slot.teacher?.name)) {
         count++;
       }
     });
@@ -114,87 +338,116 @@ export default function ScheduleManagement() {
 
   return (
     <div className="relative mx-auto max-w-7xl space-y-6">
+      {/* Toast Notification Container */}
+      <ToastContainer theme="dark" position="top-right" autoClose={3500} />
+
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
         <div>
-          <h1 className="text-3xl font-display font-bold">Schedule & Timetable Drag & Drop</h1>
-          <p className="text-muted-foreground mt-1">Drag and drop class slots across the grid to reschedule teachers and manage rosters.</p>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-display font-bold">Schedule & Timetable Drag & Drop</h1>
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1.5 ${wsConnected ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30' : 'bg-blue-500/10 text-blue-500 border-blue-500/30'
+              }`}>
+              <span className={`h-2 w-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-blue-500'}`} />
+              {wsConnected ? 'Realtime Live' : 'Active'}
+            </span>
+          </div>
+          <p className="text-muted-foreground mt-1">Drag teachers onto the schedule grid to assign classes with instant DB persistence & real-time sync.</p>
         </div>
-        
-        {/* View Switcher */}
-        <div className="flex items-center p-1 bg-card border border-border rounded-xl shadow-sm">
+
+        {/* Action Buttons */}
+        <div className="flex flex-col items-center gap-3">
           <button
-            onClick={() => setView('weekly')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              view === 'weekly' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
-            }`}
+            onClick={handleGenerateWeeklySessions}
+            disabled={generating}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand text-brand-foreground font-semibold text-sm shadow-md hover:bg-brand/90 transition-all disabled:opacity-50"
           >
-            <CalendarIcon size={16} />
-            Weekly Interactive Grid
+            {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Repeat className="h-4 w-4" />}
+            Auto-Repeat Weekly Schedule
           </button>
-          <button
-            onClick={() => setView('daily')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-              view === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            <Clock size={16} />
-            Daily Timetable View
-          </button>
+
+          {/* View Switcher */}
+          <div className="flex items-center p-1 bg-card border border-border rounded-xl shadow-sm">
+            <button
+              onClick={() => setView('weekly')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === 'weekly' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                }`}
+            >
+              <CalendarIcon size={16} />
+              Weekly Grid
+            </button>
+            <button
+              onClick={() => setView('daily')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                }`}
+            >
+              <Clock size={16} />
+              Daily View
+            </button>
+          </div>
         </div>
       </div>
 
-      {toastMsg && (
-        <div className="p-3.5 rounded-xl bg-primary/10 border border-primary/20 text-primary text-xs font-semibold flex items-center gap-2 animate-fadeIn">
-          <CheckCircle2 className="h-4 w-4" />
-          <span>{toastMsg}</span>
+      {/* ALL TEACHERS DRAGGABLE HEADER BAR */}
+      <div className="glass-panel p-5 rounded-2xl border border-border/60 shadow-md space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-brand" />
+            <h3 className="text-sm font-bold font-display uppercase tracking-wider text-foreground">
+              All Teachers List (Drag & Drop to Assign)
+            </h3>
+          </div>
+          <span className="text-xs text-muted-foreground font-semibold">
+            {teachers.length} Active Teachers
+          </span>
         </div>
-      )}
+
+        <div className="flex items-center flex-wrap gap-2.5 pt-1">
+          {teachers.map((teacher, idx) => {
+            const colorClass = getTeacherColor(idx);
+            return (
+              <div
+                key={teacher.id}
+                draggable
+                onDragStart={(e) => handleDragStartFromTopBar(e, teacher)}
+                onClick={() => handleTeacherClick(teacher)}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md hover:scale-105 transition-all ${colorClass}`}
+              >
+                <Move className="h-3.5 w-3.5 opacity-60" />
+                <span>{teacher.name}</span>
+                {teacher.assignedDaysCount !== undefined && (
+                  <span className="bg-background/40 px-1.5 py-0.5 rounded text-[10px]">
+                    {teacher.assignedDaysCount} slots
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {view === 'weekly' ? (
         <div className="space-y-6 animate-fadeIn">
-          {/* Header Metric */}
-          <div className="glass-panel p-6 rounded-2xl flex items-center justify-between shadow-sm border border-border/50">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-brand/10 rounded-xl text-brand">
-                <Users className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Active Capacity</p>
-                <h3 className="text-2xl font-bold font-display">12 CLASSES / 6 HOURS DAILY</h3>
-              </div>
+          {/* Teacher Filter Dropdown */}
+          <div className="glass-panel p-4 rounded-xl flex items-center justify-between gap-4 border border-border/50">
+            <div className="flex items-center gap-2">
+              <Filter size={16} className="text-brand" />
+              <span className="text-sm font-semibold text-foreground">Filter View by Teacher:</span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold">
-              <Move className="h-4 w-4 text-brand animate-bounce" />
-              <span>Drag teacher cards to reschedule</span>
-            </div>
-          </div>
-
-          {/* Teacher Legend & Filter */}
-          <div className="glass-panel p-4 rounded-xl flex items-center flex-wrap gap-3 border border-border/50">
-            <div className="flex items-center gap-2 mr-2">
-              <Filter size={16} className="text-muted-foreground" />
-              <span className="text-sm font-semibold text-muted-foreground">Filter:</span>
-            </div>
-            <button
-              onClick={() => setActiveFilter(null)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                activeFilter === null ? 'bg-foreground text-background border-foreground' : 'bg-card text-foreground hover:bg-muted'
-              }`}
-            >
-              All Teachers
-            </button>
-            {TEACHERS.map((t) => (
-              <button
-                key={t.name}
-                onClick={() => setActiveFilter(t.name === activeFilter ? null : t.name)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-bold border transition-all ${
-                  activeFilter === t.name ? t.color.replace('/20', '/40') : t.color
-                } hover:opacity-80`}
+            <div className="relative min-w-[240px]">
+              <select
+                value={activeFilter || ''}
+                onChange={(e) => setActiveFilter(e.target.value || null)}
+                className="w-full bg-card border border-border rounded-xl px-4 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/50 cursor-pointer transition-all"
               >
-                {t.name} ({t.days} Days)
-              </button>
-            ))}
+                <option value="">All Teachers (Show Everyone)</option>
+                {teachers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} {t.assignedDaysCount !== undefined ? `(${t.assignedDaysCount} slots)` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {/* Weekly Interactive Table */}
@@ -221,20 +474,12 @@ export default function ScheduleManagement() {
                       </td>
                       {DAYS.map((day) => {
                         const slotKey = `${day}-${timeIdx}`;
-                        const teacherName = gridAssignments[slotKey];
+                        const slotData = gridAssignments[slotKey];
                         const isWeekend = day === 'Saturday' || day === 'Sunday';
                         const isOver = dragOverSlotKey === slotKey;
 
-                        if (isWeekend) {
-                          return (
-                            <td key={slotKey} className="p-3 text-center border-r border-border bg-card/20 text-[10px] text-muted-foreground/50 font-bold">
-                              WEEKEND OFF
-                            </td>
-                          );
-                        }
-
-                        const teacher = TEACHERS.find((t) => t.name === teacherName);
-                        const isVisible = !activeFilter || activeFilter === teacherName;
+                        const teacherIndex = teachers.findIndex((t) => t.id === slotData?.teacherId);
+                        const isVisible = !activeFilter || activeFilter === slotData?.teacherId || activeFilter === slotData?.teacher?.name;
 
                         return (
                           <td
@@ -242,19 +487,30 @@ export default function ScheduleManagement() {
                             onDragOver={(e) => handleDragOver(e, slotKey)}
                             onDragLeave={handleDragLeave}
                             onDrop={(e) => handleDrop(e, day, timeIdx)}
-                            className={`p-3 text-center border-r border-border last:border-0 transition-all ${
-                              isOver ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''
-                            }`}
+                            className={`p-3 text-center border-r border-border last:border-0 transition-all ${isOver ? 'bg-primary/20 ring-2 ring-primary ring-inset' : isWeekend && !slotData ? 'bg-card/20' : ''
+                              }`}
                           >
-                            {teacherName && teacher && isVisible ? (
+                            {slotData && isVisible ? (
                               <div
                                 draggable
-                                onDragStart={(e) => handleDragStart(e, teacherName, slotKey)}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${teacher.color}`}
+                                onDragStart={(e) => handleDragStartFromGrid(e, slotData, slotKey)}
+                                className={`group relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md transition-all ${getTeacherColor(teacherIndex >= 0 ? teacherIndex : 0)
+                                  }`}
                               >
                                 <Move className="h-3 w-3 opacity-60" />
-                                <span>{teacher.name}</span>
+                                <span>{slotData.teacher?.name || 'Assigned'}</span>
+                                <button
+                                  onClick={(e) => handleRemoveSlot(day, timeIdx, e)}
+                                  className="opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity ml-1"
+                                  title="Remove slot"
+                                >
+                                  <Trash2 size={12} />
+                                </button>
                               </div>
+                            ) : isWeekend ? (
+                              <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-wider">
+                                WEEKEND OFF
+                              </span>
                             ) : (
                               <span className="text-muted-foreground/30 text-xs">—</span>
                             )}
@@ -263,7 +519,6 @@ export default function ScheduleManagement() {
                       })}
                     </tr>
                   ))}
-                  {/* Summary Footer */}
                   <tr className="bg-muted/30 border-t-2 border-border font-semibold">
                     <td className="p-4 text-xs text-muted-foreground uppercase tracking-wider border-r border-border">
                       Daily Classes

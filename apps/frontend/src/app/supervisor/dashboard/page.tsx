@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
+import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 
 function SupervisorSettingsTab() {
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -295,6 +296,9 @@ export default function SupervisorDashboardPage() {
             Your evaluations preserve teaching quality and platform guidelines compliance.
           </p>
         </section>
+
+        {/* Blinking Live / Upcoming Class Banner */}
+        <UpcomingClassBanner userRole="SUPERVISOR" className="mb-8" />
 
         {/* Stats Roster */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

@@ -16,6 +16,7 @@ import NotificationsDropdown from '@/components/NotificationsDropdown';
 import InstantClassModal from './components/InstantClassModal';
 import ThemeToggle from '@/components/ThemeToggle';
 import Image from 'next/image';
+import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 
 // Interfaces
 interface SessionItem {
@@ -391,16 +392,12 @@ export default function TeacherDashboard() {
                 <PlayCircle size={18} className="text-white animate-pulse" />
                 Start Class
               </button>
-              {/* <button
-                onClick={() => router.push('/teacher/schedule')}
-                className="group flex w-fit items-center gap-2 rounded-2xl bg-slate-800 border border-slate-700/60 px-6 py-3 font-semibold text-slate-200 shadow-xl transition-all duration-200 hover:scale-105 hover:bg-slate-700/80"
-              >
-                <Plus size={18} className="transition-transform duration-200 group-hover:rotate-90 text-emerald-400" />
-                Schedule Class
-              </button> */}
             </div>
           </div>
         </section>
+
+        {/* Blinking Live / Upcoming Class Banner */}
+        <UpcomingClassBanner userRole="TEACHER" className="mb-6" />
 
         {/* Stats row */}
         <StatsRow stats={stats} />

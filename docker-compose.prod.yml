@@ -23,9 +23,12 @@ services:
         condition: service_healthy
 
   nestjs:
+    env_file:
+      - .env
     environment:
       MONGODB_URI: ${MONGODB_URI}
       PORT: ${PORT}
+      WS_PORT: ${WS_PORT}
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -57,17 +60,19 @@ services:
         condition: service_started
 
   nextjs:
+    env_file:
+      - .env
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
       args:
-        # Next.js environment variables must be passed as build arguments
-        # so they are baked into the static bundle during compilation
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
+      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
       NODE_ENV: production
     depends_on:
       nestjs:

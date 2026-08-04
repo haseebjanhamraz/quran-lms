@@ -27,6 +27,7 @@ import { EmailModule } from './email/email.module';
 import { FeesModule } from './fees/fees.module';
 import { FinanceModule } from './finance/finance.module';
 import { SupportModule } from './support/support.module';
+import { ScheduleModule } from './schedule/schedule.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
@@ -81,6 +82,7 @@ import * as path from 'path';
     FeesModule,
     FinanceModule,
     SupportModule,
+    ScheduleModule,
   ],
   controllers: [AppController],
   providers: [

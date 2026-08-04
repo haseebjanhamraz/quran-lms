@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, Edit, Eye, XCircle, User as UserIcon,
-  BookUser, DollarSign, CheckCircle, AlertCircle, ShieldCheck
+  BookUser, DollarSign, CheckCircle, AlertCircle, ShieldCheck, BookOpen
 } from 'lucide-react';
 import TeacherWizard from '@/components/TeacherWizard';
 import TeacherDetailModal from '@/components/TeacherDetailModal';
+import TeacherCourseAssignmentModal from '@/components/TeacherCourseAssignmentModal';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
 import DataTable, { Column, FilterOption } from '@/components/DataTable';
@@ -55,6 +56,7 @@ export default function TeachersManagementPage() {
 
   // View Guarantors Modal
   const [viewingGuarantors, setViewingGuarantors] = useState<GuarantorItem[] | null>(null);
+  const [assigningTeacher, setAssigningTeacher] = useState<TeacherUser | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -228,6 +230,14 @@ export default function TeachersManagementPage() {
       align: 'right',
       render: (t) => (
         <div className="flex justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => setAssigningTeacher(t)}
+            className="text-brand hover:text-brand-foreground transition-colors p-2 hover:bg-brand/10 rounded-lg"
+            title="Assign Multiple Courses"
+          >
+            <BookOpen className="h-4 w-4" />
+          </button>
           <button
             type="button"
             onClick={() => setViewingTeacher(t)}
@@ -410,6 +420,14 @@ export default function TeachersManagementPage() {
           </div>
         </div>
       )}
+
+      {/* ASSIGN COURSES MULTI-SELECT MODAL */}
+      <TeacherCourseAssignmentModal
+        isOpen={Boolean(assigningTeacher)}
+        teacher={assigningTeacher}
+        onClose={() => setAssigningTeacher(null)}
+        onSuccess={() => fetchData()}
+      />
     </div>
   );
 }

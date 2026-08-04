@@ -75,7 +75,10 @@ export class ClassSessionsService {
     }
 
     const scheduledDate = new Date(createClassSessionDto.scheduledAt);
-    const teacherId = createClassSessionDto.teacherId || course.teacherId.toString();
+    const teacherId = createClassSessionDto.teacherId || course.teacherId?.toString() || course.teacherIds?.[0]?.toString();
+    if (!teacherId) {
+      throw new ConflictException('No teacher assigned to this course.');
+    }
 
     const hasConflict = await this.checkTeacherConflict(
       teacherId,

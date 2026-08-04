@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
 import ThemeToggle from '@/components/ThemeToggle';
+import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -272,7 +273,10 @@ export default function StudentDashboard() {
           </div>
         </section>
 
-        {/* STATS ROW */}
+        {/* Blinking Live / Upcoming Class Banner */}
+        <UpcomingClassBanner userRole="STUDENT" className="mb-8" />
+
+        {/* METRICS ROW */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
             <div className="flex items-center justify-between mb-3">

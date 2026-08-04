@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { XCircle, Loader2, BookOpen, User, FileText, Sparkles } from 'lucide-react';
+import { XCircle, Loader2, BookOpen, User, FileText, Sparkles, CheckSquare, Square } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 
 export interface CourseItem {
@@ -11,12 +11,19 @@ export interface CourseItem {
   type: 'NAZIRA' | 'TAJWEED' | 'HIFZ_UL_QURAN' | 'ISLAMIC_STUDIES';
   curriculum: string;
   teacherId?: string;
+  teacherIds?: string[];
   teacher?: {
     id: string;
     _id?: string;
     name: string;
     email: string;
   };
+  teachers?: Array<{
+    id: string;
+    _id?: string;
+    name: string;
+    email: string;
+  }>;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -47,7 +54,7 @@ export default function CourseModal({
   const [title, setTitle] = useState('');
   const [type, setType] = useState<'NAZIRA' | 'TAJWEED' | 'HIFZ_UL_QURAN' | 'ISLAMIC_STUDIES'>('TAJWEED');
   const [curriculum, setCurriculum] = useState('');
-  const [teacherId, setTeacherId] = useState('');
+  const [selectedTeacherIds, setSelectedTeacherIds] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -58,25 +65,38 @@ export default function CourseModal({
       setTitle(editingCourse.title || '');
       setType(editingCourse.type || 'TAJWEED');
       setCurriculum(editingCourse.curriculum || '');
-      const tId = editingCourse.teacherId || editingCourse.teacher?.id || editingCourse.teacher?._id || '';
-      setTeacherId(tId);
+      const rawIds = editingCourse.teacherIds || (editingCourse.teachers ? editingCourse.teachers.map((t) => t.id || t._id || '') : []);
+      const primaryId = editingCourse.teacherId || editingCourse.teacher?.id || editingCourse.teacher?._id;
+      if (rawIds.length > 0) {
+        setSelectedTeacherIds(rawIds);
+      } else if (primaryId) {
+        setSelectedTeacherIds([primaryId]);
+      } else {
+        setSelectedTeacherIds([]);
+      }
     } else {
       setTitle('');
       setType('TAJWEED');
       setCurriculum('');
-      setTeacherId(teachers.length > 0 ? (teachers[0].id || teachers[0]._id || '') : '');
+      setSelectedTeacherIds(teachers.length > 0 ? [(teachers[0].id || teachers[0]._id || '')] : []);
     }
     setSubmitError(null);
   }, [editingCourse, isOpen, teachers]);
 
   if (!isOpen) return null;
 
+  const toggleTeacher = (id: string) => {
+    setSelectedTeacherIds((prev) =>
+      prev.includes(id) ? prev.filter((tId) => tId !== id) : [...prev, id]
+    );
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
 
-    if (!teacherId) {
-      setSubmitError('Please select a primary teacher for this course.');
+    if (selectedTeacherIds.length === 0) {
+      setSubmitError('Please select at least one instructor for this course.');
       return;
     }
 
@@ -93,7 +113,8 @@ export default function CourseModal({
           title,
           type,
           curriculum,
-          teacherId,
+          teacherId: selectedTeacherIds[0],
+          teacherIds: selectedTeacherIds,
         }),
       });
 
@@ -125,7 +146,7 @@ export default function CourseModal({
                 {editingCourse ? 'Edit Course Details' : 'Create New Course'}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {editingCourse ? 'Modify course syllabus, category, or instructor.' : 'Define new subject, syllabus curriculum, and assign an instructor.'}
+                {editingCourse ? 'Modify course syllabus, category, or instructors.' : 'Define new subject, syllabus curriculum, and assign instructors.'}
               </p>
             </div>
           </div>
@@ -180,31 +201,44 @@ export default function CourseModal({
             </select>
           </div>
 
-          {/* Teacher Selector */}
+          {/* Multi-Teacher Checkbox Selector */}
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-brand" />
-              <span>Assign Primary Instructor</span>
+            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5 justify-between">
+              <span className="flex items-center gap-1.5">
+                <User className="h-3.5 w-3.5 text-brand" />
+                <span>Assign Instructors</span>
+              </span>
+              <span className="text-[10px] text-brand font-mono font-bold">
+                {selectedTeacherIds.length} Selected
+              </span>
             </label>
             {teachers.length === 0 ? (
               <p className="text-xs text-rose-500 font-semibold p-2 bg-rose-500/10 rounded-lg border border-rose-500/20">
                 No active Teachers found! Please create a Teacher account first.
               </p>
             ) : (
-              <select
-                value={teacherId}
-                onChange={(e) => setTeacherId(e.target.value)}
-                className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-sm outline-none transition-all"
-              >
+              <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-background border border-border rounded-xl">
                 {teachers.map((t) => {
-                  const id = t.id || t._id;
+                  const id = t.id || t._id || '';
+                  const isChecked = selectedTeacherIds.includes(id);
+
                   return (
-                    <option key={id} value={id}>
-                      {t.name} ({t.email})
-                    </option>
+                    <div
+                      key={id}
+                      onClick={() => toggleTeacher(id)}
+                      className={`p-2 rounded-lg text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
+                        isChecked ? 'bg-brand/10 text-brand border border-brand/30' : 'hover:bg-muted text-foreground'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {isChecked ? <CheckSquare className="h-4 w-4 text-brand shrink-0" /> : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <span>{t.name}</span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground">{t.email}</span>
+                    </div>
                   );
                 })}
-              </select>
+              </div>
             )}
           </div>
 
@@ -216,7 +250,7 @@ export default function CourseModal({
             </label>
             <textarea
               required
-              rows={4}
+              rows={3}
               placeholder="Outline daily goals, reading targets, or memorization milestones..."
               value={curriculum}
               onChange={(e) => setCurriculum(e.target.value)}

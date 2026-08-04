@@ -26,6 +26,8 @@ services:
         target: /recordings
         volume: {}
   nestjs:
+    env_file:
+      - .env
     build:
       context: /mnt/backup4t/quran-lms/apps/backend
       dockerfile: Dockerfile
@@ -58,6 +60,7 @@ services:
       LIVEKIT_PUBLIC_URL: wss://livekit.kpcybers.com
       NODE_ENV: production
       PORT: "5000"
+      WS_PORT: "5001"
       RECORDINGS_DIR: /app/recordings
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -68,9 +71,14 @@ services:
       default: null
     ports:
       - mode: ingress
-        host_ip: 127.0.0.1
+        host_ip: 0.0.0.0
         target: 5000
         published: "5000"
+        protocol: tcp
+      - mode: ingress
+        host_ip: 0.0.0.0
+        target: 5001
+        published: "5001"
         protocol: tcp
     restart: always
     volumes:
@@ -87,12 +95,15 @@ services:
         target: /app/uploads
         volume: {}
   nextjs:
+    env_file:
+      - .env
     build:
       context: /mnt/backup4t/quran-lms/apps/frontend
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: https://quran-api.kpcybers.com/api/v1
         NEXT_PUBLIC_LIVEKIT_URL: wss://livekit.kpcybers.com
+        NEXT_PUBLIC_WS_URL: ws://localhost:5001
     container_name: quran-lms-nextjs
     depends_on:
       nestjs:
@@ -101,6 +112,7 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: https://quran-api.kpcybers.com/api/v1
       NEXT_PUBLIC_LIVEKIT_URL: wss://livekit.kpcybers.com
+      NEXT_PUBLIC_WS_URL: ws://localhost:5001
       NODE_ENV: production
     networks:
       default: null

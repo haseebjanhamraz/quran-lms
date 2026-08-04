@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
+import TeacherTimetableGrid from './TeacherTimetableGrid';
+import TeacherCourseAssignmentModal from './TeacherCourseAssignmentModal';
 
 export interface GuarantorItem {
   name: string;
@@ -67,7 +69,9 @@ export default function TeacherDetailModal({
 }: TeacherDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'guarantors'>('overview');
   const [courses, setCourses] = useState<AssignedCourse[]>([]);
+  const [assignedSlotsCount, setAssignedSlotsCount] = useState<number>(0);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -75,21 +79,62 @@ export default function TeacherDetailModal({
     if (isOpen && teacher) {
       const teacherTargetId = teacher.id || teacher._id;
       if (teacherTargetId) {
-        fetchTeacherCourses(teacherTargetId);
+        fetchTeacherCoursesAndSlots(teacherTargetId);
       }
     }
   }, [isOpen, teacher]);
 
-  const fetchTeacherCourses = async (teacherId: string) => {
+  const fetchTeacherCoursesAndSlots = async (teacherId: string) => {
     setLoadingCourses(true);
     try {
-      const res = await apiFetch(`${API_URL}/courses/teacher/${teacherId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCourses(Array.isArray(data) ? data : []);
+      const [coursesRes, gridRes] = await Promise.all([
+        apiFetch(`${API_URL}/courses/teacher/${teacherId}`),
+        apiFetch(`${API_URL}/schedule/grid`),
+      ]);
+
+      let fetchedCourses: AssignedCourse[] = [];
+      if (coursesRes.ok) {
+        const data = await coursesRes.json();
+        fetchedCourses = Array.isArray(data) ? data : [];
       }
+
+      let slotCount = 0;
+      let derivedCoursesFromSlots: AssignedCourse[] = [];
+      if (gridRes.ok) {
+        const gridData: any[] = await gridRes.json();
+        const teacherSlots = gridData.filter((s) => {
+          const tId = typeof s.teacherId === 'object' ? s.teacherId?._id || s.teacherId?.id : s.teacherId;
+          return tId === teacherId || s.teacher?.id === teacherId;
+        });
+        slotCount = teacherSlots.length;
+
+        // Extract unique courses from schedule slots
+        const courseMap: Record<string, AssignedCourse> = {};
+        teacherSlots.forEach((slot) => {
+          if (slot.course) {
+            courseMap[slot.course.id || slot.course._id] = {
+              id: slot.course.id || slot.course._id,
+              title: slot.course.title,
+              type: slot.course.type,
+              enrolledStudentsCount: 1,
+            };
+          } else {
+            const tempId = `slot-course-${slot.dayOfWeek}-${slot.timeSlotIndex}`;
+            courseMap[tempId] = {
+              id: tempId,
+              title: `Class Session (${slot.dayOfWeek} @ ${slot.startTime})`,
+              type: 'Recurring Class',
+              enrolledStudentsCount: 1,
+            };
+          }
+        });
+        derivedCoursesFromSlots = Object.values(courseMap);
+      }
+
+      setCourses(fetchedCourses.length > 0 ? fetchedCourses : derivedCoursesFromSlots);
+      setAssignedSlotsCount(slotCount);
     } catch (err) {
-      console.error('Error fetching teacher courses:', err);
+      console.error('Error fetching teacher courses/slots:', err);
     } finally {
       setLoadingCourses(false);
     }
@@ -103,7 +148,7 @@ export default function TeacherDetailModal({
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-background/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       {/* Fullscreen Dialog Container */}
       <div className="glass-panel w-full max-w-5xl h-[92vh] max-h-[920px] rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col my-auto overflow-hidden bg-card/95">
-        
+
         {/* Top Floating Glow Backdrop */}
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
@@ -176,11 +221,10 @@ export default function TeacherDetailModal({
                 <span>{teacher.email}</span>
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                  teacher.isActive
-                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                }`}>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${teacher.isActive
+                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                  }`}>
                   {teacher.isActive ? 'Active Staff' : 'Inactive'}
                 </span>
                 <span className="bg-brand/10 text-brand border border-brand/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
@@ -196,8 +240,8 @@ export default function TeacherDetailModal({
           {/* Quick Metrics */}
           <div className="flex items-center gap-4 w-full sm:w-auto justify-around sm:justify-end border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6">
             <div className="text-center">
-              <p className="text-xl font-bold font-mono text-brand">{courses.length}</p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Assigned Courses</p>
+              <p className="text-xl font-bold font-mono text-brand">{assignedSlotsCount || courses.length}</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Assigned Classes</p>
             </div>
             <div className="text-center">
               <p className="text-xl font-bold font-mono text-emerald-500">
@@ -217,11 +261,10 @@ export default function TeacherDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'overview'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'overview'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
           >
             <User className="h-4 w-4" />
             <span>Personal & Professional</span>
@@ -230,24 +273,22 @@ export default function TeacherDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('courses')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'courses'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'courses'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
           >
             <BookOpen className="h-4 w-4" />
-            <span>Assigned Courses & Classes ({courses.length})</span>
+            <span>Assigned Courses & Classes ({assignedSlotsCount || courses.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('guarantors')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'guarantors'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'guarantors'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
           >
             <ShieldCheck className="h-4 w-4" />
             <span>Guarantors & Verification ({teacher.guarantors?.length || 0})</span>
@@ -350,55 +391,75 @@ export default function TeacherDetailModal({
             </div>
           )}
 
-          {/* TAB 2: ASSIGNED COURSES & CLASSES */}
-          {activeTab === 'courses' && (
-            <div className="space-y-4 animate-fadeIn">
+          <div className="pt-4 border-t border-border/60 space-y-4">
+            <div className="flex items-center justify-between">
               <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
                 <BookOpen className="h-4 w-4 text-brand" />
-                <span>Assigned Courses & Classes Taught</span>
+                <span>Assigned Courses Taught</span>
               </h4>
+              <button
+                type="button"
+                onClick={() => setIsAssignModalOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-brand/15 text-brand border border-brand/30 text-xs font-bold hover:bg-brand/20 transition-all shadow-sm"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>Assign / Edit Courses</span>
+              </button>
+            </div>
 
-              {loadingCourses ? (
-                <div className="py-12 flex justify-center">
-                  <Activity className="h-8 w-8 animate-spin text-primary" />
-                </div>
-              ) : courses.length === 0 ? (
-                <div className="p-8 rounded-2xl bg-card/50 border border-border text-center text-xs text-muted-foreground">
-                  No courses or active classes currently assigned to this teacher.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {courses.map((course) => (
-                    <div
-                      key={course.id}
-                      className="p-5 rounded-2xl glass-panel border border-border/60 shadow-md space-y-3 relative hover:border-brand/50 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand/10 text-brand border border-brand/20">
-                            {course.type || 'Standard Course'}
-                          </span>
-                          <h5 className="text-base font-bold text-foreground mt-1.5">{course.title}</h5>
-                        </div>
-                      </div>
-
-                      {course.description && (
-                        <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
-                      )}
-
-                      {course.curriculum && (
-                        <p className="text-xs text-muted-foreground italic line-clamp-2">Curriculum: {course.curriculum}</p>
-                      )}
-
-                      <div className="pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="font-semibold text-foreground">
-                          {course.enrolledStudentsCount || course.students?.length || 0} Enrolled Students
+            {loadingCourses ? (
+              <div className="py-12 flex justify-center">
+                <Activity className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : courses.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-card/50 border border-border text-center text-xs text-muted-foreground">
+                No active course curriculum assigned to this teacher yet.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {courses.map((course) => (
+                  <div
+                    key={course.id}
+                    className="p-5 rounded-2xl glass-panel border border-border/60 shadow-md space-y-3 relative hover:border-brand/50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand/10 text-brand border border-brand/20">
+                          {course.type || 'Standard Course'}
                         </span>
+                        <h5 className="text-base font-bold text-foreground mt-1.5">{course.title}</h5>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {course.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
+                    )}
+
+                    {course.curriculum && (
+                      <p className="text-xs text-muted-foreground italic line-clamp-2">Curriculum: {course.curriculum}</p>
+                    )}
+
+                    <div className="pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+                      <span className="font-semibold text-foreground">
+                        {course.enrolledStudentsCount || course.students?.length || 0} Enrolled Students
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* TAB 2: ASSIGNED COURSES & CLASSES */}
+          {activeTab === 'courses' && (
+            <div className="space-y-6 animate-fadeIn">
+              {/* Reusable Weekly Timetable Grid */}
+              <TeacherTimetableGrid
+                teacherId={teacher.id || teacher._id || ''}
+                teacherName={teacher.name}
+              />
+
+
             </div>
           )}
 
@@ -473,6 +534,19 @@ export default function TeacherDetailModal({
           </button>
         </div>
       </div>
+
+      {/* ASSIGN / EDIT COURSES MODAL */}
+      <TeacherCourseAssignmentModal
+        isOpen={isAssignModalOpen}
+        teacher={teacher}
+        onClose={() => setIsAssignModalOpen(false)}
+        onSuccess={() => {
+          const teacherTargetId = teacher.id || teacher._id;
+          if (teacherTargetId) {
+            fetchTeacherCoursesAndSlots(teacherTargetId);
+          }
+        }}
+      />
     </div>
   );
 }

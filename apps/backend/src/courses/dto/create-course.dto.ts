@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsString, IsMongoId } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsString, IsMongoId, IsOptional, IsArray } from 'class-validator';
 import { CourseType } from '../../schemas';
 
 export class CreateCourseDto {
@@ -14,5 +14,10 @@ export class CreateCourseDto {
   curriculum: string;
 
   @IsMongoId()
-  teacherId: string;
+  @IsOptional()
+  teacherId?: string;
+
+  @IsArray()
+  @IsOptional()
+  teacherIds?: string[];
 }

@@ -15,28 +15,37 @@ export class CoursesService {
   ) {}
 
   async create(createCourseDto: CreateCourseDto) {
-    const teacher = await this.userModel.findById(createCourseDto.teacherId);
-    if (!teacher || teacher.role !== Role.TEACHER) {
-      throw new NotFoundException('The specified teacher does not exist or does not hold the TEACHER role.');
+    const rawTeacherIds = createCourseDto.teacherIds || (createCourseDto.teacherId ? [createCourseDto.teacherId] : []);
+    if (rawTeacherIds.length === 0 && createCourseDto.teacherId) {
+      rawTeacherIds.push(createCourseDto.teacherId);
     }
+
+    const primaryTeacherId = rawTeacherIds[0] || createCourseDto.teacherId;
 
     const course = await this.courseModel.create({
       title: createCourseDto.title,
       type: createCourseDto.type,
       curriculum: createCourseDto.curriculum,
-      teacherId: createCourseDto.teacherId,
+      teacherId: primaryTeacherId,
+      teacherIds: rawTeacherIds,
     });
 
-    return this.courseModel.findById(course._id).populate('teacher', 'id name email');
+    return this.courseModel.findById(course._id)
+      .populate('teacher', 'id name email')
+      .populate('teachers', 'id name email');
   }
 
   async findAll() {
-    return this.courseModel.find().populate('teacher', 'id name email').sort({ createdAt: -1 });
+    return this.courseModel.find()
+      .populate('teacher', 'id name email')
+      .populate('teachers', 'id name email')
+      .sort({ createdAt: -1 });
   }
 
   async findOne(id: string) {
     const course = await this.courseModel.findById(id)
       .populate('teacher', 'id name email')
+      .populate('teachers', 'id name email')
       .populate({
         path: 'enrollments',
         populate: {
@@ -57,18 +66,22 @@ export class CoursesService {
       throw new NotFoundException('Course not found');
     }
 
-    if (updateCourseDto.teacherId) {
-      const teacher = await this.userModel.findById(updateCourseDto.teacherId);
-      if (!teacher || teacher.role !== Role.TEACHER) {
-        throw new NotFoundException('The specified teacher does not exist or does not hold the TEACHER role.');
-      }
+    const updatePayload: any = { ...updateCourseDto };
+    if (updateCourseDto.teacherIds && updateCourseDto.teacherIds.length > 0) {
+      updatePayload.teacherId = updateCourseDto.teacherIds[0];
+      updatePayload.teacherIds = updateCourseDto.teacherIds;
+    } else if (updateCourseDto.teacherId) {
+      updatePayload.teacherId = updateCourseDto.teacherId;
+      updatePayload.teacherIds = [updateCourseDto.teacherId];
     }
 
     const updated = await this.courseModel.findByIdAndUpdate(
       id,
-      { $set: updateCourseDto },
+      { $set: updatePayload },
       { new: true },
-    ).populate('teacher', 'id name email');
+    )
+      .populate('teacher', 'id name email')
+      .populate('teachers', 'id name email');
 
     return updated;
   }
@@ -83,7 +96,9 @@ export class CoursesService {
   }
 
   async findByTeacher(teacherId: string) {
-    const courses = await this.courseModel.find({ teacherId }).sort({ createdAt: -1 });
+    const courses = await this.courseModel.find({
+      $or: [{ teacherId }, { teacherIds: teacherId }],
+    }).sort({ createdAt: -1 });
 
     const results = await Promise.all(
       courses.map(async (course) => {
@@ -104,5 +119,33 @@ export class CoursesService {
     );
 
     return results;
+  }
+
+  async assignCoursesToTeacher(teacherId: string, courseIds: string[]) {
+    const teacher = await this.userModel.findById(teacherId);
+    if (!teacher || teacher.role !== Role.TEACHER) {
+      throw new NotFoundException('Specified teacher does not exist.');
+    }
+
+    // Assign teacher to selected courses
+    if (courseIds && courseIds.length > 0) {
+      await this.courseModel.updateMany(
+        { _id: { $in: courseIds } },
+        {
+          $addToSet: { teacherIds: teacherId },
+          $set: { teacherId: teacherId },
+        },
+      );
+    }
+
+    // Unassign teacher from courses not in courseIds
+    await this.courseModel.updateMany(
+      { _id: { $nin: courseIds || [] }, $or: [{ teacherId }, { teacherIds: teacherId }] },
+      {
+        $pull: { teacherIds: teacherId },
+      },
+    );
+
+    return this.findByTeacher(teacherId);
   }
 }

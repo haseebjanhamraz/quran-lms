@@ -21,8 +21,11 @@ export class Course {
   @Prop({ required: true })
   curriculum: string;
 
-  @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
-  teacherId: MongooseSchema.Types.ObjectId | string;
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
+  teacherId?: MongooseSchema.Types.ObjectId | string;
+
+  @Prop({ type: [{ type: MongooseSchema.Types.ObjectId, ref: 'User' }], default: [], index: true })
+  teacherIds: (MongooseSchema.Types.ObjectId | string)[];
 
   createdAt?: Date;
   updatedAt?: Date;
@@ -33,27 +36,38 @@ export const CourseSchema = SchemaFactory.createForClass(Course);
 CourseSchema.virtual('id').get(function (this: Document) {
   return this._id.toHexString();
 });
+
 CourseSchema.virtual('teacher', {
   ref: 'User',
   localField: 'teacherId',
   foreignField: '_id',
   justOne: true,
 });
+
+CourseSchema.virtual('teachers', {
+  ref: 'User',
+  localField: 'teacherIds',
+  foreignField: '_id',
+});
+
 CourseSchema.virtual('enrollments', {
   ref: 'Enrollment',
   localField: '_id',
   foreignField: 'courseId',
 });
+
 CourseSchema.virtual('classSessions', {
   ref: 'ClassSession',
   localField: '_id',
   foreignField: 'courseId',
 });
+
 CourseSchema.virtual('supervisorAssignments', {
   ref: 'SupervisorAssignment',
   localField: '_id',
   foreignField: 'courseId',
 });
+
 CourseSchema.virtual('reviewerAssignments', {
   ref: 'SupervisorAssignment',
   localField: '_id',

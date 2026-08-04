@@ -33,6 +33,15 @@ export class CoursesController {
     return this.coursesService.findByTeacher(teacherId);
   }
 
+  @Post('teacher/:teacherId/assign')
+  @Roles(Role.ADMIN)
+  async assignCoursesToTeacher(
+    @Param('teacherId') teacherId: string,
+    @Body('courseIds') courseIds: string[],
+  ) {
+    return this.coursesService.assignCoursesToTeacher(teacherId, courseIds);
+  }
+
   @Put(':id')
   @Roles(Role.ADMIN)
   async update(@Param('id') id: string, @Body() updateCourseDto: UpdateCourseDto) {

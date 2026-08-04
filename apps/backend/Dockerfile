@@ -36,6 +36,6 @@ RUN mkdir -p /app/recordings /app/temp-transcripts /app/uploads/avatars \
 
 USER nestjs
 
-EXPOSE 5000
+EXPOSE 5000 5001
 
 CMD ["node", "dist/main"]
