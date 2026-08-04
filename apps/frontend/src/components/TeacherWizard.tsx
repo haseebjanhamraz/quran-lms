@@ -6,6 +6,7 @@ import {
   CreditCard, CheckCircle, Loader2, Check, Lock, Globe, UserCheck
 } from 'lucide-react';
 import ProfilePhotoPicker from './ProfilePhotoPicker';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface TeacherWizardProps {
   isOpen: boolean;
@@ -72,10 +73,17 @@ export default function TeacherWizard({
     g1Relationship: 'Father',
     g1Cnic: '',
     g1Address: '',
+
+    g2Name: '',
+    g2Phone: '',
+    g2Email: '',
+    g2Relationship: 'Brother',
+    g2Cnic: '',
+    g2Address: '',
   });
 
   // Step 5: Admin Permission Controls
-  const [canEditProfile, setCanEditProfile] = useState(true);
+  const [canEditProfile, setCanEditProfile] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -120,6 +128,7 @@ export default function TeacherWizard({
         });
 
         const g1 = editingTeacher.guarantors?.[0] || {};
+        const g2 = editingTeacher.guarantors?.[1] || {};
         setGuarantorInfo({
           g1Name: g1.name || '',
           g1Phone: g1.phone || '',
@@ -127,6 +136,13 @@ export default function TeacherWizard({
           g1Relationship: g1.relationship || 'Father',
           g1Cnic: g1.cnicOrId || '',
           g1Address: g1.address || '',
+
+          g2Name: g2.name || '',
+          g2Phone: g2.phone || '',
+          g2Email: g2.email || '',
+          g2Relationship: g2.relationship || 'Brother',
+          g2Cnic: g2.cnicOrId || '',
+          g2Address: g2.address || '',
         });
 
         setCanEditProfile(editingTeacher.canEditProfile !== false);
@@ -165,6 +181,13 @@ export default function TeacherWizard({
           g1Relationship: 'Father',
           g1Cnic: '',
           g1Address: '',
+
+          g2Name: '',
+          g2Phone: '',
+          g2Email: '',
+          g2Relationship: 'Brother',
+          g2Cnic: '',
+          g2Address: '',
         });
         setCanEditProfile(true);
       }
@@ -218,18 +241,30 @@ export default function TeacherWizard({
         country: salaryInfo.country,
         currency: salaryInfo.currency,
         canEditProfile,
-        guarantors: guarantorInfo.g1Name
-          ? [
-              {
-                name: guarantorInfo.g1Name,
-                phone: guarantorInfo.g1Phone,
-                email: guarantorInfo.g1Email,
-                relationship: guarantorInfo.g1Relationship,
-                cnicOrId: guarantorInfo.g1Cnic,
-                address: guarantorInfo.g1Address,
-              },
-            ]
-          : [],
+        guarantors: (() => {
+          const list: any[] = [];
+          if (guarantorInfo.g1Name) {
+            list.push({
+              name: guarantorInfo.g1Name,
+              phone: guarantorInfo.g1Phone,
+              email: guarantorInfo.g1Email || undefined,
+              relationship: guarantorInfo.g1Relationship,
+              cnicOrId: guarantorInfo.g1Cnic,
+              address: guarantorInfo.g1Address || undefined,
+            });
+          }
+          if (guarantorInfo.g2Name) {
+            list.push({
+              name: guarantorInfo.g2Name,
+              phone: guarantorInfo.g2Phone,
+              email: guarantorInfo.g2Email || undefined,
+              relationship: guarantorInfo.g2Relationship,
+              cnicOrId: guarantorInfo.g2Cnic,
+              address: guarantorInfo.g2Address || undefined,
+            });
+          }
+          return list;
+        })(),
       };
 
       if (personalInfo.password) {
@@ -240,10 +275,8 @@ export default function TeacherWizard({
 
       if (editingTeacher) {
         const targetId = editingTeacher.id || editingTeacher._id;
-        const res = await fetch(`${API_URL}/users/${targetId}`, {
+        const res = await apiFetch(`${API_URL}/users/${targetId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(teacherPayload),
         });
 
@@ -254,10 +287,8 @@ export default function TeacherWizard({
 
         setCompletedMessage(`Teacher ${teacherData.name} has been successfully updated.`);
       } else {
-        const res = await fetch(`${API_URL}/users`, {
+        const res = await apiFetch(`${API_URL}/users`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(teacherPayload),
         });
 
@@ -317,13 +348,12 @@ export default function TeacherWizard({
                 <React.Fragment key={s.num}>
                   <div className="flex flex-col items-center gap-1.5 cursor-pointer" onClick={() => setStep(s.num)}>
                     <div
-                      className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
-                        isDone
-                          ? 'bg-primary text-primary-foreground shadow-md'
-                          : isCurrent
+                      className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${isDone
+                        ? 'bg-primary text-primary-foreground shadow-md'
+                        : isCurrent
                           ? 'bg-brand text-brand-foreground ring-4 ring-brand/20 shadow-lg'
                           : 'bg-muted text-muted-foreground'
-                      }`}
+                        }`}
                     >
                       {isDone ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                     </div>
@@ -443,8 +473,9 @@ export default function TeacherWizard({
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">Phone Number</label>
                     <input
+                      maxLength={13}
                       type="tel"
-                      placeholder="+92 300 1234567"
+                      placeholder="+923001234567"
                       value={personalInfo.phone}
                       onChange={(e) => setPersonalInfo({ ...personalInfo, phone: e.target.value })}
                       className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
@@ -453,11 +484,22 @@ export default function TeacherWizard({
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">CNIC / Passport / National ID</label>
+                    {/* TODO: Auto add - after 5 digits and 8 digits */}
                     <input
                       type="text"
+                      maxLength={15}
                       placeholder="35202-1234567-1"
                       value={personalInfo.cnicOrId}
-                      onChange={(e) => setPersonalInfo({ ...personalInfo, cnicOrId: e.target.value })}
+                      onChange={(e) => {
+                        let value = e.target.value.replace(/\D/g, '');
+                        if (value.length > 5) {
+                          value = value.slice(0, 5) + '-' + value.slice(5, 13);
+                        }
+                        if (value.length > 13) {
+                          value = value.slice(0, 13) + '-' + value.slice(13, 15);
+                        }
+                        setPersonalInfo({ ...personalInfo, cnicOrId: value });
+                      }}
                       className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
                     />
                   </div>
@@ -574,22 +616,20 @@ export default function TeacherWizard({
                       <button
                         type="button"
                         onClick={() => setSalaryInfo({ ...salaryInfo, payType: 'MONTHLY' })}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-colors ${
-                          salaryInfo.payType === 'MONTHLY'
-                            ? 'bg-primary text-primary-foreground border-primary shadow-sm'
-                            : 'bg-background border-border text-muted-foreground'
-                        }`}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-colors ${salaryInfo.payType === 'MONTHLY'
+                          ? 'bg-primary text-primary-foreground border-primary shadow-sm'
+                          : 'bg-background border-border text-muted-foreground'
+                          }`}
                       >
                         Monthly Salary
                       </button>
                       <button
                         type="button"
                         onClick={() => setSalaryInfo({ ...salaryInfo, payType: 'HOURLY' })}
-                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-colors ${
-                          salaryInfo.payType === 'HOURLY'
-                            ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                            : 'bg-background border-border text-muted-foreground'
-                        }`}
+                        className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-colors ${salaryInfo.payType === 'HOURLY'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                          : 'bg-background border-border text-muted-foreground'
+                          }`}
                       >
                         Hourly Basis
                       </button>
@@ -667,55 +707,157 @@ export default function TeacherWizard({
 
             {/* STEP 4: Guarantor / Emergency Contact */}
             {step === 4 && (
-              <div className="space-y-4 animate-fadeIn">
-                <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
+              <div className="space-y-5 animate-fadeIn max-h-[60vh] overflow-y-auto pr-1">
+                <h3 className="text-base font-bold font-display text-foreground flex items-center gap-2">
                   <Shield className="h-5 w-5 text-brand" />
-                  <span>Step 4: Guarantor / Emergency Contact</span>
+                  <span>Step 4: Guarantor & Emergency Contacts</span>
                 </h3>
 
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Guarantor Name</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. Usman Ali (Father)"
-                      value={guarantorInfo.g1Name}
-                      onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Name: e.target.value })}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
-                    />
+                {/* PRIMARY GUARANTOR (#1) */}
+                <div className="p-4 rounded-xl bg-card/60 border border-border space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-brand flex items-center gap-1.5">
+                      <Shield className="h-4 w-4" />
+                      <span>Primary Guarantor (#1)</span>
+                    </h4>
+                    <span className="text-[10px] font-semibold text-muted-foreground">Primary Contact</span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Guarantor Phone</label>
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Guarantor Name</label>
                       <input
-                        type="tel"
-                        placeholder="+92 300 1234567"
-                        value={guarantorInfo.g1Phone}
-                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Phone: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
+                        type="text"
+                        placeholder="e.g. Usman Ali"
+                        value={guarantorInfo.g1Name}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Name: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Relationship</label>
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Relationship</label>
                       <input
                         type="text"
-                        placeholder="Father / Uncle / Brother"
+                        placeholder="e.g. Father"
                         value={guarantorInfo.g1Relationship}
                         onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Relationship: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Phone Number</label>
+                      <input
+                        maxLength={13}
+                        type="tel"
+                        placeholder="+923001234567"
+                        value={guarantorInfo.g1Phone}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Phone: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">CNIC / ID Number</label>
+                      <input
+                        type="text"
+                        maxLength={15}
+                        placeholder="35202-1234567-1"
+                        value={guarantorInfo.g1Cnic}
+                        onChange={(e) => {
+                          let value = e.target.value.replace(/\D/g, '');
+                          if (value.length > 5) value = value.slice(0, 5) + '-' + value.slice(5, 13);
+                          if (value.length > 13) value = value.slice(0, 13) + '-' + value.slice(13, 15);
+                          setGuarantorInfo({ ...guarantorInfo, g1Cnic: value });
+                        }}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none font-mono"
                       />
                     </div>
 
                     <div className="space-y-1 md:col-span-2">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Guarantor CNIC / ID Number</label>
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Email Address (Optional)</label>
+                      <input
+                        type="email"
+                        placeholder="usman@example.com"
+                        value={guarantorInfo.g1Email}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Email: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* SECONDARY GUARANTOR (#2) */}
+                <div className="p-4 rounded-xl bg-card/60 border border-border space-y-3">
+                  <div className="flex items-center justify-between border-b border-border/40 pb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                      <Shield className="h-4 w-4" />
+                      <span>Secondary Guarantor (#2)</span>
+                    </h4>
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">Optional</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Guarantor Name</label>
                       <input
                         type="text"
-                        placeholder="35202-1234567-1"
-                        value={guarantorInfo.g1Cnic}
-                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Cnic: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
+                        placeholder="e.g. Hamza Ali"
+                        value={guarantorInfo.g2Name}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g2Name: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Relationship</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Brother / Uncle"
+                        value={guarantorInfo.g2Relationship}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g2Relationship: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Phone Number</label>
+                      <input
+                        maxLength={13}
+                        type="tel"
+                        placeholder="+923007654321"
+                        value={guarantorInfo.g2Phone}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g2Phone: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">CNIC / ID Number</label>
+                      <input
+                        type="text"
+                        maxLength={15}
+                        placeholder="35202-7654321-1"
+                        value={guarantorInfo.g2Cnic}
+                        onChange={(e) => {
+                          let value = e.target.value.replace(/\D/g, '');
+                          if (value.length > 5) value = value.slice(0, 5) + '-' + value.slice(5, 13);
+                          if (value.length > 13) value = value.slice(0, 13) + '-' + value.slice(13, 15);
+                          setGuarantorInfo({ ...guarantorInfo, g2Cnic: value });
+                        }}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1 md:col-span-2">
+                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Email Address (Optional)</label>
+                      <input
+                        type="email"
+                        placeholder="hamza@example.com"
+                        value={guarantorInfo.g2Email}
+                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g2Email: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
                       />
                     </div>
                   </div>

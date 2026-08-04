@@ -6,6 +6,7 @@ import {
   CheckCircle, Loader2, Check, BookUser, CreditCard
 } from 'lucide-react';
 import ProfilePhotoPicker from './ProfilePhotoPicker';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface CourseItem {
   id: string;
@@ -167,7 +168,7 @@ export default function AdmissionWizard({
 
   const fetchFeeStructures = async () => {
     try {
-      const res = await fetch(`${API_URL}/fees/structures`, { credentials: 'include' });
+      const res = await apiFetch(`${API_URL}/fees/structures`);
       if (res.ok) {
         const data = await res.json();
         setFeeStructures(Array.isArray(data) ? data : []);
@@ -177,7 +178,7 @@ export default function AdmissionWizard({
 
   const fetchStudentEnrollments = async (studentId: string) => {
     try {
-      const res = await fetch(`${API_URL}/enrollments/student/${studentId}`, { credentials: 'include' });
+      const res = await apiFetch(`${API_URL}/enrollments/student/${studentId}`);
       if (res.ok) {
         const enrollments = await res.json();
         if (Array.isArray(enrollments)) {
@@ -192,8 +193,8 @@ export default function AdmissionWizard({
     setLoadingCourses(true);
     try {
       const [cRes, tRes] = await Promise.all([
-        fetch(`${API_URL}/courses`, { credentials: 'include' }).catch(() => null),
-        fetch(`${API_URL}/users/role/TEACHER`, { credentials: 'include' }).catch(() => null),
+        apiFetch(`${API_URL}/courses`).catch(() => null),
+        apiFetch(`${API_URL}/users/role/TEACHER`).catch(() => null),
       ]);
 
       if (cRes && cRes.ok) {
@@ -295,10 +296,8 @@ export default function AdmissionWizard({
       if (editingStudent) {
         // Update existing student
         const targetId = editingStudent.id || editingStudent._id;
-        const res = await fetch(`${API_URL}/users/${targetId}`, {
+        const res = await apiFetch(`${API_URL}/users/${targetId}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(userPayload),
         });
 
@@ -310,10 +309,8 @@ export default function AdmissionWizard({
         setCompletedMessage(`Student ${studentData.name} has been successfully updated.`);
       } else {
         // Create new student
-        const res = await fetch(`${API_URL}/users`, {
+        const res = await apiFetch(`${API_URL}/users`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
           body: JSON.stringify(userPayload),
         });
 
@@ -333,10 +330,8 @@ export default function AdmissionWizard({
       if (!assignTeacherLater && selectedCourseIds.length > 0 && studentId) {
         for (const cId of selectedCourseIds) {
           try {
-            await fetch(`${API_URL}/enrollments`, {
+            await apiFetch(`${API_URL}/enrollments`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
               body: JSON.stringify({ studentId, courseId: cId }),
             });
           } catch (_) {}

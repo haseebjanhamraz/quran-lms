@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { Upload, Camera, Trash2, Check, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react';
 
 import { getImageUrl } from '@/utils/image';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface ProfilePhotoPickerProps {
   currentPhotoUrl?: string;
@@ -104,17 +105,15 @@ export default function ProfilePhotoPicker({
         formData.append('file', blob, 'avatar.png');
 
         // Primary: standalone upload endpoint
-        let res = await fetch(`${API_URL}/users/upload-avatar`, {
+        let res = await apiFetch(`${API_URL}/users/upload-avatar`, {
           method: 'POST',
-          credentials: 'include',
           body: formData,
         });
 
         // Fallback to self profile picture endpoint if 404
         if (res.status === 404) {
-          res = await fetch(`${API_URL}/users/profile/picture`, {
+          res = await apiFetch(`${API_URL}/users/profile/picture`, {
             method: 'POST',
-            credentials: 'include',
             body: formData,
           });
         }

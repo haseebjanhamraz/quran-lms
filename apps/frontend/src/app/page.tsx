@@ -24,7 +24,7 @@ export default function Home() {
       <div className="flex flex-col items-center gap-4 text-center">
         <Loader2 className="h-10 w-10 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground animate-pulse">
-          Loading your Quran LMS portal...
+          Loading...
         </p>
       </div>
     </div>

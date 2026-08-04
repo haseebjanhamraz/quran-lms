@@ -8,7 +8,7 @@ export interface Column<T> {
   label: string;
   sortable?: boolean;
   align?: 'left' | 'center' | 'right';
-  render?: (row: T) => React.ReactNode;
+  render?: (row: T, index: number, globalIndex: number) => React.ReactNode;
 }
 
 export interface FilterOption {
@@ -213,20 +213,23 @@ export default function DataTable<T extends Record<string, any>>({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
-                {paginatedData.map((row) => (
-                  <tr key={keyExtractor(row)} className="hover:bg-card/20 transition-colors">
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={`py-3.5 px-4 ${
-                          col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
-                        }`}
-                      >
-                        {col.render ? col.render(row) : row[col.key] ?? '—'}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
+                {paginatedData.map((row, idx) => {
+                  const globalIdx = (safeCurrentPage - 1) * itemsPerPage + idx + 1;
+                  return (
+                    <tr key={keyExtractor(row)} className="hover:bg-card/20 transition-colors">
+                      {columns.map((col) => (
+                        <td
+                          key={col.key}
+                          className={`py-3.5 px-4 ${
+                            col.align === 'center' ? 'text-center' : col.align === 'right' ? 'text-right' : 'text-left'
+                          }`}
+                        >
+                          {col.render ? col.render(row, idx, globalIdx) : row[col.key] ?? '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

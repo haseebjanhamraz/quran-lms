@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface User {
   id: string;
@@ -50,20 +51,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const res = await fetch(`${API_URL}/auth/me`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
+      const res = await apiFetch(`${API_URL}/auth/me`);
 
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
       } else {
-        await refreshTokens();
+        setUser(null);
       }
     } catch (err) {
       console.error('Error during auth check:', err);
+      setUser(null);
     } finally {
       setLoading(false);
     }

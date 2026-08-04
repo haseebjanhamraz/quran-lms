@@ -130,6 +130,15 @@ export default function StudentsManagementPage() {
   // Columns definition for DataTable
   const columns: Column<StudentUser>[] = [
     {
+      key: 'serialNo',
+      label: '#',
+      render: (_s, _idx, globalIdx) => (
+        <span className="font-mono text-xs text-muted-foreground/80 font-medium">
+          {globalIdx}
+        </span>
+      ),
+    },
+    {
       key: 'studentId',
       label: 'ID',
       sortable: true,
