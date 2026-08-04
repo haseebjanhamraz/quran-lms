@@ -42,7 +42,7 @@ services:
       - "${WS_PORT_BINDING:-5001:5001}"
     environment:
       MONGODB_URI: ${MONGODB_URI:-mongodb://host.docker.internal:27017/quran_lms}
-      PORT: ${PORT:-4000}
+      PORT: ${NESTJS_PORT:-${PORT:-4000}}
       WS_PORT: ${WS_PORT:-5001}
       NODE_ENV: ${NODE_ENV:-development}
       JWT_SECRET: ${JWT_SECRET:-your-secret-jwt-key-change-in-prod}
@@ -95,6 +95,7 @@ services:
     ports:
       - "${NEXTJS_PORT_BINDING:-3030:3030}"
     environment:
+      PORT: ${NEXTJS_PORT:-3030}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
       NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:5001}

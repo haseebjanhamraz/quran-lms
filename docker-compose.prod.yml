@@ -27,7 +27,7 @@ services:
       - .env
     environment:
       MONGODB_URI: ${MONGODB_URI}
-      PORT: ${PORT}
+      PORT: ${NESTJS_PORT:-${PORT}}
       WS_PORT: ${WS_PORT}
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
@@ -70,6 +70,7 @@ services:
         NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
     environment:
+      PORT: ${NEXTJS_PORT:-3030}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
