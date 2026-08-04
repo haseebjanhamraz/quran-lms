@@ -30,6 +30,7 @@ import Image from 'next/image';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
 import Footer from '@/components/Footer';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface NavItem {
   label: string;
@@ -100,7 +101,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     async function getFlagged() {
       try {
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-        const res = await fetch(`${API_URL}/class-reviews/flagged`, { credentials: 'include' });
+        const res = await apiFetch(`${API_URL}/class-reviews/flagged`);
         if (res.ok) {
           const data = await res.json();
           setFlaggedCount(Array.isArray(data) ? data.length : data.data?.length ?? 0);

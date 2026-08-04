@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Check, Loader2, Calendar } from 'lucide-react';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface NotificationItem {
   id: string;
@@ -23,11 +24,12 @@ export default function NotificationsDropdown() {
 
   const fetchNotifications = async () => {
     try {
-      const res = await fetch(`${API_URL}/notifications`, { credentials: 'include' });
+      const res = await apiFetch(`${API_URL}/notifications`);
       if (res.ok) {
         const data = await res.json();
-        setNotifications(data);
-        setUnreadCount(data.filter((n: NotificationItem) => !n.isRead).length);
+        const list = Array.isArray(data) ? data : [];
+        setNotifications(list);
+        setUnreadCount(list.filter((n: NotificationItem) => !n.isRead).length);
       }
     } catch (err) {
       console.error('Error fetching notifications:', err);
@@ -55,12 +57,11 @@ export default function NotificationsDropdown() {
   const handleMarkAllAsRead = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/notifications/read-all`, {
+      const res = await apiFetch(`${API_URL}/notifications/read-all`, {
         method: 'PATCH',
-        credentials: 'include',
       });
       if (res.ok) {
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        setNotifications(prev => (Array.isArray(prev) ? prev : []).map(n => ({ ...n, isRead: true })));
         setUnreadCount(0);
       }
     } catch (err) {
@@ -72,12 +73,11 @@ export default function NotificationsDropdown() {
 
   const handleMarkAsRead = async (id: string) => {
     try {
-      const res = await fetch(`${API_URL}/notifications/${id}/read`, {
+      const res = await apiFetch(`${API_URL}/notifications/${id}/read`, {
         method: 'PATCH',
-        credentials: 'include',
       });
       if (res.ok) {
-        setNotifications(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n));
+        setNotifications(prev => (Array.isArray(prev) ? prev : []).map(n => n.id === id ? { ...n, isRead: true } : n));
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
     } catch (err) {
