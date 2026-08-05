@@ -8,6 +8,7 @@ import {
   User, UserSchema,
   Course, CourseSchema,
   ClassSession, ClassSessionSchema,
+  Enrollment, EnrollmentSchema,
 } from '../schemas';
 
 @Module({
@@ -17,6 +18,7 @@ import {
       { name: User.name, schema: UserSchema },
       { name: Course.name, schema: CourseSchema },
       { name: ClassSession.name, schema: ClassSessionSchema },
+      { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
   ],
   controllers: [ScheduleController],

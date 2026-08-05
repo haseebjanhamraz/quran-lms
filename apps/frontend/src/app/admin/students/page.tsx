@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Edit, Trash2, GraduationCap, Users, CheckCircle, AlertCircle, User as UserIcon, Eye, BookOpen, BookUser
+  Plus, Edit, Trash2, GraduationCap, Users, CheckCircle, AlertCircle, User as UserIcon, Eye, BookOpen, BookUser, Filter
 } from 'lucide-react';
 import AdmissionWizard from '@/components/AdmissionWizard';
 import StudentDetailModal from '@/components/StudentDetailModal';
 import QuickAssignModal from '@/components/QuickAssignModal';
 import DataTable, { Column, FilterOption } from '@/components/DataTable';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface StudentUser {
   id: string;
@@ -36,8 +37,19 @@ interface StudentUser {
   createdAt: string;
 }
 
+interface CourseItem {
+  id: string;
+  _id?: string;
+  title: string;
+  type: string;
+}
+
 export default function StudentsManagementPage() {
   const [students, setStudents] = useState<StudentUser[]>([]);
+  const [courses, setCourses] = useState<CourseItem[]>([]);
+  const [studentEnrollmentMap, setStudentEnrollmentMap] = useState<Record<string, { courseId: string; courseTitle: string; courseType: string }[]>>({});
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('');
+  const [selectedGenderFilter, setSelectedGenderFilter] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -56,24 +68,54 @@ export default function StudentsManagementPage() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  const fetchStudents = async () => {
+  const fetchStudentsData = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_URL}/users`, { credentials: 'include' });
-      if (res.ok) {
-        const data = await res.json();
+      const [usersRes, coursesRes, enrollmentsRes] = await Promise.all([
+        apiFetch(`${API_URL}/users`),
+        apiFetch(`${API_URL}/courses`),
+        apiFetch(`${API_URL}/enrollments`),
+      ]);
+
+      if (usersRes.ok) {
+        const data = await usersRes.json();
         const studentOnly = Array.isArray(data) ? data.filter((u: any) => u.role === 'STUDENT') : [];
         setStudents(studentOnly);
       }
+
+      if (coursesRes.ok) {
+        const cData = await coursesRes.json();
+        setCourses(Array.isArray(cData) ? cData : []);
+      }
+
+      if (enrollmentsRes.ok) {
+        const eData = await enrollmentsRes.json();
+        const map: Record<string, { courseId: string; courseTitle: string; courseType: string }[]> = {};
+        if (Array.isArray(eData)) {
+          eData.forEach((e: any) => {
+            const sId = e.studentId || e.student?.id || e.student?._id;
+            const cId = e.courseId || e.course?.id || e.course?._id;
+            const cTitle = e.course?.title || 'Assigned Course';
+            const cType = e.course?.type || '';
+            if (sId && cId) {
+              if (!map[sId]) map[sId] = [];
+              if (!map[sId].some((item) => item.courseId === cId)) {
+                map[sId].push({ courseId: cId, courseTitle: cTitle, courseType: cType });
+              }
+            }
+          });
+        }
+        setStudentEnrollmentMap(map);
+      }
     } catch (err) {
-      console.error('Error fetching students:', err);
+      console.error('Error fetching students data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchStudents();
+    fetchStudentsData();
   }, []);
 
   const calculateAgeAndType = (dobStr?: string) => {
@@ -91,12 +133,11 @@ export default function StudentsManagementPage() {
   const handleDeleteStudent = async (id: string) => {
     if (!confirm('Are you sure you want to delete this student account?')) return;
     try {
-      const res = await fetch(`${API_URL}/users/${id}`, {
+      const res = await apiFetch(`${API_URL}/users/${id}`, {
         method: 'DELETE',
-        credentials: 'include',
       });
       if (res.ok) {
-        fetchStudents();
+        fetchStudentsData();
       }
     } catch (err) {
       console.error('Error deleting student:', err);
@@ -119,9 +160,31 @@ export default function StudentsManagementPage() {
     return { total, active, trial, discontinued };
   }, [students]);
 
+  // Filter students by assigned course & gender
+  const filteredStudents = useMemo(() => {
+    return students.filter((s) => {
+      // 1. Course Filter
+      if (selectedCourseFilter) {
+        const sId = s.id || s._id || '';
+        const sCourses = studentEnrollmentMap[sId] || [];
+        const matchesCourse = sCourses.some((c) => c.courseId === selectedCourseFilter || c.courseTitle === selectedCourseFilter);
+        if (!matchesCourse) return false;
+      }
+
+      // 2. Gender Filter
+      if (selectedGenderFilter) {
+        const studentGender = (s.gender || '').toLowerCase();
+        const filterGender = selectedGenderFilter.toLowerCase();
+        if (studentGender !== filterGender) return false;
+      }
+
+      return true;
+    });
+  }, [students, selectedCourseFilter, selectedGenderFilter, studentEnrollmentMap]);
+
   // Filters for DataTable
   const filterOptions: FilterOption[] = [
-    { key: 'ALL', label: 'All Students', predicate: () => true },
+    { key: 'ALL', label: 'All Statuses', predicate: () => true },
     { key: 'ACTIVE', label: 'Active Enrolled', predicate: (s) => s.isActive && !s.discontinued && !s.isDiscontinued },
     { key: 'TRIAL', label: 'Trial', predicate: (s) => s.trialStatus === 'Active' || s.studentStatus === 'Trial' },
     { key: 'DISCONTINUED', label: 'Discontinued', predicate: (s) => Boolean(s.discontinued || s.isDiscontinued) },
@@ -164,12 +227,46 @@ export default function StudentsManagementPage() {
               )}
             </div>
             <div>
-              <p className="font-semibold text-foreground leading-snug">
-                {s.name} {s.preferredName && `(${s.preferredName})`}
-              </p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-foreground leading-snug">
+                  {s.name} {s.preferredName && `(${s.preferredName})`}
+                </p>
+                {s.gender && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                    s.gender.toLowerCase() === 'female'
+                      ? 'bg-pink-500/10 text-pink-500 border-pink-500/20'
+                      : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                  }`}>
+                    {s.gender}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">{s.email}</p>
             </div>
           </div>
+        );
+      },
+    },
+    {
+      key: 'enrolledCourses',
+      label: 'Assigned Course(s)',
+      render: (s) => {
+        const sId = s.id || s._id || '';
+        const sCourses = studentEnrollmentMap[sId] || [];
+        return sCourses.length > 0 ? (
+          <div className="flex flex-wrap gap-1">
+            {sCourses.map((c, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand border border-brand/20"
+              >
+                <BookOpen className="h-3 w-3" />
+                {c.courseTitle}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <span className="text-muted-foreground/40 italic text-xs">Unassigned</span>
         );
       },
     },
@@ -355,10 +452,54 @@ export default function StudentsManagementPage() {
         </div>
       </div>
 
+      {/* Roster Multi-Filter Selector Bar */}
+      <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-border/50 shadow-sm bg-card/60">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-brand/15 text-brand border border-brand/20">
+            <Filter className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-foreground">Roster Filters</h3>
+            <p className="text-xs text-muted-foreground">Filter students by course curriculum and gender</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Course Filter */}
+          <div className="relative flex-1 md:w-64">
+            <select
+              value={selectedCourseFilter}
+              onChange={(e) => setSelectedCourseFilter(e.target.value)}
+              className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs font-bold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all cursor-pointer"
+            >
+              <option value="">All Courses ({courses.length} Total)</option>
+              {courses.map((c) => (
+                <option key={c.id || c._id} value={c.id || c._id}>
+                  {c.title} ({c.type})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Gender Filter */}
+          <div className="relative w-full sm:w-40">
+            <select
+              value={selectedGenderFilter}
+              onChange={(e) => setSelectedGenderFilter(e.target.value)}
+              className="w-full bg-card border border-border rounded-xl px-3.5 py-2 text-xs font-bold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all cursor-pointer"
+            >
+              <option value="">All Genders</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
       {/* Reusable Paginated & Filterable Data Table */}
       <DataTable
         columns={columns}
-        data={students}
+        data={filteredStudents}
         searchKeys={['name', 'email', 'studentId', 'guardianName']}
         searchPlaceholder="Search students by name, email, guardian, or ID..."
         filters={filterOptions}
@@ -377,7 +518,7 @@ export default function StudentsManagementPage() {
           setShowWizard(false);
           setEditingStudent(null);
         }}
-        onSuccess={fetchStudents}
+        onSuccess={fetchStudentsData}
       />
 
       {/* Full-Screen Student Details Dialog Box */}
@@ -406,7 +547,7 @@ export default function StudentsManagementPage() {
         mode={quickAssignState.mode}
         student={quickAssignState.student}
         onClose={() => setQuickAssignState({ isOpen: false, mode: 'course', student: null })}
-        onSuccess={fetchStudents}
+        onSuccess={fetchStudentsData}
       />
     </div>
   );

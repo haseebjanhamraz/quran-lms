@@ -12,6 +12,30 @@ import { Role } from '../schemas';
 export class CoursesController {
   constructor(private readonly coursesService: CoursesService) {}
 
+  // --- Subject Categories ---
+  @Get('categories')
+  async findAllCategories() {
+    return this.coursesService.findAllCategories();
+  }
+
+  @Post('categories')
+  @Roles(Role.ADMIN)
+  async createCategory(@Body() dto: any) {
+    return this.coursesService.createCategory(dto);
+  }
+
+  @Put('categories/:id')
+  @Roles(Role.ADMIN)
+  async updateCategory(@Param('id') id: string, @Body() dto: any) {
+    return this.coursesService.updateCategory(id, dto);
+  }
+
+  @Delete('categories/:id')
+  @Roles(Role.ADMIN)
+  async removeCategory(@Param('id') id: string) {
+    return this.coursesService.removeCategory(id);
+  }
+
   @Post()
   @Roles(Role.ADMIN)
   async create(@Body() createCourseDto: CreateCourseDto) {
@@ -21,11 +45,6 @@ export class CoursesController {
   @Get()
   async findAll() {
     return this.coursesService.findAll();
-  }
-
-  @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return this.coursesService.findOne(id);
   }
 
   @Get('teacher/:teacherId')
@@ -40,6 +59,11 @@ export class CoursesController {
     @Body('courseIds') courseIds: string[],
   ) {
     return this.coursesService.assignCoursesToTeacher(teacherId, courseIds);
+  }
+
+  @Get(':id')
+  async findOne(@Param('id') id: string) {
+    return this.coursesService.findOne(id);
   }
 
   @Put(':id')

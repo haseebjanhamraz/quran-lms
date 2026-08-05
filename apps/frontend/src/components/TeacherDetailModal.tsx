@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, User, Shield, BookOpen, Calendar, Clock,
   Mail, Phone, Globe, CheckCircle2, AlertCircle, Sparkles, BookUser,
-  Activity, ShieldCheck, DollarSign, Award, Edit, FileText
+  Activity, ShieldCheck, DollarSign, Award, Edit, FileText, GraduationCap, Users
 } from 'lucide-react';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
@@ -67,8 +67,9 @@ export default function TeacherDetailModal({
   onClose,
   onEdit,
 }: TeacherDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'guarantors'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'courses' | 'guarantors'>('overview');
   const [courses, setCourses] = useState<AssignedCourse[]>([]);
+  const [assignedStudents, setAssignedStudents] = useState<any[]>([]);
   const [assignedSlotsCount, setAssignedSlotsCount] = useState<number>(0);
   const [loadingCourses, setLoadingCourses] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -79,66 +80,129 @@ export default function TeacherDetailModal({
     if (isOpen && teacher) {
       const teacherTargetId = teacher.id || teacher._id;
       if (teacherTargetId) {
-        fetchTeacherCoursesAndSlots(teacherTargetId);
+        fetchTeacherData(teacherTargetId);
       }
     }
   }, [isOpen, teacher]);
 
-  const fetchTeacherCoursesAndSlots = async (teacherId: string) => {
+  const fetchTeacherData = async (teacherId: string) => {
     setLoadingCourses(true);
     try {
-      const [coursesRes, gridRes] = await Promise.all([
-        apiFetch(`${API_URL}/courses/teacher/${teacherId}`),
-        apiFetch(`${API_URL}/schedule/grid`),
+      const [coursesRes, gridRes, enrollmentsRes] = await Promise.all([
+        apiFetch(`${API_URL}/courses/teacher/${teacherId}`).catch(() => null),
+        apiFetch(`${API_URL}/schedule/grid`).catch(() => null),
+        apiFetch(`${API_URL}/enrollments/teacher/${teacherId}`).catch(() => null),
       ]);
 
       let fetchedCourses: AssignedCourse[] = [];
-      if (coursesRes.ok) {
+      if (coursesRes && coursesRes.ok) {
         const data = await coursesRes.json();
         fetchedCourses = Array.isArray(data) ? data : [];
       }
 
+      let fetchedEnrollments: any[] = [];
+      if (enrollmentsRes && enrollmentsRes.ok) {
+        const eData = await enrollmentsRes.json();
+        fetchedEnrollments = Array.isArray(eData) ? eData : [];
+      }
+
       let slotCount = 0;
-      let derivedCoursesFromSlots: AssignedCourse[] = [];
-      if (gridRes.ok) {
+      const slotStudentsMap: Record<string, any> = {};
+      if (gridRes && gridRes.ok) {
         const gridData: any[] = await gridRes.json();
         const teacherSlots = gridData.filter((s) => {
           const tId = typeof s.teacherId === 'object' ? s.teacherId?._id || s.teacherId?.id : s.teacherId;
-          return tId === teacherId || s.teacher?.id === teacherId;
+          return tId === teacherId || s.teacher?.id === teacherId || s.teacher?._id === teacherId;
         });
         slotCount = teacherSlots.length;
 
-        // Extract unique courses from schedule slots
-        const courseMap: Record<string, AssignedCourse> = {};
         teacherSlots.forEach((slot) => {
-          if (slot.course) {
-            courseMap[slot.course.id || slot.course._id] = {
-              id: slot.course.id || slot.course._id,
-              title: slot.course.title,
-              type: slot.course.type,
-              enrolledStudentsCount: 1,
-            };
-          } else {
-            const tempId = `slot-course-${slot.dayOfWeek}-${slot.timeSlotIndex}`;
-            courseMap[tempId] = {
-              id: tempId,
-              title: `Class Session (${slot.dayOfWeek} @ ${slot.startTime})`,
-              type: 'Recurring Class',
-              enrolledStudentsCount: 1,
-            };
+          if (slot.student) {
+            const sId = slot.student.id || slot.student._id;
+            if (sId) {
+              slotStudentsMap[sId] = {
+                student: slot.student,
+                course: slot.course || { title: 'Weekly Timetable Slot', type: 'Schedule Slot' },
+              };
+            }
+          }
+          if (Array.isArray(slot.enrolledStudents)) {
+            slot.enrolledStudents.forEach((st: any) => {
+              const sId = st.id || st._id;
+              if (sId) {
+                slotStudentsMap[sId] = {
+                  student: st,
+                  course: slot.course || { title: 'Weekly Timetable Slot', type: 'Schedule Slot' },
+                };
+              }
+            });
           }
         });
-        derivedCoursesFromSlots = Object.values(courseMap);
       }
 
-      setCourses(fetchedCourses.length > 0 ? fetchedCourses : derivedCoursesFromSlots);
+      // Merge API enrollments & schedule slot students
+      const combinedEnrollments = [...fetchedEnrollments];
+      Object.values(slotStudentsMap).forEach((item: any) => {
+        const sId = item.student?.id || item.student?._id;
+        const exists = combinedEnrollments.some((e) => (e.student?.id || e.student?._id) === sId);
+        if (!exists) {
+          combinedEnrollments.push(item);
+        }
+      });
+
+      setAssignedStudents(combinedEnrollments);
+
+      // Map enrolled students onto courses
+      const courseStudentsMap: Record<string, any[]> = {};
+      combinedEnrollments.forEach((e: any) => {
+        const cId = e.course?.id || e.course?._id || e.courseId;
+        if (cId && e.student) {
+          if (!courseStudentsMap[cId]) courseStudentsMap[cId] = [];
+          if (!courseStudentsMap[cId].some((st) => (st.id || st._id) === (e.student.id || e.student._id))) {
+            courseStudentsMap[cId].push(e.student);
+          }
+        }
+      });
+
+      fetchedCourses = fetchedCourses.map((c) => {
+        const cId = c.id || (c as any)._id;
+        const students = courseStudentsMap[cId] || [];
+        return {
+          ...c,
+          students,
+          enrolledStudentsCount: students.length,
+        };
+      });
+
+      setCourses(fetchedCourses);
       setAssignedSlotsCount(slotCount);
     } catch (err) {
-      console.error('Error fetching teacher courses/slots:', err);
+      console.error('Error fetching teacher data:', err);
     } finally {
       setLoadingCourses(false);
     }
   };
+
+  // Compute unique students
+  const uniqueStudents = useMemo(() => {
+    const studentMap: Record<string, { student: any; courses: string[] }> = {};
+    assignedStudents.forEach((enrollment) => {
+      const s = enrollment.student;
+      if (!s) return;
+      const sId = s.id || s._id;
+      if (!sId) return;
+      if (!studentMap[sId]) {
+        studentMap[sId] = {
+          student: s,
+          courses: [],
+        };
+      }
+      if (enrollment.course?.title) {
+        studentMap[sId].courses.push(enrollment.course.title);
+      }
+    });
+    return Object.values(studentMap);
+  }, [assignedStudents]);
 
   if (!isOpen || !teacher) return null;
 
@@ -166,7 +230,7 @@ export default function TeacherDetailModal({
                   {teacher.employeeId || 'EMP-001'}
                 </span>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Comprehensive instructor profile, verified guarantors, credentials, and teaching assignments.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Comprehensive instructor profile, verified guarantors, credentials, and assigned students.</p>
             </div>
           </div>
 
@@ -244,6 +308,10 @@ export default function TeacherDetailModal({
               <p className="text-[10px] text-muted-foreground font-semibold uppercase">Assigned Classes</p>
             </div>
             <div className="text-center">
+              <p className="text-xl font-bold font-mono text-blue-500">{uniqueStudents.length}</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Assigned Students</p>
+            </div>
+            <div className="text-center">
               <p className="text-xl font-bold font-mono text-emerald-500">
                 {teacher.salary ? `${teacher.currency || 'PKR'} ${teacher.salary.toLocaleString()}` : '—'}
               </p>
@@ -257,11 +325,11 @@ export default function TeacherDetailModal({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-border/60 pb-3 mb-5 z-10 shrink-0">
+        <div className="flex items-center gap-2 border-b border-border/60 pb-3 mb-5 z-10 shrink-0 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'overview'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'overview'
               ? 'bg-primary text-primary-foreground shadow-md'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
@@ -272,20 +340,32 @@ export default function TeacherDetailModal({
 
           <button
             type="button"
+            onClick={() => setActiveTab('students')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'students'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+          >
+            <GraduationCap className="h-4 w-4" />
+            <span>Assigned Students ({uniqueStudents.length})</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('courses')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'courses'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'courses'
               ? 'bg-primary text-primary-foreground shadow-md'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
           >
             <BookOpen className="h-4 w-4" />
-            <span>Assigned Courses & Classes ({assignedSlotsCount || courses.length})</span>
+            <span>Assigned Courses ({courses.length})</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTab('guarantors')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'guarantors'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'guarantors'
               ? 'bg-primary text-primary-foreground shadow-md'
               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
@@ -391,79 +471,164 @@ export default function TeacherDetailModal({
             </div>
           )}
 
-          <div className="pt-4 border-t border-border/60 space-y-4">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-brand" />
-                <span>Assigned Courses Taught</span>
-              </h4>
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(true)}
-                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-brand/15 text-brand border border-brand/30 text-xs font-bold hover:bg-brand/20 transition-all shadow-sm"
-              >
-                <BookOpen className="h-3.5 w-3.5" />
-                <span>Assign / Edit Courses</span>
-              </button>
-            </div>
+          {/* TAB 2: ASSIGNED STUDENTS */}
+          {activeTab === 'students' && (
+            <div className="space-y-4 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border/40 pb-2">
+                  <GraduationCap className="h-4 w-4 text-brand" />
+                  <span>Assigned Enrolled Students ({uniqueStudents.length})</span>
+                </h4>
+              </div>
 
-            {loadingCourses ? (
-              <div className="py-12 flex justify-center">
-                <Activity className="h-8 w-8 animate-spin text-primary" />
-              </div>
-            ) : courses.length === 0 ? (
-              <div className="p-8 rounded-2xl bg-card/50 border border-border text-center text-xs text-muted-foreground">
-                No active course curriculum assigned to this teacher yet.
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {courses.map((course) => (
-                  <div
-                    key={course.id}
-                    className="p-5 rounded-2xl glass-panel border border-border/60 shadow-md space-y-3 relative hover:border-brand/50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand/10 text-brand border border-brand/20">
-                          {course.type || 'Standard Course'}
-                        </span>
-                        <h5 className="text-base font-bold text-foreground mt-1.5">{course.title}</h5>
+              {loadingCourses ? (
+                <div className="py-12 flex justify-center">
+                  <Activity className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : uniqueStudents.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-card/50 border border-border text-center text-xs text-muted-foreground">
+                  No active students enrolled in this teacher's assigned courses yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {uniqueStudents.map(({ student, courses: studentCourses }, idx) => {
+                    const sPhoto = student.profilePicture || student.avatar;
+                    return (
+                      <div
+                        key={student.id || student._id || idx}
+                        className="p-4 rounded-2xl glass-panel border border-border/70 shadow-sm flex items-start gap-4 hover:border-brand/40 transition-all bg-card/70"
+                      >
+                        <div className="w-12 h-12 rounded-2xl bg-brand/15 border border-brand/30 flex items-center justify-center shrink-0 text-brand font-bold overflow-hidden">
+                          {sPhoto ? (
+                            <img src={getImageUrl(sPhoto)} alt={student.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span>{student.name?.charAt(0)}</span>
+                          )}
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <h5 className="font-bold text-foreground text-sm truncate">{student.name}</h5>
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                              Active Student
+                            </span>
+                          </div>
+
+                          <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
+                            <Mail className="h-3 w-3 text-brand shrink-0" />
+                            <span className="truncate">{student.email}</span>
+                          </p>
+
+                          {student.timezone && (
+                            <p className="text-muted-foreground text-[10px] font-mono">
+                              Timezone: {student.timezone}
+                            </p>
+                          )}
+
+                          <div className="pt-2 border-t border-border/40 flex flex-wrap items-center gap-1.5 mt-2">
+                            <span className="text-[10px] font-medium text-muted-foreground">Enrolled In:</span>
+                            {studentCourses.map((cTitle, cIdx) => (
+                              <span
+                                key={cIdx}
+                                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-brand/10 text-brand border border-brand/20"
+                              >
+                                {cTitle}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-
-                    {course.description && (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
-                    )}
-
-                    {course.curriculum && (
-                      <p className="text-xs text-muted-foreground italic line-clamp-2">Curriculum: {course.curriculum}</p>
-                    )}
-
-                    <div className="pt-3 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">
-                        {course.enrolledStudentsCount || course.students?.length || 0} Enrolled Students
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* TAB 2: ASSIGNED COURSES & CLASSES */}
-          {activeTab === 'courses' && (
-            <div className="space-y-6 animate-fadeIn">
-              {/* Reusable Weekly Timetable Grid */}
-              <TeacherTimetableGrid
-                teacherId={teacher.id || teacher._id || ''}
-                teacherName={teacher.name}
-              />
-
-
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
-          {/* TAB 3: GUARANTORS & VERIFICATION */}
+          {/* TAB 3: ASSIGNED COURSES & CLASSES */}
+          {activeTab === 'courses' && (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <BookOpen className="h-4 w-4 text-brand" />
+                  <span>Assigned Courses Taught</span>
+                </h4>
+                <button
+                  type="button"
+                  onClick={() => setIsAssignModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-brand/15 text-brand border border-brand/30 text-xs font-bold hover:bg-brand/20 transition-all shadow-sm"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  <span>Assign / Edit Courses</span>
+                </button>
+              </div>
+
+              {loadingCourses ? (
+                <div className="py-12 flex justify-center">
+                  <Activity className="h-8 w-8 animate-spin text-primary" />
+                </div>
+              ) : courses.length === 0 ? (
+                <div className="p-8 rounded-2xl bg-card/50 border border-border text-center text-xs text-muted-foreground">
+                  No active course curriculum assigned to this teacher yet.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {courses.map((course) => (
+                    <div
+                      key={course.id}
+                      className="p-5 rounded-2xl glass-panel border border-border/60 shadow-md space-y-3 relative hover:border-brand/50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-brand/10 text-brand border border-brand/20">
+                            {course.type || 'Standard Course'}
+                          </span>
+                          <h5 className="text-base font-bold text-foreground mt-1.5">{course.title}</h5>
+                        </div>
+                      </div>
+
+                      {course.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{course.description}</p>
+                      )}
+
+                      {course.curriculum && (
+                        <p className="text-xs text-muted-foreground italic line-clamp-2">Curriculum: {course.curriculum}</p>
+                      )}
+
+                      <div className="pt-3 border-t border-border/40 space-y-1.5 text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between font-semibold text-foreground">
+                          <span>{course.enrolledStudentsCount || course.students?.length || 0} Enrolled Students</span>
+                        </div>
+                        {course.students && course.students.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                            {course.students.map((st: any, sIdx: number) => (
+                              <span key={sIdx} className="px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[10px] font-semibold">
+                                {st.name}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Reusable Weekly Timetable Grid */}
+              <div className="pt-4 border-t border-border/60">
+                <h4 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-brand" />
+                  <span>Teacher Weekly Timetable Schedule</span>
+                </h4>
+                <TeacherTimetableGrid
+                  teacherId={teacher.id || teacher._id || ''}
+                  teacherName={teacher.name}
+                />
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: GUARANTORS & VERIFICATION */}
           {activeTab === 'guarantors' && (
             <div className="space-y-4 animate-fadeIn">
               <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border/40 pb-2">
@@ -543,7 +708,7 @@ export default function TeacherDetailModal({
         onSuccess={() => {
           const teacherTargetId = teacher.id || teacher._id;
           if (teacherTargetId) {
-            fetchTeacherCoursesAndSlots(teacherTargetId);
+            fetchTeacherData(teacherTargetId);
           }
         }}
       />

@@ -5,7 +5,8 @@ import {
   WeeklyScheduleSlot, WeeklyScheduleSlotDocument, DayOfWeek,
   User, UserDocument, Role,
   Course, CourseDocument,
-  ClassSession, ClassSessionDocument, ClassStatus
+  ClassSession, ClassSessionDocument, ClassStatus,
+  Enrollment, EnrollmentDocument
 } from '../schemas';
 import { UpsertSlotDto } from './dto/upsert-slot.dto';
 import { ScheduleGateway } from './schedule.gateway';
@@ -23,6 +24,8 @@ export class ScheduleService {
     private readonly courseModel: Model<CourseDocument>,
     @InjectModel(ClassSession.name)
     private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(Enrollment.name)
+    private readonly enrollmentModel: Model<EnrollmentDocument>,
     private readonly scheduleGateway: ScheduleGateway,
   ) {}
 
@@ -46,10 +49,70 @@ export class ScheduleService {
   }
 
   async getWeeklyScheduleGrid() {
-    return this.weeklySlotModel.find({ isActive: true })
+    const rawSlots = await this.weeklySlotModel.find({ isActive: true })
       .populate('teacher', 'id name email profilePicture')
       .populate('course', 'id title type')
       .populate('student', 'id name email');
+
+    // Pre-fetch courses and enrollments to resolve course & student mapping for teachers
+    const courses = await this.courseModel.find().lean();
+    const enrollments = await this.enrollmentModel.find().populate('student', 'id name email').lean();
+
+    // Map teacherId -> courseObj
+    const teacherCourseMap: Record<string, any> = {};
+    courses.forEach((c: any) => {
+      const courseIdStr = c._id.toString();
+      const courseObj = { id: courseIdStr, _id: courseIdStr, title: c.title, type: c.type };
+      if (c.teacherId) {
+        teacherCourseMap[c.teacherId.toString()] = courseObj;
+      }
+      if (Array.isArray(c.teacherIds)) {
+        c.teacherIds.forEach((tId: any) => {
+          teacherCourseMap[tId.toString()] = courseObj;
+        });
+      }
+    });
+
+    // Map courseId -> enrolled students array
+    const courseStudentsMap: Record<string, any[]> = {};
+    enrollments.forEach((e: any) => {
+      if (e.courseId && e.student) {
+        const cIdStr = e.courseId.toString();
+        if (!courseStudentsMap[cIdStr]) {
+          courseStudentsMap[cIdStr] = [];
+        }
+        const studentObj = typeof e.student === 'object'
+          ? { id: e.student._id?.toString() || e.student.id, name: e.student.name, email: e.student.email }
+          : { id: e.student, name: 'Enrolled Student' };
+        courseStudentsMap[cIdStr].push(studentObj);
+      }
+    });
+
+    return rawSlots.map((slotDoc) => {
+      const slot: any = slotDoc.toObject();
+      const tId = slot.teacherId ? slot.teacherId.toString() : (slot.teacher?._id || slot.teacher?.id)?.toString();
+
+      // 1. Resolve course assigned to teacher if missing
+      if (!slot.course && tId && teacherCourseMap[tId]) {
+        slot.course = teacherCourseMap[tId];
+        slot.courseId = teacherCourseMap[tId].id;
+      }
+
+      // 2. Resolve student assigned to course if missing
+      const courseIdStr = slot.course ? (slot.course._id || slot.course.id || slot.courseId)?.toString() : null;
+      const enrolledStudents = courseIdStr ? (courseStudentsMap[courseIdStr] || []) : [];
+
+      if (!slot.student && enrolledStudents.length > 0) {
+        const studentIdx = slot.timeSlotIndex % enrolledStudents.length;
+        slot.student = enrolledStudents[studentIdx];
+        slot.studentId = enrolledStudents[studentIdx].id;
+      }
+
+      // Attach all enrolled students for this course if available
+      slot.enrolledStudents = enrolledStudents;
+
+      return slot;
+    });
   }
 
   async upsertSlot(dto: UpsertSlotDto) {
@@ -58,12 +121,29 @@ export class ScheduleService {
       throw new NotFoundException('Teacher not found');
     }
 
-    // Check if teacher is already assigned to a DIFFERENT slot at the same day & time
-    const existingConflict = await this.weeklySlotModel.findOne({
-      dayOfWeek: dto.dayOfWeek,
-      timeSlotIndex: dto.timeSlotIndex,
-      isActive: true,
-    });
+    // Resolve course assigned to teacher if not supplied
+    let courseId = dto.courseId;
+    if (!courseId) {
+      const teacherCourse = await this.courseModel.findOne({
+        $or: [{ teacherId: dto.teacherId }, { teacherIds: dto.teacherId }],
+      });
+      if (teacherCourse) {
+        courseId = teacherCourse._id.toString();
+      }
+    }
+
+    // Resolve student enrolled in course if not supplied
+    let studentId = dto.studentId;
+    if (!studentId && courseId) {
+      const enrollments = await this.enrollmentModel.find({ courseId }).populate('student');
+      if (enrollments.length > 0) {
+        const idx = dto.timeSlotIndex % enrollments.length;
+        const targetStudent = (enrollments[idx] as any)?.student;
+        if (targetStudent) {
+          studentId = (targetStudent._id || targetStudent.id).toString();
+        }
+      }
+    }
 
     // Save/update slot in DB
     const updatedSlot = await this.weeklySlotModel.findOneAndUpdate(
@@ -78,8 +158,8 @@ export class ScheduleService {
           startTime: dto.startTime,
           endTime: dto.endTime,
           teacherId: dto.teacherId,
-          ...(dto.courseId ? { courseId: dto.courseId } : {}),
-          ...(dto.studentId ? { studentId: dto.studentId } : {}),
+          ...(courseId ? { courseId } : {}),
+          ...(studentId ? { studentId } : {}),
           isRecurring: true,
           isActive: true,
         },
@@ -90,10 +170,22 @@ export class ScheduleService {
       .populate('course', 'id title type')
       .populate('student', 'id name email');
 
-    // Broadcast update via WebSocket gateway with senderClientId tag
-    this.scheduleGateway.broadcastScheduleUpdate('UPSERT_SLOT', updatedSlot, dto.clientId);
+    const slotObj: any = updatedSlot.toObject();
 
-    return updatedSlot;
+    // Populate course & student if not automatically populated by mongoose
+    if (!slotObj.course && courseId) {
+      const c = await this.courseModel.findById(courseId).select('id title type');
+      if (c) slotObj.course = c.toObject();
+    }
+    if (!slotObj.student && studentId) {
+      const s = await this.userModel.findById(studentId).select('id name email');
+      if (s) slotObj.student = s.toObject();
+    }
+
+    // Broadcast update via WebSocket gateway with senderClientId tag
+    this.scheduleGateway.broadcastScheduleUpdate('UPSERT_SLOT', slotObj, dto.clientId);
+
+    return slotObj;
   }
 
   async removeSlot(dayOfWeek: DayOfWeek, timeSlotIndex: number, clientId?: string) {

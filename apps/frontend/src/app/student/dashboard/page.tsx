@@ -21,6 +21,7 @@ import {
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
 import ThemeToggle from '@/components/ThemeToggle';
 import UpcomingClassBanner from '@/components/UpcomingClassBanner';
+import DailyScheduleView from '@/components/DailyScheduleView';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -110,7 +111,7 @@ export default function StudentDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'learning' | 'attendance'>('learning');
+  const [activeTab, setActiveTab] = useState<'learning' | 'schedule' | 'attendance'>('learning');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
 
   const fetchSessionsAndStats = async () => {
@@ -210,6 +211,16 @@ export default function StudentDashboard() {
               }`}
             >
               Learning Portal
+            </button>
+            <button
+              onClick={() => setActiveTab('schedule')}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                activeTab === 'schedule'
+                  ? 'bg-brand/15 text-brand border border-brand/30'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              Daily Schedule
             </button>
             <button
               onClick={() => setActiveTab('attendance')}
@@ -438,6 +449,13 @@ export default function StudentDashboard() {
               )}
             </section>
           </>
+        ) : activeTab === 'schedule' ? (
+          <DailyScheduleView
+            role="STUDENT"
+            studentId={user?.id}
+            sessions={sessions}
+            onJoinClass={(sessionId) => router.push(`/classroom/${sessionId}`)}
+          />
         ) : (
           /* ATTENDANCE & RECORDINGS TAB */
           <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm">

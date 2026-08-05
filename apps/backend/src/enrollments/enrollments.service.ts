@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Enrollment, EnrollmentDocument, User, UserDocument, Course, CourseDocument, Role } from '../schemas';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
 
@@ -104,5 +104,53 @@ export class EnrollmentsService {
         },
       })
       .sort({ enrolledAt: -1 });
+  }
+
+  async findByTeacher(teacherId: string) {
+    const teacherIdTargets: any[] = [teacherId];
+    if (Types.ObjectId.isValid(teacherId)) {
+      teacherIdTargets.push(new Types.ObjectId(teacherId));
+    }
+
+    const courses = await this.courseModel.find({
+      $or: [
+        { teacherId: { $in: teacherIdTargets } },
+        { teacherIds: { $in: teacherIdTargets } },
+      ],
+    });
+
+    const courseIdTargets: any[] = [];
+    courses.forEach((c) => {
+      courseIdTargets.push(c._id);
+      courseIdTargets.push(c._id.toString());
+    });
+
+    return this.enrollmentModel.find({ courseId: { $in: courseIdTargets } })
+      .populate('student', 'id name email profilePicture avatar timezone gender profile')
+      .populate('course', 'id title type curriculum')
+      .sort({ enrolledAt: -1 });
+  }
+
+  async assignCoursesToStudent(studentId: string, courseIds: string[]) {
+    const student = await this.userModel.findById(studentId);
+    if (!student || student.role !== Role.STUDENT) {
+      throw new NotFoundException('Specified student does not exist.');
+    }
+
+    // Remove old course enrollments not in courseIds list
+    await this.enrollmentModel.deleteMany({
+      studentId,
+      courseId: { $nin: courseIds || [] },
+    });
+
+    // Add new enrollments
+    for (const cId of (courseIds || [])) {
+      const existing = await this.enrollmentModel.findOne({ studentId, courseId: cId });
+      if (!existing) {
+        await this.enrollmentModel.create({ studentId, courseId: cId });
+      }
+    }
+
+    return this.findByStudent(studentId);
   }
 }

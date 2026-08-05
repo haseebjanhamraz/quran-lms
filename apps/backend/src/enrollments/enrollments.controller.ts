@@ -35,6 +35,21 @@ export class EnrollmentsController {
     return this.enrollmentsService.findByStudent(studentId);
   }
 
+  @Get('teacher/:teacherId')
+  @Roles(Role.ADMIN, Role.TEACHER, Role.SUPERVISOR)
+  async findByTeacher(@Param('teacherId') teacherId: string) {
+    return this.enrollmentsService.findByTeacher(teacherId);
+  }
+
+  @Post('student/:studentId')
+  @Roles(Role.ADMIN)
+  async assignCoursesToStudent(
+    @Param('studentId') studentId: string,
+    @Body('courseIds') courseIds: string[],
+  ) {
+    return this.enrollmentsService.assignCoursesToStudent(studentId, courseIds);
+  }
+
   @Delete(':id')
   @Roles(Role.ADMIN)
   async remove(@Param('id') id: string) {

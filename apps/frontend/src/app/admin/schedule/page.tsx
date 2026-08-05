@@ -1,11 +1,14 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Calendar as CalendarIcon, Clock, Filter, UserCheck, Move, CheckCircle2,
   AlertCircle, RefreshCw, Repeat, Trash2, Info
 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
+import DailyScheduleView from '@/components/DailyScheduleView';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -535,47 +538,68 @@ export default function ScheduleManagement() {
           </div>
         </div>
       ) : (
-        <div className="space-y-6 animate-fadeIn">
-          <div className="glass-panel p-6 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm border border-border/50">
-            <div>
-              <h2 className="text-xl font-display font-bold">Daily Timetable Schedule</h2>
-              <p className="text-sm text-muted-foreground">Detailed view for today's active sessions</p>
-            </div>
-          </div>
+        <DailyScheduleView
+          role="ADMIN"
+          teachers={teachers}
+          gridAssignments={gridAssignments}
+          allowDragDrop={true}
+          onDropSlot={async (targetDay, targetTimeIdx, payload) => {
+            const targetSlotKey = `${targetDay}-${targetTimeIdx}`;
+            const [startTime, endTime] = TIME_SLOTS[targetTimeIdx].split(' - ');
+            const teacher = teachers.find((t) => t.id === payload.teacherId);
+            const teacherName = teacher?.name || payload.teacherName;
 
-          <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border border-border/50">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm">
-                <thead>
-                  <tr className="bg-muted/50 border-b border-border">
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">#</th>
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Teacher Time</th>
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Student Time</th>
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Student Name</th>
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Course Name</th>
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {DAILY_SCHEDULE_DATA.map((row) => (
-                    <tr key={row.id} className="hover:bg-card/40 transition-colors">
-                      <td className="p-4 font-medium">{row.id}</td>
-                      <td className="p-4 font-mono text-xs">{row.teacherTime}</td>
-                      <td className="p-4 font-mono text-xs text-brand font-bold">{row.studentTime}</td>
-                      <td className="p-4 font-semibold">{row.studentName}</td>
-                      <td className="p-4">{row.courseName}</td>
-                      <td className="p-4">
-                        <span className="bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[10px] font-bold px-2 py-1 rounded-full uppercase">
-                          {row.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+            const previousGrid = { ...gridAssignments };
+            if (payload.type === 'MOVE_SLOT' && payload.sourceSlotKey) {
+              delete previousGrid[payload.sourceSlotKey];
+            }
+
+            setGridAssignments({
+              ...previousGrid,
+              [targetSlotKey]: {
+                dayOfWeek: targetDay,
+                timeSlotIndex: targetTimeIdx,
+                startTime,
+                endTime,
+                teacherId: payload.teacherId,
+                teacher: { id: payload.teacherId, name: teacherName },
+              },
+            });
+
+            try {
+              const res = await apiFetch(`${API_URL}/schedule/slot`, {
+                method: 'POST',
+                body: JSON.stringify({
+                  dayOfWeek: targetDay,
+                  timeSlotIndex: targetTimeIdx,
+                  startTime,
+                  endTime,
+                  teacherId: payload.teacherId,
+                  clientId: clientIdRef.current,
+                }),
+              });
+
+              if (res.ok) {
+                showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+                if (payload.type === 'MOVE_SLOT' && payload.sourceSlotKey) {
+                  const [sourceDay, sourceIdx] = payload.sourceSlotKey.split('-');
+                  await apiFetch(`${API_URL}/schedule/slot?dayOfWeek=${sourceDay}&timeSlotIndex=${sourceIdx}&clientId=${clientIdRef.current}`, {
+                    method: 'DELETE',
+                  });
+                }
+                fetchData();
+              } else {
+                showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+              }
+            } catch (_) {
+              showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+            }
+          }}
+          onRemoveSlot={async (dayOfWeek, timeSlotIndex) => {
+            const dummyEvent = { stopPropagation: () => {} } as any;
+            await handleRemoveSlot(dayOfWeek, timeSlotIndex, dummyEvent);
+          }}
+        />
       )}
     </div>
   );

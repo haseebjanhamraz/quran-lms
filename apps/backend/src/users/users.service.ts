@@ -69,6 +69,7 @@ export class UsersService {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
       guardianName, guardianPhone, guardianEmail,
+      monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
       employeeId, bio, guarantors, phone, cnicOrId, canEditProfile,
       ...baseUserDto
@@ -99,6 +100,11 @@ export class UsersService {
           guardianName,
           guardianPhone,
           guardianEmail,
+          monthlyFee: monthlyFee !== undefined ? Number(monthlyFee) : (monthlyFeeOverride !== undefined ? Number(monthlyFeeOverride) : undefined),
+          monthlyFeeOverride: monthlyFeeOverride !== undefined ? Number(monthlyFeeOverride) : undefined,
+          currency: currency || 'USD',
+          feeWaiverPercent: feeWaiverPercent !== undefined ? Number(feeWaiverPercent) : 0,
+          customFeeNotes,
         },
       });
     } else if (baseUserDto.role === Role.TEACHER) {
@@ -175,6 +181,7 @@ export class UsersService {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
       guardianName, guardianPhone, guardianEmail,
+      monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
       employeeId, bio, guarantors, phone, cnicOrId, canEditProfile,
       ...baseData
@@ -204,6 +211,11 @@ export class UsersService {
       if (guardianName !== undefined) studentUpdate['profile.guardianName'] = guardianName;
       if (guardianPhone !== undefined) studentUpdate['profile.guardianPhone'] = guardianPhone;
       if (guardianEmail !== undefined) studentUpdate['profile.guardianEmail'] = guardianEmail;
+      if (monthlyFee !== undefined) studentUpdate['profile.monthlyFee'] = Number(monthlyFee);
+      if (monthlyFeeOverride !== undefined) studentUpdate['profile.monthlyFeeOverride'] = Number(monthlyFeeOverride);
+      if (feeWaiverPercent !== undefined) studentUpdate['profile.feeWaiverPercent'] = Number(feeWaiverPercent);
+      if (customFeeNotes !== undefined) studentUpdate['profile.customFeeNotes'] = customFeeNotes;
+      if (currency !== undefined) studentUpdate['profile.currency'] = currency;
 
       if (Object.keys(studentUpdate).length > 0) {
         await this.studentModel.findOneAndUpdate(

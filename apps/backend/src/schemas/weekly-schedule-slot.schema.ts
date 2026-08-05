@@ -36,6 +36,10 @@ export class WeeklyScheduleSlot {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
   studentId?: MongooseSchema.Types.ObjectId | string;
 
+  teacher?: any;
+  course?: any;
+  student?: any;
+
   @Prop({ default: true, type: Boolean })
   isRecurring: boolean;
 

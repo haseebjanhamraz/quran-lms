@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Course, CourseDocument, User, UserDocument, Enrollment, EnrollmentDocument, ClassSession, ClassSessionDocument, Role } from '../schemas';
+import { Course, CourseDocument, User, UserDocument, Enrollment, EnrollmentDocument, ClassSession, ClassSessionDocument, SubjectCategory, SubjectCategoryDocument, Role } from '../schemas';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
@@ -12,6 +12,7 @@ export class CoursesService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(SubjectCategory.name) private readonly categoryModel: Model<SubjectCategoryDocument>,
   ) {}
 
   async create(createCourseDto: CreateCourseDto) {
@@ -147,5 +148,37 @@ export class CoursesService {
     );
 
     return this.findByTeacher(teacherId);
+  }
+
+  // --- Subject Category Methods ---
+  async findAllCategories() {
+    let categories = await this.categoryModel.find().sort({ createdAt: 1 });
+    if (categories.length === 0) {
+      // Seed default categories
+      await this.categoryModel.insertMany([
+        { name: 'Nazira & Recitation', code: 'NAZIRA', description: 'Fundamental Quranic reading and fluency for beginners', color: '#3b82f6' },
+        { name: 'Tajweed & Makharij', code: 'TAJWEED', description: 'Rules of pronunciation, articulation points, and voice modulation', color: '#10b981' },
+        { name: 'Hifz-ul-Quran Intensive', code: 'HIFZ_UL_QURAN', description: 'Full Quran memorization program with daily revision track', color: '#8b5cf6' },
+        { name: 'Hadith & Islamic Studies', code: 'ISLAMIC_STUDIES', description: 'Seerah, Fiqh essentials, and daily Islamic etiquette', color: '#f59e0b' },
+      ]);
+      categories = await this.categoryModel.find().sort({ createdAt: 1 });
+    }
+    return categories;
+  }
+
+  async createCategory(dto: any) {
+    return this.categoryModel.create(dto);
+  }
+
+  async updateCategory(id: string, dto: any) {
+    const cat = await this.categoryModel.findById(id);
+    if (!cat) throw new NotFoundException('Subject category not found');
+    return this.categoryModel.findByIdAndUpdate(id, { $set: dto }, { new: true });
+  }
+
+  async removeCategory(id: string) {
+    const cat = await this.categoryModel.findById(id);
+    if (!cat) throw new NotFoundException('Subject category not found');
+    return this.categoryModel.findByIdAndDelete(id);
   }
 }

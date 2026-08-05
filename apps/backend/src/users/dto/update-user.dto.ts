@@ -141,4 +141,20 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   canEditProfile?: boolean;
+
+  @IsNumber()
+  @IsOptional()
+  monthlyFee?: number;
+
+  @IsNumber()
+  @IsOptional()
+  monthlyFeeOverride?: number;
+
+  @IsNumber()
+  @IsOptional()
+  feeWaiverPercent?: number;
+
+  @IsString()
+  @IsOptional()
+  customFeeNotes?: string;
 }

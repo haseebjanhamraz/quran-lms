@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
+import DailyScheduleView from '@/components/DailyScheduleView';
 
 interface SessionItem {
   id: string;
@@ -19,6 +20,7 @@ interface ScheduleTabProps {
   reviewsLoading: boolean;
   handleStartClass: (id: string) => void;
   router: any;
+  teacherId?: string;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -63,8 +65,10 @@ export default function ScheduleTab({
   reviewsLoading,
   handleStartClass,
   router,
+  teacherId,
 }: ScheduleTabProps) {
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'daily' | 'list'>('daily');
 
   const handleCopyLink = (sessionId: string) => {
     const link = `${window.location.origin}/classroom/${sessionId}`;
@@ -78,16 +82,45 @@ export default function ScheduleTab({
     <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
       {/* Class schedule */}
       <div className="xl:col-span-2 space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <h2 className="font-display text-xl font-bold text-brand">
             Your Class Schedule
           </h2>
-          <span className="rounded-full border border-border bg-card/80 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-            {sessions.filter((s) => s.status !== 'CANCELLED').length} active sessions
-          </span>
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            <div className="flex items-center p-1 bg-card border border-border rounded-xl shadow-sm">
+              <button
+                onClick={() => setViewMode('daily')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                Daily Timetable
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                  viewMode === 'list' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                }`}
+              >
+                Session List
+              </button>
+            </div>
+
+            <span className="rounded-full border border-border bg-card/80 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+              {sessions.filter((s) => s.status !== 'CANCELLED').length} active sessions
+            </span>
+          </div>
         </div>
 
-        {sessionsLoading ? (
+        {viewMode === 'daily' ? (
+          <DailyScheduleView
+            role="TEACHER"
+            teacherId={teacherId}
+            onStartClass={(sId) => handleStartClass(sId)}
+            onJoinClass={(sId) => router.push(`/classroom/${sId}`)}
+          />
+        ) : sessionsLoading ? (
           <div className="flex items-center justify-center py-16">
             <Loader2 size={28} className="animate-spin text-primary" />
           </div>

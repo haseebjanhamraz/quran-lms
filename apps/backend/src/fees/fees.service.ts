@@ -50,6 +50,18 @@ export class FeesService {
     return this.feeStructureModel.find({ isActive: true }).populate('course', 'id title type');
   }
 
+  async updateStructure(id: string, dto: any) {
+    const struct = await this.feeStructureModel.findById(id);
+    if (!struct) throw new NotFoundException('Fee structure not found');
+    return this.feeStructureModel.findByIdAndUpdate(id, { $set: dto }, { new: true }).populate('course', 'id title type');
+  }
+
+  async removeStructure(id: string) {
+    const struct = await this.feeStructureModel.findById(id);
+    if (!struct) throw new NotFoundException('Fee structure not found');
+    return this.feeStructureModel.findByIdAndDelete(id);
+  }
+
   // --- Invoice Methods ---
   async createInvoice(dto: CreateInvoiceDto, adminId?: string) {
     const student = await this.userModel.findById(dto.studentId);
@@ -70,34 +82,29 @@ export class FeesService {
   }
 
   async autoGenerateMonthlyInvoices(billingMonth: string, adminId?: string) {
-    const enrollments = await this.enrollmentModel.find().populate('student').populate('course');
-    const structures = await this.feeStructureModel.find({ isActive: true });
-    const structMap = new Map<string, number>();
-    structures.forEach((s) => structMap.set(s.courseId.toString(), s.monthlyFee));
+    const students = await this.userModel.find({ role: Role.STUDENT, isActive: true }).populate('studentProfile');
 
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 10); // Due in 10 days
 
     let generatedCount = 0;
 
-    for (const en of enrollments) {
-      const student = (en as any).student;
-      const course = (en as any).course;
-      if (!student || !course) continue;
+    for (const student of students) {
       const studentId = student._id.toString();
-      const courseId = course._id.toString();
 
-      // Check if invoice already exists for this billing month
-      const existing = await this.invoiceModel.findOne({ studentId, courseId, billingMonth });
+      // Check if invoice already exists for this student & billing month
+      const existing = await this.invoiceModel.findOne({ studentId, billingMonth });
       if (existing) continue;
 
-      const monthlyFee = structMap.get(courseId) || 50; // Fallback fee
-      const currency = this.getCurrencyForStudent(student);
+      const profile = (student as any).studentProfile?.profile || {};
+      const baseFee = Number(profile.monthlyFee || profile.monthlyFeeOverride || 50);
+      const waiverPercent = Number(profile.feeWaiverPercent || 0);
+      const netFee = Math.max(0, Math.round(baseFee * (1 - waiverPercent / 100)));
+      const currency = profile.currency || this.getCurrencyForStudent(student);
 
       await this.invoiceModel.create({
         studentId,
-        courseId,
-        amount: monthlyFee,
+        amount: netFee,
         currency,
         dueDate,
         status: InvoiceStatus.PENDING,
@@ -108,7 +115,7 @@ export class FeesService {
       generatedCount++;
     }
 
-    return { message: `Generated ${generatedCount} new invoices for billing month ${billingMonth}`, generatedCount };
+    return { message: `Generated ${generatedCount} student fee invoices for billing month ${billingMonth}`, generatedCount };
   }
 
   async findAllInvoices(billingMonth?: string, status?: string, studentId?: string) {

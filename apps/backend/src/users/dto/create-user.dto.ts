@@ -120,6 +120,22 @@ export class CreateUserDto {
   @IsOptional()
   country?: string;
 
+  @IsNumber()
+  @IsOptional()
+  monthlyFee?: number;
+
+  @IsNumber()
+  @IsOptional()
+  monthlyFeeOverride?: number;
+
+  @IsNumber()
+  @IsOptional()
+  feeWaiverPercent?: number;
+
+  @IsString()
+  @IsOptional()
+  customFeeNotes?: string;
+
   @IsString()
   @IsOptional()
   currency?: string;

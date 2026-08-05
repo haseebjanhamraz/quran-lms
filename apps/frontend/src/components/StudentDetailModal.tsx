@@ -125,8 +125,8 @@ export default function StudentDetailModal({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-background/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       {/* Fullscreen Dialog Container */}
-      <div className="glass-panel w-full max-w-5xl h-[92vh] max-h-[920px] rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col my-auto overflow-hidden bg-card/95">
-        
+      <div className="glass-panel w-full max-w-7xl h-[92vh] max-h-[920px] rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col my-auto overflow-hidden bg-card/95">
+
         {/* Top Floating Glow Backdrop */}
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
@@ -220,11 +220,10 @@ export default function StudentDetailModal({
                 <span>{student.email}</span>
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                  student.isActive && !student.discontinued && !student.isDiscontinued
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${student.isActive && !student.discontinued && !student.isDiscontinued
                     ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                     : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-                }`}>
+                  }`}>
                   {student.isActive && !student.discontinued && !student.isDiscontinued ? 'Active Student' : 'Inactive'}
                 </span>
                 {type === 'Child' ? (
@@ -257,11 +256,10 @@ export default function StudentDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'overview'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'overview'
                 ? 'bg-primary text-primary-foreground shadow-md'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
+              }`}
           >
             <User className="h-4 w-4" />
             <span>Personal & Demographics</span>
@@ -270,11 +268,10 @@ export default function StudentDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('courses')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'courses'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'courses'
                 ? 'bg-primary text-primary-foreground shadow-md'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
+              }`}
           >
             <BookOpen className="h-4 w-4" />
             <span>Courses & Teachers ({enrollments.length})</span>
@@ -283,11 +280,10 @@ export default function StudentDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('guardian')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-              activeTab === 'guardian'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'guardian'
                 ? 'bg-primary text-primary-foreground shadow-md'
                 : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-            }`}
+              }`}
           >
             <Shield className="h-4 w-4" />
             <span>Guardian & Parent Info</span>

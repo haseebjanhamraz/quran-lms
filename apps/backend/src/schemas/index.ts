@@ -28,3 +28,4 @@ export * from './salary-slip.schema';
 export * from './ticket.schema';
 export * from './ticket-comment.schema';
 export * from './weekly-schedule-slot.schema';
+export * from './subject-category.schema';

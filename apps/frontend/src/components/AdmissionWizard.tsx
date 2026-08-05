@@ -121,9 +121,10 @@ export default function AdmissionWizard({
         });
 
         setFeeInfo({
-          feeStructureId: editingStudent.feeStructureId || '',
-          monthlyFeeOverride: editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '',
+          monthlyFee: editingStudent.monthlyFee ? String(editingStudent.monthlyFee) : (editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '50'),
+          currency: editingStudent.currency || 'USD',
           feeWaiverPercent: editingStudent.feeWaiverPercent ? String(editingStudent.feeWaiverPercent) : '0',
+          customFeeNotes: editingStudent.customFeeNotes || '',
         });
 
         // Fetch student's existing enrollments
@@ -152,9 +153,10 @@ export default function AdmissionWizard({
           isDiscontinued: false,
         });
         setFeeInfo({
-          feeStructureId: '',
-          monthlyFeeOverride: '',
+          monthlyFee: '50',
+          currency: 'USD',
           feeWaiverPercent: '0',
+          customFeeNotes: '',
         });
         setSelectedCourseIds([]);
         setSelectedTeacherId('');
@@ -282,9 +284,11 @@ export default function AdmissionWizard({
         guardianName: guardianInfo.guardianName,
         guardianPhone: guardianInfo.guardianPhone,
         guardianEmail: guardianInfo.guardianEmail,
-        feeStructureId: feeInfo.feeStructureId || undefined,
-        monthlyFeeOverride: feeInfo.monthlyFeeOverride ? Number(feeInfo.monthlyFeeOverride) : undefined,
+        monthlyFee: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
+        monthlyFeeOverride: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
+        currency: feeInfo.currency || 'USD',
         feeWaiverPercent: feeInfo.feeWaiverPercent ? Number(feeInfo.feeWaiverPercent) : 0,
+        customFeeNotes: feeInfo.customFeeNotes,
       };
 
       if (personalInfo.password) {
@@ -671,45 +675,36 @@ export default function AdmissionWizard({
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-brand" />
-                  <span>Step 4: Fees & Billing Setup</span>
+                  <span>Step 4: Student Individual Fees & Billing Setup</span>
                 </h3>
-                <p className="text-xs text-muted-foreground">Select a fee structure or set custom monthly fee for HR fee management.</p>
+                <p className="text-xs text-muted-foreground">Configure individual student monthly tuition rates, currency, and waiver percentages.</p>
 
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Assign Fee Structure (Optional)</label>
-                    <select
-                      value={feeInfo.feeStructureId}
-                      onChange={(e) => {
-                        const selectedId = e.target.value;
-                        const fs = feeStructures.find((s) => (s.id || s._id) === selectedId);
-                        setFeeInfo({
-                          ...feeInfo,
-                          feeStructureId: selectedId,
-                          monthlyFeeOverride: fs ? String(fs.monthlyFee) : feeInfo.monthlyFeeOverride,
-                        });
-                      }}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
-                    >
-                      <option value="">No pre-set structure (Custom fee)</option>
-                      {feeStructures.map((fs) => (
-                        <option key={fs.id || fs._id} value={fs.id || fs._id}>
-                          {fs.course?.title || 'General'} — {fs.monthlyFee} {fs.currency || 'PKR'} / month
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Monthly Fee Override (Optional)</label>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">Monthly Tuition Fee *</label>
                       <input
                         type="number"
-                        placeholder="e.g. 5000"
-                        value={feeInfo.monthlyFeeOverride}
-                        onChange={(e) => setFeeInfo({ ...feeInfo, monthlyFeeOverride: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
+                        min="0"
+                        placeholder="e.g. 50"
+                        value={feeInfo.monthlyFee}
+                        onChange={(e) => setFeeInfo({ ...feeInfo, monthlyFee: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold"
                       />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">Billing Currency</label>
+                      <select
+                        value={feeInfo.currency}
+                        onChange={(e) => setFeeInfo({ ...feeInfo, currency: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold"
+                      >
+                        <option value="USD">USD ($)</option>
+                        <option value="PKR">PKR (Rs)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="EUR">EUR (€)</option>
+                      </select>
                     </div>
 
                     <div className="space-y-1">
@@ -723,6 +718,28 @@ export default function AdmissionWizard({
                         className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
                       />
                     </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Special Fee Notes / Discount Remarks</label>
+                    <textarea
+                      rows={2}
+                      placeholder="e.g. Sibling discount applied, custom monthly billing arrangements..."
+                      value={feeInfo.customFeeNotes}
+                      onChange={(e) => setFeeInfo({ ...feeInfo, customFeeNotes: e.target.value })}
+                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* Summary Card */}
+                  <div className="p-3.5 rounded-xl bg-card border border-border/80 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-semibold">Net Calculated Monthly Billing</p>
+                      <p className="text-xs text-muted-foreground">Base: {feeInfo.monthlyFee || 0} {feeInfo.currency} — {feeInfo.feeWaiverPercent || 0}% Waiver</p>
+                    </div>
+                    <span className="text-base font-mono font-bold text-brand">
+                      {Math.max(0, Math.round(Number(feeInfo.monthlyFee || 0) * (1 - Number(feeInfo.feeWaiverPercent || 0) / 100)))} {feeInfo.currency} / mo
+                    </span>
                   </div>
                 </div>
               </div>

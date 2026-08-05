@@ -36,10 +36,19 @@ export class StudentProfile {
   feeStructureId?: MongooseSchema.Types.ObjectId | string;
 
   @Prop({ type: Number })
+  monthlyFee?: number;
+
+  @Prop({ type: Number })
   monthlyFeeOverride?: number;
+
+  @Prop({ default: 'USD' })
+  currency?: string;
 
   @Prop({ default: 0, type: Number })
   feeWaiverPercent?: number;
+
+  @Prop()
+  customFeeNotes?: string;
 }
 
 export const StudentProfileSchema = SchemaFactory.createForClass(StudentProfile);

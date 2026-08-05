@@ -5,6 +5,7 @@ import { XCircle, Loader2, BookOpen, User, FileText, Sparkles, CheckSquare, Squa
 import { apiFetch } from '@/utils/apiFetch';
 
 export interface CourseItem {
+  feeStructures: any;
   id: string;
   _id?: string;
   title: string;
@@ -226,9 +227,8 @@ export default function CourseModal({
                     <div
                       key={id}
                       onClick={() => toggleTeacher(id)}
-                      className={`p-2 rounded-lg text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${
-                        isChecked ? 'bg-brand/10 text-brand border border-brand/30' : 'hover:bg-muted text-foreground'
-                      }`}
+                      className={`p-2 rounded-lg text-xs font-semibold flex items-center justify-between cursor-pointer transition-colors ${isChecked ? 'bg-brand/10 text-brand border border-brand/30' : 'hover:bg-muted text-foreground'
+                        }`}
                     >
                       <div className="flex items-center gap-2">
                         {isChecked ? <CheckSquare className="h-4 w-4 text-brand shrink-0" /> : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}

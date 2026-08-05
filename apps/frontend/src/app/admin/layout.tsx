@@ -45,11 +45,11 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Teachers', icon: BookUser, href: '/admin/teachers' },
   { label: 'Courses', icon: BookOpen, href: '/admin/courses' },
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
-  { label: 'HR Management', icon: Briefcase, href: '/admin/hr' },
-  { label: 'Fees & Payments', icon: CreditCard, href: '/admin/fees' },
+  { label: 'HR & Finance', icon: Briefcase, href: '/admin/hr' },
 ];
 
 const MORE_NAV: NavItem[] = [
+  { label: 'Fees Collection', icon: CreditCard, href: '/admin/hr?tab=fees' },
   { label: 'Users & Accounts', icon: Users, href: '/admin/users' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
   { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments' },

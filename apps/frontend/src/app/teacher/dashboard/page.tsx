@@ -412,6 +412,7 @@ export default function TeacherDashboard() {
             reviewsLoading={reviewsLoading}
             handleStartClass={handleStartClass}
             router={router}
+            teacherId={user?.id}
           />
         )}
 

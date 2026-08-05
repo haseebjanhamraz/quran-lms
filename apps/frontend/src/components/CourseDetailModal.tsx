@@ -42,7 +42,7 @@ export default function CourseDetailModal({
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-background/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col bg-card/95 my-auto">
+      <div className="glass-panel w-full max-w-5xl rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col bg-card/95 my-auto">
         {/* Glow effects */}
         <div className="absolute top-0 right-1/4 w-72 h-72 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -131,7 +131,7 @@ export default function CourseDetailModal({
               <FileText className="h-4 w-4 text-brand" />
               <span>Curriculum & Syllabus Breakdown</span>
             </h4>
-            <div className="text-xs text-foreground/90 leading-relaxed whitespace-pre-wrap font-sans p-3 rounded-xl bg-background/50 border border-border/40">
+            <div className="text-xs w-fit text-foreground/90 leading-relaxed whitespace-pre-wrap font-sans p-3 rounded-xl bg-background/50 border border-border/40">
               {course.curriculum || 'No curriculum breakdown provided.'}
             </div>
           </div>
