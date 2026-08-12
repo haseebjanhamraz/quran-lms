@@ -8,7 +8,7 @@ interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   livekitRoomId?: string;
 }
 
@@ -79,7 +79,7 @@ export default function ScheduleTab({
   };
 
   return (
-    <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+    <section className="grid grid-cols-1 xl:grid-cols-1 gap-6">
       {/* Class schedule */}
       <div className="xl:col-span-2 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -91,17 +91,15 @@ export default function ScheduleTab({
             <div className="flex items-center p-1 bg-card border border-border rounded-xl shadow-sm">
               <button
                 onClick={() => setViewMode('daily')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  viewMode === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
-                }`}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${viewMode === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                  }`}
               >
                 Daily Timetable
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  viewMode === 'list' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
-                }`}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                  }`}
               >
                 Session List
               </button>
@@ -172,11 +170,10 @@ export default function ScheduleTab({
                       <>
                         <button
                           onClick={() => handleCopyLink(session.id)}
-                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${
-                            copiedSessionId === session.id
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                              : 'border-border bg-muted/40 text-foreground/80 hover:border-brand/40 hover:text-foreground'
-                          }`}
+                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${copiedSessionId === session.id
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            : 'border-border bg-muted/40 text-foreground/80 hover:border-brand/40 hover:text-foreground'
+                            }`}
                         >
                           {copiedSessionId === session.id ? <Check size={13} /> : <Copy size={13} />}
                           <span>{copiedSessionId === session.id ? 'Copied!' : 'Copy Link'}</span>
@@ -200,11 +197,10 @@ export default function ScheduleTab({
                       <>
                         <button
                           onClick={() => handleCopyLink(session.id)}
-                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${
-                            copiedSessionId === session.id
-                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-                              : 'border-border bg-muted/40 text-foreground/80 hover:border-brand/40 hover:text-foreground'
-                          }`}
+                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${copiedSessionId === session.id
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            : 'border-border bg-muted/40 text-foreground/80 hover:border-brand/40 hover:text-foreground'
+                            }`}
                         >
                           {copiedSessionId === session.id ? <Check size={13} /> : <Copy size={13} />}
                           <span>{copiedSessionId === session.id ? 'Copied!' : 'Copy Link'}</span>
@@ -241,7 +237,7 @@ export default function ScheduleTab({
       </div>
 
       {/* QA Feedback summary */}
-      <div className="space-y-5">
+      {/* <div className="space-y-5">
         <div className="flex justify-between items-center">
           <h2 className="font-display text-xl font-bold flex items-center gap-2 text-brand">
             <Award size={20} className="text-brand" />
@@ -279,7 +275,7 @@ export default function ScheduleTab({
             </div>
           )}
         </div>
-      </div>
+      </div> */}
     </section>
   );
 }

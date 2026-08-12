@@ -232,11 +232,10 @@ export default function StudentsManagementPage() {
                   {s.name} {s.preferredName && `(${s.preferredName})`}
                 </p>
                 {s.gender && (
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
-                    s.gender.toLowerCase() === 'female'
-                      ? 'bg-pink-500/10 text-pink-500 border-pink-500/20'
-                      : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
-                  }`}>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${s.gender.toLowerCase() === 'female'
+                    ? 'bg-pink-500/10 text-pink-500 border-pink-500/20'
+                    : 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                    }`}>
                     {s.gender}
                   </span>
                 )}
@@ -312,11 +311,10 @@ export default function StudentsManagementPage() {
       sortable: true,
       render: (s) => (
         <div className="flex items-center gap-1.5">
-          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
-            s.isActive && !s.discontinued && !s.isDiscontinued
-              ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-              : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
-          }`}>
+          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${s.isActive && !s.discontinued && !s.isDiscontinued
+            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+            : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+            }`}>
             {s.isActive && !s.discontinued && !s.isDiscontinued ? 'Active' : 'Inactive'}
           </span>
           {s.trialStatus === 'Active' && (
@@ -386,7 +384,7 @@ export default function StudentsManagementPage() {
   ];
 
   return (
-    <div className="relative mx-auto max-w-7xl space-y-6">
+    <div className="relative mx-auto w-full space-y-6">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

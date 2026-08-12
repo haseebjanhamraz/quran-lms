@@ -53,7 +53,6 @@ export default function StudentsTab({ students, studentsLoading }: StudentsTabPr
             <thead>
               <tr className="border-b border-border bg-muted/50">
                 <th className="py-3.5 px-6 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Student Name</th>
-                <th className="py-3.5 px-6 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Email Address</th>
                 <th className="py-3.5 px-6 text-muted-foreground font-semibold text-xs uppercase tracking-wider">Enrolled Course</th>
               </tr>
             </thead>
@@ -61,7 +60,6 @@ export default function StudentsTab({ students, studentsLoading }: StudentsTabPr
               {filteredStudents.map((st, i) => (
                 <tr key={i} className="hover:bg-muted/40 transition-colors">
                   <td className="py-4 px-6 font-medium text-foreground">{st.name}</td>
-                  <td className="py-4 px-6 text-muted-foreground font-mono text-xs">{st.email}</td>
                   <td className="py-4 px-6 text-foreground/80">{st.courseTitle}</td>
                 </tr>
               ))}

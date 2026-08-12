@@ -9,6 +9,11 @@ export enum NotificationType {
   RECORDING_READY = 'RECORDING_READY',
   FLAG_RAISED = 'FLAG_RAISED',
   SYSTEM = 'SYSTEM',
+  RESCHEDULE_REQUESTED = 'RESCHEDULE_REQUESTED',
+  RESCHEDULE_APPROVED = 'RESCHEDULE_APPROVED',
+  RESCHEDULE_REJECTED = 'RESCHEDULE_REJECTED',
+  CLASS_EXPIRED = 'CLASS_EXPIRED',
+  CLASS_FROZEN = 'CLASS_FROZEN',
 }
 
 @Schema({ timestamps: { createdAt: true, updatedAt: false }, toJSON: { virtuals: true }, toObject: { virtuals: true } })

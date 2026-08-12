@@ -8,6 +8,7 @@ export enum RecordingStatus {
   UPLOADING = 'UPLOADING',
   READY = 'READY',
   FAILED = 'FAILED',
+  CANCELLED = 'CANCELLED',
 }
 
 @Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })

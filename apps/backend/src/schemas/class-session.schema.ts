@@ -8,6 +8,8 @@ export enum ClassStatus {
   LIVE = 'LIVE',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
+  EXPIRED = 'EXPIRED',
+  FROZEN = 'FROZEN',
 }
 
 @Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
@@ -35,6 +37,18 @@ export class ClassSession {
 
   @Prop()
   startedAt?: Date;
+
+  @Prop()
+  actualStartTime?: Date;
+
+  @Prop()
+  actualEndTime?: Date;
+
+  @Prop()
+  endedAt?: Date;
+
+  @Prop()
+  timezone?: string;
 
   createdAt?: Date;
   updatedAt?: Date;

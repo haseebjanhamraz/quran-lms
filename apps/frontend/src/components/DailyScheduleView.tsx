@@ -33,7 +33,7 @@ export interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   teacherId?: string;
   studentId?: string;
   teacher?: { id: string; name: string };

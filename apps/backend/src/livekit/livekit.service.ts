@@ -143,9 +143,52 @@ export class LivekitService {
         } else {
           this.logger.log(`Recording already ${recording.status} for session ${sessionId}. Skipping egress start.`);
         }
+        this.scheduleIdleCheck(sessionId);
       }
     } catch (err: any) {
       this.logger.error(`Error handling track published: ${err.message}`);
+    }
+  }
+
+  private scheduleIdleCheck(sessionId: string) {
+    const graceMs = 10 * 60 * 1000; // 10 minutes grace period
+    this.logger.log(`Scheduling idle student check for session ${sessionId} in 10 minutes.`);
+    setTimeout(async () => {
+      await this.checkAndFreezeIdleSession(sessionId);
+    }, graceMs);
+  }
+
+  async checkAndFreezeIdleSession(sessionId: string) {
+    try {
+      const session = await this.classSessionModel.findById(sessionId);
+      if (!session || session.status !== ClassStatus.LIVE) return;
+
+      const attendances = await this.attendanceModel.find({ sessionId });
+      const hasStudentAttendance = attendances.length > 0;
+
+      if (!hasStudentAttendance) {
+        this.logger.log(`No student joined session ${sessionId} within 10 minutes. Freezing session and stopping recordings.`);
+        await this.classSessionModel.findByIdAndUpdate(sessionId, {
+          $set: { status: ClassStatus.FROZEN, endedAt: new Date() },
+        });
+
+        await this.recordingModel.findOneAndUpdate(
+          { sessionId },
+          { $set: { status: RecordingStatus.CANCELLED } },
+        );
+
+        try {
+          const livekitHost = this.configService.getOrThrow<string>('LIVEKIT_HOST');
+          const apiKey = this.configService.getOrThrow<string>('LIVEKIT_API_KEY');
+          const apiSecret = this.configService.getOrThrow<string>('LIVEKIT_API_SECRET');
+          const roomService = new RoomServiceClient(livekitHost, apiKey, apiSecret);
+          await roomService.deleteRoom(`room-${sessionId}`);
+        } catch (err: any) {
+          this.logger.error(`Failed to delete room for frozen session ${sessionId}: ${err.message}`);
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Error checking idle session ${sessionId}: ${err.message}`);
     }
   }
 

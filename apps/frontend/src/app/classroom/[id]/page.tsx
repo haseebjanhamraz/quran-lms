@@ -15,6 +15,7 @@ import { Track, MediaDeviceFailure } from 'livekit-client';
 import { Loader2, AlertCircle, Mic, MicOff, Video, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
 import '@livekit/components-styles';
 import ThemeToggle from '@/components/ThemeToggle';
+import { getImageUrl } from '@/utils/image';
 
 export default function ClassroomPage() {
   const { id } = useParams() as { id: string };
@@ -220,7 +221,7 @@ function VideoGrid() {
 
   const tracks = useTracks(
     [
-      { source: Track.Source.Camera, withPlaceholder: false },
+      { source: Track.Source.Camera, withPlaceholder: true },
       { source: Track.Source.ScreenShare, withPlaceholder: false },
     ],
     { onlySubscribed: false },
@@ -295,24 +296,9 @@ function VideoGrid() {
             {cameraTracks.map((track) => (
               <div
                 key={`${track.participant.identity}-${track.source}`}
-                className="group relative transition-all duration-300 ease-in-out w-14 h-14 rounded-full overflow-hidden border border-slate-750 bg-slate-900/90 shadow-xl hover:w-48 hover:h-32 hover:rounded-xl"
+                className="group relative transition-all duration-300 ease-in-out w-16 h-16 rounded-full overflow-hidden border border-slate-750 bg-slate-900/90 shadow-xl hover:w-48 hover:h-32 hover:rounded-xl"
               >
-                <ParticipantTile
-                  trackRef={track}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute bottom-1 right-2 bg-black/60 px-1.5 py-0.5 rounded text-[10px] text-white max-w-[80%] truncate pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                  {track.participant.name || track.participant.identity}
-                </div>
-                {user?.role === 'TEACHER' && track.participant.identity !== user.id && (
-                  <button
-                    onClick={() => handleMuteParticipant(track.participant)}
-                    className="absolute top-1 left-1 z-30 p-1 bg-red-500/80 hover:bg-red-600 text-white rounded opacity-0 group-hover:opacity-100 transition"
-                    title="Remote Mute"
-                  >
-                    <MicOff size={10} />
-                  </button>
-                )}
+                <CustomParticipantTile track={track} className="w-full h-full object-cover" />
               </div>
             ))}
           </div>
@@ -341,20 +327,12 @@ function VideoGrid() {
           <div className="w-full md:w-64 lg:w-80 shrink-0 flex md:flex-col gap-3 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto max-h-[140px] md:max-h-none py-1">
             {cameraTracks.map((track) => (
               <div key={`${track.participant.identity}-${track.source}`} className="relative group shrink-0 w-40 md:w-full aspect-video">
-                <ParticipantTile
-                  trackRef={track}
-                  className="w-full h-full bg-card/50 border border-border/40 rounded-2xl overflow-hidden flex items-center justify-center hover:border-primary/20 transition-all duration-300"
+                <CustomParticipantTile
+                  track={track}
+                  className="w-full h-full"
+                  showMuteButton={user?.role === 'TEACHER' && track.participant.identity !== user.id}
+                  onMute={() => handleMuteParticipant(track.participant)}
                 />
-                {user?.role === 'TEACHER' && track.participant.identity !== user.id && (
-                  <button
-                    onClick={() => handleMuteParticipant(track.participant)}
-                    className="absolute top-2 right-2 z-30 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition outline-none flex items-center gap-1 text-xs shadow-md"
-                    title="Mute student microphone"
-                  >
-                    <MicOff size={12} />
-                    <span>Mute</span>
-                  </button>
-                )}
               </div>
             ))}
           </div>
@@ -367,22 +345,76 @@ function VideoGrid() {
     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-y-auto pr-1">
       {cameraTracks.map((track) => (
         <div key={`${track.participant.identity}-${track.source}`} className="relative group w-full aspect-video">
-          <ParticipantTile
-            trackRef={track}
-            className="w-full h-full bg-card/50 border border-border/40 rounded-2xl overflow-hidden flex items-center justify-center hover:border-primary/20 transition-all duration-300"
+          <CustomParticipantTile
+            track={track}
+            className="w-full h-full"
+            showMuteButton={user?.role === 'TEACHER' && track.participant.identity !== user.id}
+            onMute={() => handleMuteParticipant(track.participant)}
           />
-          {user?.role === 'TEACHER' && track.participant.identity !== user.id && (
-            <button
-              onClick={() => handleMuteParticipant(track.participant)}
-              className="absolute top-3 right-3 z-30 p-2.5 bg-red-500/90 hover:bg-red-650 text-white rounded-xl opacity-0 group-hover:opacity-100 transition outline-none flex items-center gap-1.5 text-xs font-semibold shadow-lg"
-              title="Mute student microphone"
-            >
-              <MicOff size={14} />
-              <span>Mute Student</span>
-            </button>
-          )}
         </div>
       ))}
+    </div>
+  );
+}
+
+function CustomParticipantTile({
+  track,
+  className = '',
+  showMuteButton = false,
+  onMute,
+}: {
+  track: any;
+  className?: string;
+  showMuteButton?: boolean;
+  onMute?: () => void;
+}) {
+  const isCameraOff = track.isPlaceholder || !track.publication?.track || track.publication?.isMuted;
+  const participant = track.participant;
+
+  let profilePicture = '';
+  let role = '';
+  try {
+    const meta = JSON.parse(participant?.metadata || '{}');
+    profilePicture = meta.profilePicture || '';
+    role = meta.role || '';
+  } catch (_) {}
+
+  const displayName = participant?.name || participant?.identity || 'User';
+
+  return (
+    <div className={`relative ${className} bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center`}>
+      {isCameraOff ? (
+        <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+          {profilePicture ? (
+            <img
+              src={getImageUrl(profilePicture)}
+              alt={displayName}
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-brand/50 shadow-xl"
+            />
+          ) : (
+            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-brand/20 border-2 border-brand/40 flex items-center justify-center text-brand font-bold text-xl shadow-xl">
+              {displayName[0]?.toUpperCase() || 'U'}
+            </div>
+          )}
+          <div>
+            <h4 className="text-xs sm:text-sm font-bold text-white tracking-wide">{displayName}</h4>
+            {role && <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{role}</span>}
+          </div>
+        </div>
+      ) : (
+        <ParticipantTile trackRef={track} className="w-full h-full object-cover" />
+      )}
+
+      {showMuteButton && onMute && (
+        <button
+          onClick={onMute}
+          className="absolute top-2 right-2 z-30 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg transition opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs shadow-md"
+          title="Mute participant microphone"
+        >
+          <MicOff size={12} />
+          <span>Mute</span>
+        </button>
+      )}
     </div>
   );
 }

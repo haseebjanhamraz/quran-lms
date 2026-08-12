@@ -28,12 +28,15 @@ import { FeesModule } from './fees/fees.module';
 import { FinanceModule } from './finance/finance.module';
 import { SupportModule } from './support/support.module';
 import { ScheduleModule } from './schedule/schedule.module';
+import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
+import { RescheduleModule } from './reschedule/reschedule.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
 
 @Module({
   imports: [
+    NestScheduleModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: [
@@ -83,6 +86,7 @@ import * as path from 'path';
     FinanceModule,
     SupportModule,
     ScheduleModule,
+    RescheduleModule,
   ],
   controllers: [AppController],
   providers: [

@@ -18,10 +18,7 @@ import {
   PlayCircle,
   X,
 } from 'lucide-react';
-import { VideoPlayerModal } from '@/components/VideoPlayerModal';
-import ThemeToggle from '@/components/ThemeToggle';
-import UpcomingClassBanner from '@/components/UpcomingClassBanner';
-import DailyScheduleView from '@/components/DailyScheduleView';
+import RescheduleModal from '@/components/RescheduleModal';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -30,7 +27,7 @@ interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   recording?: { filePath: string | null; status: string } | null;
 }
 
@@ -113,6 +110,7 @@ export default function StudentDashboard() {
   const [dataLoading, setDataLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'learning' | 'schedule' | 'attendance'>('learning');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [selectedRescheduleSession, setSelectedRescheduleSession] = useState<SessionItem | null>(null);
 
   const fetchSessionsAndStats = async () => {
     try {
@@ -394,13 +392,20 @@ export default function StudentDashboard() {
                             </button>
                           </div>
                         ) : (
-                          <div className="text-right">
-                            <span className="inline-block bg-blue-500/15 border border-blue-500/30 rounded-full px-3 py-0.5 text-xs text-blue-500 font-semibold mb-1">
+                          <div className="flex flex-col items-end gap-1.5">
+                            <span className="inline-block bg-blue-500/15 border border-blue-500/30 rounded-full px-3 py-0.5 text-xs text-blue-500 font-semibold">
                               Upcoming
                             </span>
                             <p className="text-xs text-muted-foreground font-mono">
                               {getCountdown(session.scheduledAt)}
                             </p>
+                            <button
+                              onClick={() => setSelectedRescheduleSession(session)}
+                              className="mt-1 text-[11px] font-semibold text-brand hover:underline flex items-center gap-1"
+                            >
+                              <Calendar size={12} />
+                              <span>Request Advance Class</span>
+                            </button>
                           </div>
                         )}
                       </div>
@@ -525,6 +530,13 @@ export default function StudentDashboard() {
         <VideoPlayerModal
           videoUrl={activeVideoUrl}
           onClose={() => setActiveVideoUrl(null)}
+        />
+
+        <RescheduleModal
+          isOpen={!!selectedRescheduleSession}
+          onClose={() => setSelectedRescheduleSession(null)}
+          session={selectedRescheduleSession}
+          onSuccess={fetchSessionsAndStats}
         />
 
         {/* FOOTER */}

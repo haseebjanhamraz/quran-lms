@@ -374,27 +374,6 @@ export default function TeacherDashboard() {
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        {/* Hero */}
-        <section className="relative mb-10 overflow-hidden rounded-3xl border border-slate-700/50 bg-slate-900/80 p-8 backdrop-blur-sm">
-          <div className="pointer-events-none absolute -top-20 -right-20 h-64 w-64 rounded-full bg-emerald-500/10 blur-3xl" />
-          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="font-display text-3xl font-bold leading-tight sm:text-4xl" style={{ color: '#C9A84C' }}>
-                Assalamu Alaikum, {user.name}
-              </h1>
-              <p className="mt-2 text-slate-400">May Allah bless your teaching efforts and your students.</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <button
-                onClick={handleOpenInstantModal}
-                className="group flex w-fit items-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-3 font-bold text-white shadow-xl shadow-amber-500/20 transition-all duration-200 hover:scale-105 hover:from-amber-400 hover:to-orange-500 border border-amber-400/20"
-              >
-                <PlayCircle size={18} className="text-white animate-pulse" />
-                Start Class
-              </button>
-            </div>
-          </div>
-        </section>
 
         {/* Blinking Live / Upcoming Class Banner */}
         <UpcomingClassBanner userRole="TEACHER" className="mb-6" />

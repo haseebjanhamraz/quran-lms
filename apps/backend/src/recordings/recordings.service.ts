@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { EgressClient, EncodedFileOutput, RoomServiceClient, EncodingOptionsPreset } from 'livekit-server-sdk';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
-import { Recording, RecordingDocument, RecordingStatus } from '../schemas';
+import { Recording, RecordingDocument, RecordingStatus, ClassSession, ClassSessionDocument, ClassStatus } from '../schemas';
 
 @Injectable()
 export class RecordingsService {
@@ -14,6 +14,7 @@ export class RecordingsService {
 
   constructor(
     @InjectModel(Recording.name) private readonly recordingModel: Model<RecordingDocument>,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
     private readonly configService: ConfigService,
     @InjectQueue('recording-uploads') private readonly uploadQueue: Queue,
   ) {
@@ -24,6 +25,12 @@ export class RecordingsService {
   }
 
   async startRoomRecording(sessionId: string) {
+    const session = await this.classSessionModel.findById(sessionId);
+    if (session && session.status === ClassStatus.FROZEN) {
+      this.logger.log(`Class session ${sessionId} is FROZEN (no student joined). Skipping room recording.`);
+      return { egressId: 'cancelled-frozen' };
+    }
+
     const existing = await this.recordingModel.findOne({ sessionId });
     if (existing && (existing.status === RecordingStatus.PROCESSING || existing.status === RecordingStatus.READY || existing.status === RecordingStatus.UPLOADING)) {
       this.logger.log(`Recording already ${existing.status} for session ${sessionId}. Skipping duplicate egress start.`);

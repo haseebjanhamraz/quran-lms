@@ -92,6 +92,8 @@ export class ClassSessionsService {
       );
     }
 
+    const endedAt = new Date(scheduledDate.getTime() + createClassSessionDto.durationMinutes * 60 * 1000);
+
     const created = await this.classSessionModel.create({
       courseId: createClassSessionDto.courseId,
       teacherId: teacherId,
@@ -99,6 +101,7 @@ export class ClassSessionsService {
       scheduledAt: scheduledDate,
       durationMinutes: createClassSessionDto.durationMinutes,
       status: ClassStatus.SCHEDULED,
+      endedAt,
     });
 
     return this.classSessionModel.findById(created._id).populate('course', 'title type');
@@ -158,15 +161,19 @@ export class ClassSessionsService {
     }
 
     let startedAt = session.startedAt;
+    let actualStartTime = session.actualStartTime;
+    let actualEndTime = session.actualEndTime;
 
     if (updateClassSessionDto.status === ClassStatus.LIVE && session.status === ClassStatus.SCHEDULED) {
       startedAt = new Date();
+      actualStartTime = new Date();
     }
 
     if (updateClassSessionDto.status === ClassStatus.COMPLETED && session.status === ClassStatus.LIVE) {
       const updatedAtTime = session.updatedAt ? session.updatedAt.getTime() : Date.now();
       const elapsed = Math.round((Date.now() - updatedAtTime) / 60000);
       newDuration = Math.max(1, elapsed);
+      actualEndTime = new Date();
 
       try {
         const livekitHost = this.configService.getOrThrow<string>('LIVEKIT_HOST');
@@ -180,6 +187,8 @@ export class ClassSessionsService {
       }
     }
 
+    const endedAt = new Date(newScheduledAt.getTime() + newDuration * 60 * 1000);
+
     return this.classSessionModel.findByIdAndUpdate(
       id,
       {
@@ -188,6 +197,9 @@ export class ClassSessionsService {
           durationMinutes: newDuration,
           status: updateClassSessionDto.status,
           startedAt,
+          actualStartTime,
+          actualEndTime,
+          endedAt,
         },
       },
       { new: true },
@@ -309,6 +321,26 @@ export class ClassSessionsService {
       throw new NotFoundException('Class session not found');
     }
 
+    // Check inactive or finished session status
+    if (
+      session.status === ClassStatus.EXPIRED ||
+      session.status === ClassStatus.FROZEN ||
+      session.status === ClassStatus.COMPLETED ||
+      session.status === ClassStatus.CANCELLED
+    ) {
+      throw new ForbiddenException(`This class session is ${session.status.toLowerCase()} and can no longer be joined.`);
+    }
+
+    // Check if session has expired past its scheduled finish time + 15m grace period
+    const nowMs = Date.now();
+    const finishMs = new Date(session.scheduledAt).getTime() + session.durationMinutes * 60 * 1000 + 15 * 60 * 1000;
+    if (session.status === ClassStatus.SCHEDULED && nowMs > finishMs) {
+      await this.classSessionModel.findByIdAndUpdate(sessionId, {
+        $set: { status: ClassStatus.EXPIRED, endedAt: new Date(finishMs) },
+      });
+      throw new ForbiddenException('This class session has expired and can no longer be joined.');
+    }
+
     const course: any = session.get ? session.get('course') : (session as any).course;
 
     let isAuthorized = false;
@@ -339,9 +371,15 @@ export class ClassSessionsService {
 
     const roomName = `room-${sessionId}`;
 
+    const userDoc = await this.userModel.findById(user.id);
+
     const token = new AccessToken(apiKey, apiSecret, {
       identity: user.id,
       name: isReviewer ? `Observer: ${user.name}` : user.name,
+      metadata: JSON.stringify({
+        profilePicture: userDoc?.profilePicture || '',
+        role: user.role,
+      }),
     });
 
     const grants: any = {
@@ -369,15 +407,15 @@ export class ClassSessionsService {
 
     token.addGrant(grants);
 
-    if (user.role === Role.TEACHER && session.status !== ClassStatus.COMPLETED && session.status !== ClassStatus.CANCELLED) {
-      if (session.status === ClassStatus.SCHEDULED) {
-        await this.classSessionModel.findByIdAndUpdate(sessionId, {
-          $set: {
-            status: ClassStatus.LIVE,
-            startedAt: new Date(),
-          },
-        });
-      }
+    if (user.role === Role.TEACHER && session.status === ClassStatus.SCHEDULED) {
+      const now = new Date();
+      await this.classSessionModel.findByIdAndUpdate(sessionId, {
+        $set: {
+          status: ClassStatus.LIVE,
+          startedAt: now,
+          actualStartTime: now,
+        },
+      });
     }
 
     return {
@@ -397,12 +435,14 @@ export class ClassSessionsService {
       const todayEnd = new Date();
       todayEnd.setHours(23, 59, 59, 999);
 
-      const [total, scheduled, live, completed, cancelled, today] = await Promise.all([
+      const [total, scheduled, live, completed, cancelled, expired, frozen, today] = await Promise.all([
         this.classSessionModel.countDocuments(),
         this.classSessionModel.countDocuments({ status: ClassStatus.SCHEDULED }),
         this.classSessionModel.countDocuments({ status: ClassStatus.LIVE }),
         this.classSessionModel.countDocuments({ status: ClassStatus.COMPLETED }),
         this.classSessionModel.countDocuments({ status: ClassStatus.CANCELLED }),
+        this.classSessionModel.countDocuments({ status: ClassStatus.EXPIRED }),
+        this.classSessionModel.countDocuments({ status: ClassStatus.FROZEN }),
         this.classSessionModel.countDocuments({
           scheduledAt: { $gte: todayStart, $lt: todayEnd },
         }),
@@ -418,6 +458,8 @@ export class ClassSessionsService {
         live,
         completed,
         cancelled,
+        expired,
+        frozen,
         today,
         totalTeachers,
         totalStudents,

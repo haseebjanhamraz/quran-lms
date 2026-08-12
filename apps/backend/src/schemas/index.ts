@@ -29,3 +29,4 @@ export * from './ticket.schema';
 export * from './ticket-comment.schema';
 export * from './weekly-schedule-slot.schema';
 export * from './subject-category.schema';
+export * from './reschedule-request.schema';

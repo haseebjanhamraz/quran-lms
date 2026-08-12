@@ -15,6 +15,8 @@ import {
   ClassReview, ClassReviewSchema,
 } from '../schemas';
 
+import { ClassExpiryService } from './class-expiry.service';
+
 @Module({
   imports: [
     RecordingsModule,
@@ -31,7 +33,7 @@ import {
     ]),
   ],
   controllers: [ClassSessionsController],
-  providers: [ClassSessionsService],
-  exports: [ClassSessionsService, MongooseModule],
+  providers: [ClassSessionsService, ClassExpiryService],
+  exports: [ClassSessionsService, ClassExpiryService, MongooseModule],
 })
 export class ClassSessionsModule {}
