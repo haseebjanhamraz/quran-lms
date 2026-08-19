@@ -81,6 +81,25 @@ export class FeesService {
       .populate('course', 'id title');
   }
 
+  // Helper to calculate student fee based on profile, duration, and days per week
+  private calculateStudentMonthlyFee(profile: any): number {
+    if (profile.monthlyFeeOverride !== undefined && Number(profile.monthlyFeeOverride) > 0) {
+      return Number(profile.monthlyFeeOverride);
+    }
+    if (profile.monthlyFee !== undefined && Number(profile.monthlyFee) > 0) {
+      return Number(profile.monthlyFee);
+    }
+
+    const duration = Number(profile.classDuration) || 60;
+    const daysPerWeek = Number(profile.classesPerWeek) || 5;
+
+    let rateMultiplier = 10;
+    if (duration === 30) rateMultiplier = 6;
+    else if (duration === 120) rateMultiplier = 18;
+
+    return daysPerWeek * rateMultiplier;
+  }
+
   async autoGenerateMonthlyInvoices(billingMonth: string, adminId?: string) {
     const students = await this.userModel.find({ role: Role.STUDENT, isActive: true }).populate('studentProfile');
 
@@ -97,7 +116,7 @@ export class FeesService {
       if (existing) continue;
 
       const profile = (student as any).studentProfile?.profile || {};
-      const baseFee = Number(profile.monthlyFee || profile.monthlyFeeOverride || 50);
+      const baseFee = this.calculateStudentMonthlyFee(profile);
       const waiverPercent = Number(profile.feeWaiverPercent || 0);
       const netFee = Math.max(0, Math.round(baseFee * (1 - waiverPercent / 100)));
       const currency = profile.currency || this.getCurrencyForStudent(student);

@@ -101,8 +101,11 @@ export default function TeachersManagementPage() {
   // Filters for DataTable
   const filterOptions: FilterOption[] = [
     { key: 'ALL', label: 'All Teachers', predicate: () => true },
+    { key: 'MALE', label: 'Male Teachers', predicate: (t) => t.gender === 'Male' },
+    { key: 'FEMALE', label: 'Female Teachers', predicate: (t) => t.gender === 'Female' },
     { key: 'ACTIVE', label: 'Active Teachers', predicate: (t) => t.isActive },
     { key: 'INACTIVE', label: 'Inactive Teachers', predicate: (t) => !t.isActive },
+    { key: 'CAMERA_RESTRICTED', label: 'Camera Restricted', predicate: (t) => Boolean((t as any).cameraRestricted) },
     { key: 'CAN_EDIT', label: 'Self-Edit Allowed', predicate: (t) => t.canEditProfile !== false },
     { key: 'CANNOT_EDIT', label: 'Self-Edit Disabled', predicate: (t) => t.canEditProfile === false },
   ];

@@ -4,10 +4,11 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, User, Shield, BookOpen, Calendar, Clock,
   Mail, Phone, Globe, CheckCircle2, AlertCircle, Sparkles, BookUser,
-  Activity, ShieldCheck, DollarSign, Award, Edit, FileText, GraduationCap, Users
+  Activity, ShieldCheck, DollarSign, Award, Edit, FileText, GraduationCap, Users, VideoOff
 } from 'lucide-react';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
+import { getCountryByCode, getCountryByName } from '@/utils/countries';
 import TeacherTimetableGrid from './TeacherTimetableGrid';
 import TeacherCourseAssignmentModal from './TeacherCourseAssignmentModal';
 
@@ -31,6 +32,9 @@ export interface TeacherUser {
   email: string;
   role: string;
   gender?: string;
+  country?: string;
+  phone?: string;
+  phoneCode?: string;
   qualification?: string;
   specialization?: string;
   joiningDate?: string;
@@ -40,6 +44,7 @@ export interface TeacherUser {
   timezone?: string;
   guarantors?: GuarantorItem[];
   canEditProfile?: boolean;
+  cameraRestricted?: boolean;
   isActive: boolean;
   createdAt: string;
 }
@@ -277,12 +282,24 @@ export default function TeacherDetailModal({
 
             {/* Basic Identity Info */}
             <div className="space-y-1">
-              <h3 className="text-xl sm:text-2xl font-bold font-display text-foreground">
-                {teacher.name} {teacher.preferredName && <span className="text-muted-foreground font-normal">({teacher.preferredName})</span>}
+              <h3 className="text-xl sm:text-2xl font-bold font-display text-foreground flex items-center gap-2">
+                <span>{teacher.name}</span>
+                {teacher.preferredName && <span className="text-muted-foreground font-normal text-base">({teacher.preferredName})</span>}
+                {(() => {
+                  const c = getCountryByCode(teacher.country) || getCountryByName(teacher.country);
+                  return c ? <span className="text-xl">{c.flag}</span> : null;
+                })()}
               </h3>
               <p className="text-xs text-muted-foreground flex items-center gap-2">
                 <Mail className="h-3.5 w-3.5 text-brand" />
                 <span>{teacher.email}</span>
+                {teacher.phone && (
+                  <>
+                    <span className="text-border">•</span>
+                    <Phone className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="font-mono">{teacher.phone}</span>
+                  </>
+                )}
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${teacher.isActive
@@ -291,6 +308,12 @@ export default function TeacherDetailModal({
                   }`}>
                   {teacher.isActive ? 'Active Staff' : 'Inactive'}
                 </span>
+                {teacher.cameraRestricted && (
+                  <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <VideoOff className="h-3 w-3" />
+                    <span>Camera Restricted</span>
+                  </span>
+                )}
                 <span className="bg-brand/10 text-brand border border-brand/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full">
                   {teacher.specialization || 'Tajweed & Nazira'}
                 </span>

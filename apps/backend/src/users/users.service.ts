@@ -68,10 +68,12 @@ export class UsersService {
     const {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
-      guardianName, guardianPhone, guardianEmail,
+      guardianName, guardianType, guardianTypeOther, guardianPhone, guardianEmail,
+      classDuration, classesPerWeek, tier, noteToTeacher,
       monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
-      employeeId, bio, guarantors, phone, cnicOrId, canEditProfile,
+      employeeId, bio, guarantors, phone, phoneCode, cnicOrId, canEditProfile,
+      cameraRestricted,
       ...baseUserDto
     } = createUserDto;
 
@@ -81,6 +83,8 @@ export class UsersService {
       ...baseUserDto,
       email: baseUserDto.email.toLowerCase().trim(),
       passwordHash,
+      cameraRestricted: Boolean(cameraRestricted),
+      country,
     });
 
     const finalDob = dateOfBirth || dob;
@@ -98,8 +102,17 @@ export class UsersService {
           trialStatus: trialStatus || 'ACTIVE',
           discontinued: discontinued || false,
           guardianName,
+          guardianType: guardianType || 'Father',
+          guardianTypeOther,
           guardianPhone,
           guardianEmail,
+          phone,
+          phoneCode,
+          country,
+          classDuration: classDuration !== undefined ? Number(classDuration) : 60,
+          classesPerWeek: classesPerWeek !== undefined ? Number(classesPerWeek) : 5,
+          tier: tier || 'Beginner',
+          noteToTeacher,
           monthlyFee: monthlyFee !== undefined ? Number(monthlyFee) : (monthlyFeeOverride !== undefined ? Number(monthlyFeeOverride) : undefined),
           monthlyFeeOverride: monthlyFeeOverride !== undefined ? Number(monthlyFeeOverride) : undefined,
           currency: currency || 'USD',
@@ -122,6 +135,7 @@ export class UsersService {
           employeeId,
           bio,
           phone,
+          phoneCode,
           cnicOrId,
           gender,
           dateOfBirth: finalDob ? new Date(finalDob) : undefined,
@@ -180,10 +194,12 @@ export class UsersService {
     const {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
-      guardianName, guardianPhone, guardianEmail,
+      guardianName, guardianType, guardianTypeOther, guardianPhone, guardianEmail,
+      classDuration, classesPerWeek, tier, noteToTeacher,
       monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
-      employeeId, bio, guarantors, phone, cnicOrId, canEditProfile,
+      employeeId, bio, guarantors, phone, phoneCode, cnicOrId, canEditProfile,
+      cameraRestricted,
       ...baseData
     } = updateUserDto;
 
@@ -195,6 +211,14 @@ export class UsersService {
 
     if (password) {
       data.passwordHash = await bcrypt.hash(password, 10);
+    }
+
+    if (cameraRestricted !== undefined) {
+      data.cameraRestricted = Boolean(cameraRestricted);
+    }
+
+    if (country !== undefined) {
+      data.country = country;
     }
 
     await this.userModel.findByIdAndUpdate(id, { $set: data }, { new: true });
@@ -209,8 +233,17 @@ export class UsersService {
       if (trialStatus !== undefined) studentUpdate['profile.trialStatus'] = trialStatus;
       if (discontinued !== undefined) studentUpdate['profile.discontinued'] = discontinued;
       if (guardianName !== undefined) studentUpdate['profile.guardianName'] = guardianName;
+      if (guardianType !== undefined) studentUpdate['profile.guardianType'] = guardianType;
+      if (guardianTypeOther !== undefined) studentUpdate['profile.guardianTypeOther'] = guardianTypeOther;
       if (guardianPhone !== undefined) studentUpdate['profile.guardianPhone'] = guardianPhone;
       if (guardianEmail !== undefined) studentUpdate['profile.guardianEmail'] = guardianEmail;
+      if (phone !== undefined) studentUpdate['profile.phone'] = phone;
+      if (phoneCode !== undefined) studentUpdate['profile.phoneCode'] = phoneCode;
+      if (country !== undefined) studentUpdate['profile.country'] = country;
+      if (classDuration !== undefined) studentUpdate['profile.classDuration'] = Number(classDuration);
+      if (classesPerWeek !== undefined) studentUpdate['profile.classesPerWeek'] = Number(classesPerWeek);
+      if (tier !== undefined) studentUpdate['profile.tier'] = tier;
+      if (noteToTeacher !== undefined) studentUpdate['profile.noteToTeacher'] = noteToTeacher;
       if (monthlyFee !== undefined) studentUpdate['profile.monthlyFee'] = Number(monthlyFee);
       if (monthlyFeeOverride !== undefined) studentUpdate['profile.monthlyFeeOverride'] = Number(monthlyFeeOverride);
       if (feeWaiverPercent !== undefined) studentUpdate['profile.feeWaiverPercent'] = Number(feeWaiverPercent);
@@ -237,6 +270,7 @@ export class UsersService {
       if (employeeId !== undefined) teacherUpdate['profile.employeeId'] = employeeId;
       if (bio !== undefined) teacherUpdate['profile.bio'] = bio;
       if (phone !== undefined) teacherUpdate['profile.phone'] = phone;
+      if (phoneCode !== undefined) teacherUpdate['profile.phoneCode'] = phoneCode;
       if (cnicOrId !== undefined) teacherUpdate['profile.cnicOrId'] = cnicOrId;
       if (gender !== undefined) teacherUpdate['profile.gender'] = gender;
       const finalDob = dateOfBirth !== undefined ? dateOfBirth : dob;

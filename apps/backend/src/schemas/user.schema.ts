@@ -4,6 +4,7 @@ import { Document } from 'mongoose';
 export type UserDocument = User & Document;
 
 export enum Role {
+  SUPER_ADMIN = 'SUPER_ADMIN',
   ADMIN = 'ADMIN',
   TEACHER = 'TEACHER',
   STUDENT = 'STUDENT',
@@ -30,6 +31,12 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ default: false })
+  cameraRestricted: boolean;
+
+  @Prop()
+  country?: string;
 
   @Prop()
   profilePicture?: string;

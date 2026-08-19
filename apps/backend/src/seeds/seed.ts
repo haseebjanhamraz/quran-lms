@@ -78,22 +78,31 @@ async function main() {
   const permissions = await Permission.insertMany(permissionsData);
   console.log(`Seeded ${permissions.length} permissions.`);
 
-  // 2. Admins & HR
+  // 2. Admins, Super Admin & HR
   const adminUsersData = [
+    { name: 'Chief Executive Officer (CEO)', email: 'ceo@lms.com', passwordHash: defaultPassword, role: Role.SUPER_ADMIN, timezone: 'UTC' },
     { name: 'Admin One', email: 'admin1@lms.com', passwordHash: defaultPassword, role: Role.ADMIN, timezone: 'UTC' },
     { name: 'Admin Two', email: 'admin2@lms.com', passwordHash: defaultPassword, role: Role.ADMIN, timezone: 'UTC' },
     { name: 'HR Manager', email: 'hr@lms.com', passwordHash: defaultPassword, role: Role.HR, timezone: 'UTC' },
   ];
   const adminUsers = await User.insertMany(adminUsersData);
   const admin1 = adminUsers[0];
-  console.log('Seeded Admin & HR users.');
+  console.log('Seeded Super Admin, Admin & HR users.');
 
-  // Role Permissions for Admin (all permissions)
-  const rolePermDocs: any[] = permissions.map((p) => ({
-    role: Role.ADMIN,
-    permissionId: p._id,
-    grantedBy: admin1._id,
-  }));
+  // Role Permissions for Super Admin & Admin (all permissions)
+  const rolePermDocs: any[] = [];
+  permissions.forEach((p) => {
+    rolePermDocs.push({
+      role: Role.SUPER_ADMIN,
+      permissionId: p._id,
+      grantedBy: admin1._id,
+    });
+    rolePermDocs.push({
+      role: Role.ADMIN,
+      permissionId: p._id,
+      grantedBy: admin1._id,
+    });
+  });
 
   // Role Permissions for HR
   permissions.forEach((p) => {

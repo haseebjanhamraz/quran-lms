@@ -27,10 +27,37 @@ export class StudentProfile {
   guardianName?: string;
 
   @Prop()
+  guardianType?: string; // 'Father' | 'Mother' | 'Brother' | 'Sister' | 'Other'
+
+  @Prop()
+  guardianTypeOther?: string;
+
+  @Prop()
   guardianPhone?: string;
 
   @Prop()
   guardianEmail?: string;
+
+  @Prop()
+  phone?: string;
+
+  @Prop()
+  phoneCode?: string;
+
+  @Prop()
+  country?: string;
+
+  @Prop({ type: Number, default: 60 })
+  classDuration?: number; // 30, 60, 120 minutes
+
+  @Prop({ type: Number, default: 5 })
+  classesPerWeek?: number; // 1 - 7 days
+
+  @Prop({ default: 'Beginner' })
+  tier?: string; // 'Beginner' | 'Intermediate' | 'Advanced'
+
+  @Prop()
+  noteToTeacher?: string;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'FeeStructure' })
   feeStructureId?: MongooseSchema.Types.ObjectId | string;

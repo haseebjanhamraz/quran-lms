@@ -23,7 +23,11 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('User authentication session is missing');
     }
     
-    const hasRole = requiredRoles.includes(user.role);
+    if (user.role === Role.SUPER_ADMIN) {
+      return true;
+    }
+
+    const hasRole = requiredRoles.includes(user.role) || (requiredRoles.includes(Role.ADMIN) && user.role === Role.SUPER_ADMIN);
     if (!hasRole) {
       throw new ForbiddenException('You do not have permission to access this resource');
     }

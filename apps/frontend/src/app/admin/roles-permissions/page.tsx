@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, CheckCircle2, Save, Loader2, RefreshCw, CheckSquare, Square } from 'lucide-react';
 
-const ROLES = ['ADMIN', 'TEACHER', 'STUDENT', 'SUPERVISOR'];
+const ROLES = ['SUPER_ADMIN', 'ADMIN', 'HR', 'TEACHER', 'STUDENT', 'SUPERVISOR'];
 const MODULE_NAMES: Record<string, string> = {
   users: 'Users Management',
   students: 'Student Admissions',
@@ -27,12 +27,12 @@ const createDefaultMatrix = (): PermissionState => {
   ROLES.forEach((r) => {
     matrix[r] = {};
     Object.keys(MODULE_NAMES).forEach((mod) => {
-      const isOwner = r === 'ADMIN';
+      const isOwner = r === 'SUPER_ADMIN' || r === 'ADMIN';
       matrix[r][mod] = {
-        create: isOwner,
-        read: isOwner || r === 'TEACHER' || r === 'STUDENT' || r === 'SUPERVISOR',
-        update: isOwner || (r === 'TEACHER' && (mod === 'schedule' || mod === 'courses')),
-        delete: isOwner,
+        create: isOwner || (r === 'HR' && (mod === 'fees' || mod === 'hr')),
+        read: isOwner || r === 'HR' || r === 'TEACHER' || r === 'STUDENT' || r === 'SUPERVISOR',
+        update: isOwner || (r === 'HR' && (mod === 'fees' || mod === 'hr')) || (r === 'TEACHER' && (mod === 'schedule' || mod === 'courses')),
+        delete: isOwner || (r === 'HR' && mod === 'fees'),
       };
     });
   });
@@ -97,7 +97,7 @@ export default function RolesPermissionsManagement() {
   }, []);
 
   const togglePermission = (moduleKey: string, action: Action) => {
-    if (activeRole === 'ADMIN') return; // Admin has full access by default
+    if (activeRole === 'SUPER_ADMIN' || activeRole === 'ADMIN') return;
 
     setPermissions((prev) => {
       const roleState = prev[activeRole] || {};
@@ -117,7 +117,7 @@ export default function RolesPermissionsManagement() {
   };
 
   const handleSelectAllForRole = (enable: boolean) => {
-    if (activeRole === 'ADMIN') return;
+    if (activeRole === 'SUPER_ADMIN' || activeRole === 'ADMIN') return;
 
     setPermissions((prev) => {
       const roleCopy = { ...(prev[activeRole] || {}) };

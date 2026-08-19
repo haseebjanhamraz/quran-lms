@@ -8,10 +8,12 @@ interface User {
   id: string;
   name: string;
   email: string;
-  role: 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER' | 'SUPERVISOR' | 'HR';
+  role: 'SUPER_ADMIN' | 'ADMIN' | 'TEACHER' | 'STUDENT' | 'REVIEWER' | 'SUPERVISOR' | 'HR';
   permissions?: string[];
   preferredName?: string;
   gender?: string;
+  country?: string;
+  cameraRestricted?: boolean;
   dob?: string;
   dateOfBirth?: string;
   timezone?: string;
@@ -78,12 +80,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setUser(data.user);
-      } else {
-        setUser(null);
       }
     } catch (err) {
-      console.error('Error during token refresh:', err);
-      setUser(null);
+      console.error('Error refreshing token:', err);
     }
   };
 
@@ -108,7 +107,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       setUser(data.user);
-      const redirectPath = `/${data.user.role.toLowerCase()}/dashboard`;
+      const redirectPath =
+        data.user.role === 'SUPER_ADMIN' || data.user.role === 'ADMIN'
+          ? '/admin/dashboard'
+          : `/${data.user.role.toLowerCase()}/dashboard`;
       router.push(redirectPath);
     } catch (err: any) {
       setError(err.message || 'An error occurred during login');
@@ -133,7 +135,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasPermission = (permission: string) => {
     if (!user) return false;
-    if (user.role === 'ADMIN') return true;
+    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
     const perms = user.permissions || [];
     return perms.includes(permission) || perms.includes(`${permission.split('.')[0]}.*`);
   };

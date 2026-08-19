@@ -28,7 +28,7 @@ export class PermissionsService {
   }
 
   async getUserPermissions(role: Role): Promise<string[]> {
-    if (role === Role.ADMIN) {
+    if (role === Role.SUPER_ADMIN || role === Role.ADMIN) {
       await this.ensureAllModulePermissions();
       const all = await this.permissionModel.find();
       return all.map((p) => p.name);
@@ -61,7 +61,7 @@ export class PermissionsService {
     const rolePermissions = await this.rolePermissionModel.find().populate('permission');
 
     const matrix: Record<string, Record<string, Record<string, boolean>>> = {};
-    const roles = [Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.SUPERVISOR, Role.HR];
+    const roles = [Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER, Role.STUDENT, Role.SUPERVISOR, Role.HR];
 
     roles.forEach((r) => {
       matrix[r] = {};
@@ -78,9 +78,10 @@ export class PermissionsService {
       }
     }
 
-    // Default ADMIN to all true if empty
+    // Default SUPER_ADMIN & ADMIN to all true
     MODULES.forEach((mod) => {
       ACTIONS.forEach((act) => {
+        matrix[Role.SUPER_ADMIN][mod][act] = true;
         matrix[Role.ADMIN][mod][act] = true;
       });
     });

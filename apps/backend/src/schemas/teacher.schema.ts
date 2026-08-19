@@ -59,6 +59,9 @@ export class TeacherProfile {
   phone?: string;
 
   @Prop()
+  phoneCode?: string;
+
+  @Prop()
   cnicOrId?: string;
 
   @Prop()

@@ -3,10 +3,13 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, ChevronRight, ChevronLeft, User, Shield, GraduationCap,
-  CreditCard, CheckCircle, Loader2, Check, Lock, Globe, UserCheck
+  CreditCard, CheckCircle, Loader2, Check, Lock, Globe, UserCheck, VideoOff
 } from 'lucide-react';
 import ProfilePhotoPicker from './ProfilePhotoPicker';
+import CountrySelect from './CountrySelect';
+import CountryPhoneInput, { PhoneInput } from './CountryPhoneInput';
 import { apiFetch } from '@/utils/apiFetch';
+import { CountryInfo, getAllCurrencies, getAllTimezones } from '@/utils/countries';
 
 interface TeacherWizardProps {
   isOpen: boolean;
@@ -14,16 +17,6 @@ interface TeacherWizardProps {
   onSuccess: () => void;
   editingTeacher?: any | null;
 }
-
-const COUNTRIES = [
-  { code: 'PK', name: 'Pakistan', currency: 'PKR' },
-  { code: 'US', name: 'United States', currency: 'USD' },
-  { code: 'UK', name: 'United Kingdom', currency: 'GBP' },
-  { code: 'EU', name: 'European Union', currency: 'EUR' },
-  { code: 'CA', name: 'Canada', currency: 'CAD' },
-  { code: 'SA', name: 'Saudi Arabia', currency: 'SAR' },
-  { code: 'AE', name: 'United Arab Emirates', currency: 'AED' },
-];
 
 export default function TeacherWizard({
   isOpen,
@@ -40,6 +33,8 @@ export default function TeacherWizard({
     email: '',
     password: '',
     phone: '',
+    phoneCode: '+92',
+    country: 'PK',
     cnicOrId: '',
     gender: 'Male',
     dob: '',
@@ -84,12 +79,30 @@ export default function TeacherWizard({
 
   // Step 5: Admin Permission Controls
   const [canEditProfile, setCanEditProfile] = useState(false);
+  const [cameraRestricted, setCameraRestricted] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [completedMessage, setCompletedMessage] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const timezonesList = useMemo(() => getAllTimezones(), []);
+  const currenciesList = useMemo(() => getAllCurrencies(), []);
+
+  const handleCountryChange = (country: CountryInfo) => {
+    setPersonalInfo((prev) => ({
+      ...prev,
+      country: country.code,
+      phoneCode: country.phoneCode,
+      timezone: country.timezone || prev.timezone,
+    }));
+    setSalaryInfo((prev) => ({
+      ...prev,
+      country: country.name,
+      currency: country.currency || prev.currency,
+    }));
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -104,6 +117,8 @@ export default function TeacherWizard({
           email: editingTeacher.email || '',
           password: '',
           phone: editingTeacher.phone || '',
+          phoneCode: editingTeacher.phoneCode || '+92',
+          country: editingTeacher.country || 'PK',
           cnicOrId: editingTeacher.cnicOrId || '',
           gender: editingTeacher.gender || 'Male',
           dob: editingTeacher.dob ? new Date(editingTeacher.dob).toISOString().split('T')[0] : (editingTeacher.dateOfBirth ? new Date(editingTeacher.dateOfBirth).toISOString().split('T')[0] : ''),
@@ -145,28 +160,32 @@ export default function TeacherWizard({
           g2Address: g2.address || '',
         });
 
-        setCanEditProfile(editingTeacher.canEditProfile !== false);
+        setCanEditProfile(Boolean(editingTeacher.canEditProfile ?? true));
+        setCameraRestricted(Boolean(editingTeacher.cameraRestricted));
       } else {
-        // Reset for new teacher
         setPersonalInfo({
           name: '',
           preferredName: '',
           email: '',
           password: '',
           phone: '',
+          phoneCode: '+92',
+          country: 'PK',
           cnicOrId: '',
           gender: 'Male',
           dob: '',
           timezone: 'Asia/Karachi',
           profilePicture: '',
         });
+
         setQualificationsInfo({
           specialization: 'Nazira & Tajweed',
           qualification: 'Certified Hafiz & Qari',
-          employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+          employeeId: '',
           joiningDate: new Date().toISOString().split('T')[0],
           bio: '',
         });
+
         setSalaryInfo({
           payType: 'MONTHLY',
           baseSalary: '35000',
@@ -174,6 +193,7 @@ export default function TeacherWizard({
           country: 'Pakistan',
           currency: 'PKR',
         });
+
         setGuarantorInfo({
           g1Name: '',
           g1Phone: '',
@@ -189,7 +209,9 @@ export default function TeacherWizard({
           g2Cnic: '',
           g2Address: '',
         });
+
         setCanEditProfile(true);
+        setCameraRestricted(false);
       }
     }
   }, [isOpen, editingTeacher]);
@@ -229,7 +251,9 @@ export default function TeacherWizard({
         timezone: personalInfo.timezone,
         profilePicture: personalInfo.profilePicture || undefined,
         phone: personalInfo.phone,
+        phoneCode: personalInfo.phoneCode,
         cnicOrId: personalInfo.cnicOrId,
+        country: personalInfo.country,
         specialization: qualificationsInfo.specialization,
         qualification: qualificationsInfo.qualification,
         employeeId: qualificationsInfo.employeeId,
@@ -238,9 +262,9 @@ export default function TeacherWizard({
         salary: Number(salaryInfo.baseSalary),
         payType: salaryInfo.payType,
         hourlyRate: Number(salaryInfo.hourlyRate),
-        country: salaryInfo.country,
         currency: salaryInfo.currency,
         canEditProfile,
+        cameraRestricted,
         guarantors: (() => {
           const list: any[] = [];
           if (guarantorInfo.g1Name) {
@@ -310,11 +334,11 @@ export default function TeacherWizard({
   };
 
   const STEPS = [
-    { num: 1, label: 'Personal & Photo', icon: User },
+    { num: 1, label: 'Personal & Country', icon: User },
     { num: 2, label: 'Qualifications', icon: GraduationCap },
     { num: 3, label: 'Salary & Currency', icon: CreditCard },
-    { num: 4, label: 'Guarantor / Contact', icon: Shield },
-    { num: 5, label: 'Permissions', icon: Lock },
+    { num: 4, label: 'Guarantors / Contact', icon: Shield },
+    { num: 5, label: 'Permissions & Video', icon: Lock },
   ];
 
   return (
@@ -324,12 +348,12 @@ export default function TeacherWizard({
         <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-6">
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground">
-              {editingTeacher ? 'Update Teacher Account' : 'Teacher Onboarding Wizard'}
+              {editingTeacher ? 'Update Teacher Profile' : 'Teacher Admission Onboarding'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               {editingTeacher
-                ? 'Modify teacher credentials, compensation model, and profile update permissions.'
-                : 'Complete the multi-step wizard to register a new teacher.'}
+                ? 'Update instructor profile, salary structure, guarantors, and permissions.'
+                : 'Complete the multi-step onboarding wizard to register a new teacher.'}
             </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -348,12 +372,13 @@ export default function TeacherWizard({
                 <React.Fragment key={s.num}>
                   <div className="flex flex-col items-center gap-1.5 cursor-pointer" onClick={() => setStep(s.num)}>
                     <div
-                      className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${isDone
-                        ? 'bg-primary text-primary-foreground shadow-md'
-                        : isCurrent
+                      className={`h-10 w-10 rounded-full flex items-center justify-center font-bold text-xs transition-all ${
+                        isDone
+                          ? 'bg-primary text-primary-foreground shadow-md'
+                          : isCurrent
                           ? 'bg-brand text-brand-foreground ring-4 ring-brand/20 shadow-lg'
                           : 'bg-muted text-muted-foreground'
-                        }`}
+                      }`}
                     >
                       {isDone ? <Check className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                     </div>
@@ -408,7 +433,7 @@ export default function TeacherWizard({
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
                   <User className="h-5 w-5 text-brand" />
-                  <span>Step 1: Personal Details &amp; Profile Picture</span>
+                  <span>Step 1: Personal Details & Profile Picture</span>
                 </h3>
 
                 <div className="flex flex-col sm:flex-row items-center gap-6 pb-2 border-b border-border/40">
@@ -470,21 +495,31 @@ export default function TeacherWizard({
                     />
                   </div>
 
+                  {/* Country Selector with Flag & Code */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Phone Number</label>
-                    <input
-                      maxLength={13}
-                      type="tel"
-                      placeholder="+923001234567"
+                    <CountrySelect
+                      label="Country / Region *"
+                      value={personalInfo.country}
+                      onChange={handleCountryChange}
+                    />
+                  </div>
+
+                  {/* Phone with dial code */}
+                  <div className="space-y-1">
+                    <CountryPhoneInput
+                      label="Phone Number"
+                      countryCode={personalInfo.country}
+                      phoneCode={personalInfo.phoneCode}
                       value={personalInfo.phone}
-                      onChange={(e) => setPersonalInfo({ ...personalInfo, phone: e.target.value })}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
+                      onChange={(full, code) => {
+                        setPersonalInfo((prev) => ({ ...prev, phone: full, phoneCode: code }));
+                      }}
+                      placeholder="300 1234567"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">CNIC / Passport / National ID</label>
-                    {/* TODO: Auto add - after 5 digits and 8 digits */}
                     <input
                       type="text"
                       maxLength={15}
@@ -517,18 +552,18 @@ export default function TeacherWizard({
                     </select>
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone</label>
+                  <div className="space-y-1 md:col-span-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone (Auto-filled from Country)</label>
                     <select
                       value={personalInfo.timezone}
                       onChange={(e) => setPersonalInfo({ ...personalInfo, timezone: e.target.value })}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
                     >
-                      <option value="Asia/Karachi">PKT (Islamabad)</option>
-                      <option value="UTC">UTC</option>
-                      <option value="EST">EST (New York)</option>
-                      <option value="GMT">GMT (London)</option>
-                      <option value="Asia/Riyadh">AST (Riyadh)</option>
+                      {timezonesList.map((tz) => (
+                        <option key={tz} value={tz}>
+                          {tz}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
@@ -540,7 +575,7 @@ export default function TeacherWizard({
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
                   <GraduationCap className="h-5 w-5 text-brand" />
-                  <span>Step 2: Qualifications &amp; Specialization</span>
+                  <span>Step 2: Qualifications & Specialization</span>
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -606,7 +641,7 @@ export default function TeacherWizard({
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-brand" />
-                  <span>Step 3: Salary &amp; Multi-Currency Setup</span>
+                  <span>Step 3: Salary & Multi-Currency Setup</span>
                 </h3>
 
                 <div className="space-y-3">
@@ -638,66 +673,53 @@ export default function TeacherWizard({
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Country</label>
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">Compensation Currency</label>
                       <select
-                        value={salaryInfo.country}
-                        onChange={(e) => {
-                          const cName = e.target.value;
-                          const found = COUNTRIES.find((c) => c.name === cName);
-                          setSalaryInfo({
-                            ...salaryInfo,
-                            country: cName,
-                            currency: found ? found.currency : salaryInfo.currency,
-                          });
-                        }}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                        value={salaryInfo.currency}
+                        onChange={(e) => setSalaryInfo({ ...salaryInfo, currency: e.target.value })}
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold"
                       >
-                        {COUNTRIES.map((c) => (
-                          <option key={c.code} value={c.name}>
+                        {currenciesList.map((c) => (
+                          <option key={c.code} value={c.code}>
                             {c.name}
                           </option>
                         ))}
                       </select>
                     </div>
 
-                    <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Payout Currency</label>
-                      <select
-                        value={salaryInfo.currency}
-                        onChange={(e) => setSalaryInfo({ ...salaryInfo, currency: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
-                      >
-                        <option value="PKR">PKR (Rs)</option>
-                        <option value="USD">USD ($)</option>
-                        <option value="GBP">GBP (£)</option>
-                        <option value="EUR">EUR (€)</option>
-                        <option value="CAD">CAD ($)</option>
-                        <option value="SAR">SAR (SR)</option>
-                        <option value="AED">AED (Dh)</option>
-                      </select>
-                    </div>
-
-                    {salaryInfo.payType === 'HOURLY' ? (
-                      <div className="space-y-1 md:col-span-2 p-3 rounded-xl bg-purple-500/5 border border-purple-500/20">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Hourly Rate ({salaryInfo.currency}) *</label>
-                        <input
-                          type="number"
-                          required
-                          value={salaryInfo.hourlyRate}
-                          onChange={(e) => setSalaryInfo({ ...salaryInfo, hourlyRate: e.target.value })}
-                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none font-mono font-bold text-purple-500"
-                        />
+                    {salaryInfo.payType === 'MONTHLY' ? (
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Monthly Salary Amount *</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="35000"
+                            value={salaryInfo.baseSalary}
+                            onChange={(e) => setSalaryInfo({ ...salaryInfo, baseSalary: e.target.value })}
+                            className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold pl-3"
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono font-semibold">
+                            {salaryInfo.currency}
+                          </span>
+                        </div>
                       </div>
                     ) : (
-                      <div className="space-y-1 md:col-span-2">
-                        <label className="text-xs font-semibold text-muted-foreground uppercase">Base Monthly Salary ({salaryInfo.currency}) *</label>
-                        <input
-                          type="number"
-                          required
-                          value={salaryInfo.baseSalary}
-                          onChange={(e) => setSalaryInfo({ ...salaryInfo, baseSalary: e.target.value })}
-                          className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none font-mono font-bold"
-                        />
+                      <div className="space-y-1">
+                        <label className="text-xs font-semibold text-muted-foreground uppercase">Hourly Rate *</label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            placeholder="1000"
+                            value={salaryInfo.hourlyRate}
+                            onChange={(e) => setSalaryInfo({ ...salaryInfo, hourlyRate: e.target.value })}
+                            className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold pl-3"
+                          />
+                          <span className="absolute right-3 top-2.5 text-xs text-muted-foreground font-mono font-semibold">
+                            {salaryInfo.currency} / hr
+                          </span>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -705,22 +727,23 @@ export default function TeacherWizard({
               </div>
             )}
 
-            {/* STEP 4: Guarantor / Emergency Contact */}
+            {/* STEP 4: Guarantor & Emergency Contacts */}
             {step === 4 && (
-              <div className="space-y-5 animate-fadeIn max-h-[60vh] overflow-y-auto pr-1">
-                <h3 className="text-base font-bold font-display text-foreground flex items-center gap-2">
+              <div className="space-y-4 animate-fadeIn">
+                <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
                   <Shield className="h-5 w-5 text-brand" />
-                  <span>Step 4: Guarantor & Emergency Contacts</span>
+                  <span>Step 4: Guarantor &amp; Emergency Contacts</span>
                 </h3>
+                <p className="text-xs text-muted-foreground">Add verified contact information for primary and secondary guarantors.</p>
 
                 {/* PRIMARY GUARANTOR (#1) */}
                 <div className="p-4 rounded-xl bg-card/60 border border-border space-y-3">
                   <div className="flex items-center justify-between border-b border-border/40 pb-2">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-brand flex items-center gap-1.5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                       <Shield className="h-4 w-4" />
                       <span>Primary Guarantor (#1)</span>
                     </h4>
-                    <span className="text-[10px] font-semibold text-muted-foreground">Primary Contact</span>
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">Required</span>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -728,7 +751,7 @@ export default function TeacherWizard({
                       <label className="text-[11px] font-semibold text-muted-foreground uppercase">Guarantor Name</label>
                       <input
                         type="text"
-                        placeholder="e.g. Usman Ali"
+                        placeholder="e.g. Tariq Khan"
                         value={guarantorInfo.g1Name}
                         onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Name: e.target.value })}
                         className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
@@ -739,7 +762,7 @@ export default function TeacherWizard({
                       <label className="text-[11px] font-semibold text-muted-foreground uppercase">Relationship</label>
                       <input
                         type="text"
-                        placeholder="e.g. Father"
+                        placeholder="e.g. Father / Brother"
                         value={guarantorInfo.g1Relationship}
                         onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Relationship: e.target.value })}
                         className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none"
@@ -747,14 +770,13 @@ export default function TeacherWizard({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Phone Number</label>
-                      <input
-                        maxLength={13}
-                        type="tel"
-                        placeholder="+923001234567"
+                      <PhoneInput
+                        label="Phone Number"
+                        placeholder="300 1234567"
+                        countryCode={personalInfo.country}
+                        phoneCode={personalInfo.phoneCode}
                         value={guarantorInfo.g1Phone}
-                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g1Phone: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none font-mono"
+                        onChange={(full) => setGuarantorInfo({ ...guarantorInfo, g1Phone: full })}
                       />
                     </div>
 
@@ -822,14 +844,13 @@ export default function TeacherWizard({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="text-[11px] font-semibold text-muted-foreground uppercase">Phone Number</label>
-                      <input
-                        maxLength={13}
-                        type="tel"
-                        placeholder="+923007654321"
+                      <PhoneInput
+                        label="Phone Number"
+                        placeholder="300 7654321"
+                        countryCode={personalInfo.country}
+                        phoneCode={personalInfo.phoneCode}
                         value={guarantorInfo.g2Phone}
-                        onChange={(e) => setGuarantorInfo({ ...guarantorInfo, g2Phone: e.target.value })}
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2 text-xs outline-none font-mono"
+                        onChange={(full) => setGuarantorInfo({ ...guarantorInfo, g2Phone: full })}
                       />
                     </div>
 
@@ -865,20 +886,41 @@ export default function TeacherWizard({
               </div>
             )}
 
-            {/* STEP 5: Permissions & Profile Control Toggle */}
+            {/* STEP 5: Permissions & Camera Restriction */}
             {step === 5 && (
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
                   <Lock className="h-5 w-5 text-brand" />
-                  <span>Step 5: Admin Permission Controls</span>
+                  <span>Step 5: Admin Controls &amp; Camera Permissions</span>
                 </h3>
 
-                <div className="p-5 rounded-2xl bg-card border border-border space-y-4">
-                  <div className="flex items-center justify-between">
+                <div className="space-y-4">
+                  {/* Camera Restriction Toggle */}
+                  <div className="p-4 rounded-xl bg-card border border-border flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <VideoOff className="h-5 w-5 text-amber-500 shrink-0" />
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Restrict Teacher Camera</p>
+                        <p className="text-[10px] text-muted-foreground">Disables video camera publishing during online classes</p>
+                      </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={cameraRestricted}
+                        onChange={(e) => setCameraRestricted(e.target.checked)}
+                        className="sr-only peer"
+                      />
+                      <div className="w-10 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                    </label>
+                  </div>
+
+                  {/* Profile Edit Permission */}
+                  <div className="p-4 rounded-xl bg-card border border-border flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-bold text-foreground">Allow Teacher to Edit Profile</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        When enabled, the teacher can update their bio, qualification, and contact details from their profile dashboard.
+                      <p className="text-xs font-bold text-foreground">Allow Teacher to Edit Profile</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        When enabled, the teacher can update their bio and qualification.
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -888,15 +930,8 @@ export default function TeacherWizard({
                         onChange={(e) => setCanEditProfile(e.target.checked)}
                         className="sr-only peer"
                       />
-                      <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                      <div className="w-10 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
                     </label>
-                  </div>
-
-                  <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs text-muted-foreground flex items-start gap-2">
-                    <UserCheck className="h-4 w-4 text-brand shrink-0 mt-0.5" />
-                    <span>
-                      Status: <strong>{canEditProfile ? 'Allowed' : 'Restricted (Admin Only)'}</strong>. Disabling this setting prevents the teacher from self-editing their profile information.
-                    </span>
                   </div>
                 </div>
               </div>

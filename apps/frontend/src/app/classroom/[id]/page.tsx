@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '../../../context/AuthContext';
 import {
@@ -12,7 +12,7 @@ import {
   useRoomContext,
 } from '@livekit/components-react';
 import { Track, MediaDeviceFailure } from 'livekit-client';
-import { Loader2, AlertCircle, Mic, MicOff, Video, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, AlertCircle, Mic, MicOff, Video, VideoOff, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
 import '@livekit/components-styles';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getImageUrl } from '@/utils/image';
@@ -494,7 +494,22 @@ function ControlBarCustom({
     }
   };
 
+  const { user } = useAuth();
+  const isCameraRestricted = useMemo(() => {
+    try {
+      if (localParticipant?.metadata) {
+        const meta = JSON.parse(localParticipant.metadata);
+        if (meta.cameraRestricted) return true;
+      }
+    } catch (_) {}
+    return Boolean((user as any)?.cameraRestricted);
+  }, [localParticipant?.metadata, user]);
+
   const handleCameraToggle = async () => {
+    if (isCameraRestricted) {
+      setMediaError('Camera has been restricted for your account by the administrator.');
+      return;
+    }
     if (!localParticipant || togglingCamera) return;
     setMediaError(null);
 
@@ -588,15 +603,36 @@ function ControlBarCustom({
           {/* Camera Toggle Button */}
           <button
             onClick={handleCameraToggle}
-            disabled={togglingCamera}
-            className={`p-3 rounded-xl transition-all duration-200 outline-none border disabled:opacity-50 ${isCameraEnabled
+            disabled={isCameraRestricted || togglingCamera}
+            className={`p-3 rounded-xl transition-all duration-200 outline-none border ${
+              isCameraRestricted
+                ? 'bg-muted/40 text-muted-foreground border-border/50 opacity-40 cursor-not-allowed'
+                : isCameraEnabled
                 ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20'
                 : 'bg-red-500/10 text-red-400 border-red-500/20 hover:bg-red-500/20'
-              }`}
-            title={isCameraEnabled ? 'Disable Camera' : 'Enable Camera'}
+            }`}
+            title={
+              isCameraRestricted
+                ? 'Camera Restricted by Administrator'
+                : isCameraEnabled
+                ? 'Disable Camera'
+                : 'Enable Camera'
+            }
           >
-            {togglingCamera ? <Loader2 className="h-5 w-5 animate-spin" /> : <Video className="h-5 w-5" />}
+            {togglingCamera ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : isCameraRestricted ? (
+              <VideoOff className="h-5 w-5" />
+            ) : (
+              <Video className="h-5 w-5" />
+            )}
           </button>
+
+          {isCameraRestricted && (
+            <span className="hidden sm:inline-block text-[11px] text-amber-500/80 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded-md font-medium">
+              Camera Restricted
+            </span>
+          )}
 
           {/* Screen Share Toggle Button */}
           {role === 'TEACHER' && (

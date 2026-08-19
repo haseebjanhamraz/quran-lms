@@ -373,12 +373,15 @@ export class ClassSessionsService {
 
     const userDoc = await this.userModel.findById(user.id);
 
+    const isCameraRestricted = Boolean(userDoc?.cameraRestricted);
+
     const token = new AccessToken(apiKey, apiSecret, {
       identity: user.id,
       name: isReviewer ? `Observer: ${user.name}` : user.name,
       metadata: JSON.stringify({
         profilePicture: userDoc?.profilePicture || '',
         role: user.role,
+        cameraRestricted: isCameraRestricted,
       }),
     });
 
@@ -392,17 +395,19 @@ export class ClassSessionsService {
       grants.canPublishData = false;
       grants.canSubscribe = true;
       grants.hidden = true;
-    } else if (user.role === Role.STUDENT) {
+    } else if (isCameraRestricted) {
+      // Microphone & screenshare allowed, CAMERA (1) strictly prohibited
       grants.canPublish = true;
       grants.canPublishData = true;
       grants.canSubscribe = true;
       grants.hidden = false;
-      grants.canPublishSources = [1, 2];
+      grants.canPublishSources = [2, 3, 4];
     } else {
       grants.canPublish = true;
       grants.canPublishData = true;
       grants.canSubscribe = true;
       grants.hidden = false;
+      grants.canPublishSources = [1, 2, 3, 4];
     }
 
     token.addGrant(grants);

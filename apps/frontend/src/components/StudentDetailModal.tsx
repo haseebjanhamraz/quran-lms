@@ -4,8 +4,9 @@ import React, { useState, useEffect } from 'react';
 import {
   XCircle, User, Shield, GraduationCap, BookOpen, Calendar, Clock,
   Mail, Phone, Globe, CheckCircle2, AlertCircle, Sparkles, BookUser,
-  Activity, ShieldAlert, Award
+  Activity, ShieldAlert, Award, VideoOff, FileText
 } from 'lucide-react';
+import { getCountryByCode } from '@/utils/countries';
 
 interface StudentUser {
   id: string;
@@ -20,6 +21,9 @@ interface StudentUser {
   gender?: string;
   dob?: string;
   dateOfBirth?: string;
+  country?: string;
+  phone?: string;
+  phoneCode?: string;
   timezone?: string;
   enrollmentDate?: string;
   status?: string;
@@ -27,9 +31,16 @@ interface StudentUser {
   trialStatus?: string;
   isDiscontinued?: boolean;
   discontinued?: boolean;
+  classDuration?: number;
+  classesPerWeek?: number;
+  tier?: string;
+  noteToTeacher?: string;
   guardianName?: string;
+  guardianType?: string;
+  guardianTypeOther?: string;
   guardianPhone?: string;
   guardianEmail?: string;
+  cameraRestricted?: boolean;
   isActive: boolean;
   createdAt: string;
 }
@@ -67,7 +78,7 @@ export default function StudentDetailModal({
   onAssignCourse,
   onAssignTeacher,
 }: StudentDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'guardian'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'guardian' | 'notes'>('overview');
   const [enrollments, setEnrollments] = useState<EnrollmentDetail[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
 
@@ -121,13 +132,11 @@ export default function StudentDetailModal({
   const dobVal = student.dob || student.dateOfBirth || '';
   const { age, type } = calculateAgeAndType(dobVal);
   const photo = student.profilePicture || student.avatar;
+  const countryObj = getCountryByCode(student.country);
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-background/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      {/* Fullscreen Dialog Container */}
       <div className="glass-panel w-full max-w-7xl h-[92vh] max-h-[920px] rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col my-auto overflow-hidden bg-card/95">
-
-        {/* Top Floating Glow Backdrop */}
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-primary/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -143,8 +152,19 @@ export default function StudentDetailModal({
                 <span className="font-mono text-xs font-bold px-2.5 py-1 rounded-full bg-brand/10 text-brand border border-brand/20">
                   {student.studentId ? `STU-${student.studentId}` : 'STU-NEW'}
                 </span>
+                {student.tier && (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                    student.tier === 'Beginner'
+                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                      : student.tier === 'Intermediate'
+                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                  }`}>
+                    {student.tier} Tier
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">Comprehensive profile overview, guardian credentials, and active course assignments.</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Comprehensive profile overview, guardian credentials, schedule, and course assignments.</p>
             </div>
           </div>
 
@@ -212,12 +232,21 @@ export default function StudentDetailModal({
 
             {/* Basic Identity Info */}
             <div className="space-y-1">
-              <h3 className="text-xl sm:text-2xl font-bold font-display text-foreground">
-                {student.name} {student.preferredName && <span className="text-muted-foreground font-normal">({student.preferredName})</span>}
+              <h3 className="text-xl sm:text-2xl font-bold font-display text-foreground flex items-center gap-2">
+                <span>{student.name}</span>
+                {student.preferredName && <span className="text-muted-foreground font-normal text-base">({student.preferredName})</span>}
+                {countryObj && <span className="text-xl">{countryObj.flag}</span>}
               </h3>
               <p className="text-xs text-muted-foreground flex items-center gap-2">
                 <Mail className="h-3.5 w-3.5 text-brand" />
                 <span>{student.email}</span>
+                {student.phone && (
+                  <>
+                    <span className="text-border">•</span>
+                    <Phone className="h-3.5 w-3.5 text-emerald-500" />
+                    <span className="font-mono">{student.phone}</span>
+                  </>
+                )}
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${student.isActive && !student.discontinued && !student.isDiscontinued
@@ -226,6 +255,12 @@ export default function StudentDetailModal({
                   }`}>
                   {student.isActive && !student.discontinued && !student.isDiscontinued ? 'Active Student' : 'Inactive'}
                 </span>
+                {student.cameraRestricted && (
+                  <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <VideoOff className="h-3 w-3" />
+                    <span>Camera Restricted</span>
+                  </span>
+                )}
                 {type === 'Child' ? (
                   <span className="bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[10px] font-bold px-2.5 py-0.5 rounded-full">Minor / Child</span>
                 ) : type === 'Adult' ? (
@@ -241,12 +276,16 @@ export default function StudentDetailModal({
           {/* Quick Metrics */}
           <div className="flex items-center gap-4 w-full sm:w-auto justify-around sm:justify-end border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6">
             <div className="text-center">
-              <p className="text-xl font-bold font-mono text-brand">{enrollments.length}</p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Enrolled Courses</p>
+              <p className="text-xl font-bold font-mono text-brand">{student.classDuration || 60}m</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Class Duration</p>
             </div>
             <div className="text-center">
-              <p className="text-xl font-bold font-mono text-foreground">{age !== '-' ? age : '—'}</p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Age (Years)</p>
+              <p className="text-xl font-bold font-mono text-blue-500">{student.classesPerWeek || 5} d/wk</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Schedule</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold font-mono text-emerald-500">{enrollments.length}</p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Courses</p>
             </div>
           </div>
         </div>
@@ -288,6 +327,18 @@ export default function StudentDetailModal({
             <Shield className="h-4 w-4" />
             <span>Guardian & Parent Info</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('notes')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'notes'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+          >
+            <FileText className="h-4 w-4" />
+            <span>Note to Teacher</span>
+          </button>
         </div>
 
         {/* Tab Content Body (Scrollable) */}
@@ -307,12 +358,18 @@ export default function StudentDetailModal({
                     <span className="font-semibold text-foreground">{student.name}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
-                    <span className="text-muted-foreground font-medium">Preferred Name:</span>
-                    <span className="font-semibold text-foreground">{student.preferredName || 'N/A'}</span>
+                    <span className="text-muted-foreground font-medium">Country / Region:</span>
+                    <span className="font-semibold text-foreground flex items-center gap-1.5">
+                      {countryObj?.flag} {countryObj?.name || student.country || 'N/A'}
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Email Address:</span>
                     <span className="font-semibold text-foreground">{student.email}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/30">
+                    <span className="text-muted-foreground font-medium">Phone Number:</span>
+                    <span className="font-mono font-semibold text-foreground">{student.phone || 'Not provided'}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Gender:</span>
@@ -334,13 +391,25 @@ export default function StudentDetailModal({
               <div className="glass-panel p-5 rounded-2xl border border-border space-y-4">
                 <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border/40 pb-2">
                   <GraduationCap className="h-4 w-4 text-brand" />
-                  <span>Academy Classification</span>
+                  <span>Academy Classification & Schedule</span>
                 </h4>
 
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Student System ID:</span>
                     <span className="font-mono font-bold text-brand">{student.studentId ? `STU-${student.studentId}` : '—'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/30">
+                    <span className="text-muted-foreground font-medium">Student Tier:</span>
+                    <span className="font-bold text-brand">{student.tier || 'Beginner'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/30">
+                    <span className="text-muted-foreground font-medium">Class Duration:</span>
+                    <span className="font-bold text-foreground">{student.classDuration || 60} Minutes per session</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/30">
+                    <span className="text-muted-foreground font-medium">Classes per Week:</span>
+                    <span className="font-bold text-foreground">{student.classesPerWeek || 5} Days / Week</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Enrollment Date:</span>
@@ -352,14 +421,10 @@ export default function StudentDetailModal({
                     <span className="text-muted-foreground font-medium">Academic Status:</span>
                     <span className="font-semibold text-foreground">{student.studentStatus || student.status || 'Regular'}</span>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-border/30">
-                    <span className="text-muted-foreground font-medium">Trial Phase Status:</span>
-                    <span className="font-semibold text-foreground">{student.trialStatus || 'N/A'}</span>
-                  </div>
                   <div className="flex justify-between py-1">
-                    <span className="text-muted-foreground font-medium">Account Status:</span>
-                    <span className={`font-bold ${student.isActive ? 'text-emerald-500' : 'text-rose-500'}`}>
-                      {student.isActive ? 'Active User Session' : 'Suspended'}
+                    <span className="text-muted-foreground font-medium">Camera Restriction:</span>
+                    <span className={`font-bold ${student.cameraRestricted ? 'text-amber-500' : 'text-emerald-500'}`}>
+                      {student.cameraRestricted ? 'Restricted by Admin' : 'Unrestricted'}
                     </span>
                   </div>
                 </div>
@@ -410,7 +475,6 @@ export default function StudentDetailModal({
                           <p className="text-xs text-muted-foreground line-clamp-2">{course.curriculum}</p>
                         )}
 
-                        {/* Assigned Teacher Card */}
                         <div className="pt-3 border-t border-border/40 flex items-center gap-3">
                           <div className="p-2 rounded-xl bg-primary/10 text-primary">
                             <BookUser className="h-5 w-5" />
@@ -441,6 +505,20 @@ export default function StudentDetailModal({
                   <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
                     <User className="h-5 w-5 text-brand" />
                     <div>
+                      <p className="text-[10px] uppercase font-semibold text-muted-foreground">
+                        Guardian Relationship / Role
+                      </p>
+                      <p className="text-sm font-bold text-foreground">
+                        {student.guardianType === 'Other' && student.guardianTypeOther
+                          ? `${student.guardianTypeOther} (Other)`
+                          : student.guardianType || 'Guardian'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-xl bg-card border border-border">
+                    <User className="h-5 w-5 text-brand" />
+                    <div>
                       <p className="text-[10px] uppercase font-semibold text-muted-foreground">Guardian Full Name</p>
                       <p className="text-sm font-bold text-foreground">{student.guardianName}</p>
                     </div>
@@ -450,7 +528,7 @@ export default function StudentDetailModal({
                     <Phone className="h-5 w-5 text-emerald-500" />
                     <div>
                       <p className="text-[10px] uppercase font-semibold text-muted-foreground">Guardian Contact Phone</p>
-                      <p className="text-sm font-bold text-foreground">{student.guardianPhone || 'Not provided'}</p>
+                      <p className="text-sm font-bold text-foreground font-mono">{student.guardianPhone || 'Not provided'}</p>
                     </div>
                   </div>
 
@@ -464,7 +542,27 @@ export default function StudentDetailModal({
                 </div>
               ) : (
                 <div className="py-8 text-center text-xs text-muted-foreground italic">
-                  No guardian record associated with this student account (Adult / Self Student).
+                  No guardian record associated with this student account.
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 4: NOTE TO TEACHER */}
+          {activeTab === 'notes' && (
+            <div className="glass-panel p-6 rounded-2xl border border-border space-y-4 max-w-2xl animate-fadeIn">
+              <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border/40 pb-2">
+                <FileText className="h-4 w-4 text-brand" />
+                <span>Special Instructions &amp; Notes for Teacher</span>
+              </h4>
+
+              {student.noteToTeacher ? (
+                <div className="p-4 rounded-xl bg-card border border-border text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                  {student.noteToTeacher}
+                </div>
+              ) : (
+                <div className="py-8 text-center text-xs text-muted-foreground italic">
+                  No special notes or teacher instructions entered for this student.
                 </div>
               )}
             </div>

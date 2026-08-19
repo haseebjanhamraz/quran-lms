@@ -49,11 +49,43 @@ export class UpdateUserDto {
 
   @IsString()
   @IsOptional()
+  guardianType?: string;
+
+  @IsString()
+  @IsOptional()
+  guardianTypeOther?: string;
+
+  @IsString()
+  @IsOptional()
   guardianPhone?: string;
 
   @IsString()
   @IsOptional()
   guardianEmail?: string;
+
+  @IsNumber()
+  @IsOptional()
+  classDuration?: number;
+
+  @IsNumber()
+  @IsOptional()
+  classesPerWeek?: number;
+
+  @IsString()
+  @IsOptional()
+  tier?: string;
+
+  @IsString()
+  @IsOptional()
+  noteToTeacher?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  cameraRestricted?: boolean;
+
+  @IsString()
+  @IsOptional()
+  phoneCode?: string;
 
   @IsString()
   @IsOptional()

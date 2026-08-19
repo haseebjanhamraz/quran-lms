@@ -3,10 +3,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, ChevronRight, ChevronLeft, User, Shield, GraduationCap, BookOpen,
-  CheckCircle, Loader2, Check, BookUser, CreditCard
+  CheckCircle, Loader2, Check, BookUser, CreditCard, Clock, Calendar, VideoOff,
+  Sparkles, FileText, Globe
 } from 'lucide-react';
 import ProfilePhotoPicker from './ProfilePhotoPicker';
+import CountrySelect from './CountrySelect';
+import CountryPhoneInput from './CountryPhoneInput';
 import { apiFetch } from '@/utils/apiFetch';
+import { CountryInfo, getAllCurrencies, getAllTimezones } from '@/utils/countries';
 
 interface CourseItem {
   id: string;
@@ -50,43 +54,109 @@ export default function AdmissionWizard({
     password: '',
     gender: 'Male',
     dob: '',
-    timezone: 'UTC',
+    country: 'PK',
+    phoneCode: '+92',
+    phone: '',
+    timezone: 'Asia/Karachi',
     profilePicture: '',
+    cameraRestricted: false,
   });
 
-  // Step 2: Guardian Info
+  // Step 2: Guardian Info (Mandatory)
   const [guardianInfo, setGuardianInfo] = useState({
+    guardianType: 'Father',
+    guardianTypeOther: '',
     guardianName: '',
     guardianPhone: '',
+    guardianPhoneCode: '+92',
     guardianEmail: '',
   });
 
-  // Step 3: Enrollment Status
+  // Step 3: Enrollment Status & Classification
   const [enrollmentStatus, setEnrollmentStatus] = useState({
     enrollmentDate: new Date().toISOString().split('T')[0],
     status: 'Regular',
     trialStatus: 'N/A',
     isDiscontinued: false,
+    classDuration: 60, // 30, 60, 120
+    classesPerWeek: 5, // 1 to 7
+    tier: 'Beginner', // Beginner, Intermediate, Advanced
   });
 
   // Step 4: Fees & Billing
   const [feeInfo, setFeeInfo] = useState({
-    feeStructureId: '',
-    monthlyFeeOverride: '',
+    monthlyFee: '50',
+    currency: 'USD',
     feeWaiverPercent: '0',
+    customFeeNotes: '',
+    isFeeManuallyEdited: false,
   });
-  const [feeStructures, setFeeStructures] = useState<any[]>([]);
 
-  // Step 5: Teacher & Course Assignment
+  // Step 5: Teacher, Courses & Instructions
   const [assignTeacherLater, setAssignTeacherLater] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [noteToTeacher, setNoteToTeacher] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [completedMessage, setCompletedMessage] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  // Available Timezones and Currencies from shared list
+  const timezonesList = useMemo(() => getAllTimezones(), []);
+  const currenciesList = useMemo(() => getAllCurrencies(), []);
+
+  // Compute recommended monthly fee from duration & days per week
+  const calculateDefaultFee = (duration: number, days: number, currency: string) => {
+    // Base rate per day per week for 1 month
+    // 30 min: ~ $6/day/mo (e.g. 5 days = $30/mo)
+    // 60 min: ~ $10/day/mo (e.g. 5 days = $50/mo)
+    // 120 min: ~ $18/day/mo (e.g. 5 days = $90/mo)
+    let rateMultiplier = 10;
+    if (duration === 30) rateMultiplier = 6;
+    else if (duration === 120) rateMultiplier = 18;
+
+    let baseUSD = days * rateMultiplier;
+
+    if (currency === 'PKR') return String(baseUSD * 280);
+    if (currency === 'GBP') return String(Math.round(baseUSD * 0.8));
+    if (currency === 'EUR') return String(Math.round(baseUSD * 0.92));
+    if (currency === 'SAR' || currency === 'AED') return String(Math.round(baseUSD * 3.75));
+    if (currency === 'CAD' || currency === 'AUD') return String(Math.round(baseUSD * 1.4));
+    return String(baseUSD);
+  };
+
+  // Auto calculate fee when duration or classesPerWeek changes, unless manually overridden
+  useEffect(() => {
+    if (!feeInfo.isFeeManuallyEdited && !editingStudent) {
+      const calculated = calculateDefaultFee(
+        enrollmentStatus.classDuration,
+        enrollmentStatus.classesPerWeek,
+        feeInfo.currency
+      );
+      setFeeInfo((prev) => ({ ...prev, monthlyFee: calculated }));
+    }
+  }, [enrollmentStatus.classDuration, enrollmentStatus.classesPerWeek, feeInfo.currency, feeInfo.isFeeManuallyEdited, editingStudent]);
+
+  // Handle Country selection change
+  const handleCountryChange = (country: CountryInfo) => {
+    setPersonalInfo((prev) => ({
+      ...prev,
+      country: country.code,
+      phoneCode: country.phoneCode,
+      timezone: country.timezone || prev.timezone,
+    }));
+    setGuardianInfo((prev) => ({
+      ...prev,
+      guardianPhoneCode: country.phoneCode,
+    }));
+    setFeeInfo((prev) => ({
+      ...prev,
+      currency: country.currency || prev.currency,
+    }));
+  };
 
   // Initialize form when opened or editingStudent changes
   useEffect(() => {
@@ -103,13 +173,20 @@ export default function AdmissionWizard({
           password: '', // blank unless changing
           gender: editingStudent.gender || 'Male',
           dob: editingStudent.dob ? new Date(editingStudent.dob).toISOString().split('T')[0] : (editingStudent.dateOfBirth ? new Date(editingStudent.dateOfBirth).toISOString().split('T')[0] : ''),
-          timezone: editingStudent.timezone || 'UTC',
+          country: editingStudent.country || 'PK',
+          phoneCode: editingStudent.phoneCode || '+92',
+          phone: editingStudent.phone || '',
+          timezone: editingStudent.timezone || 'Asia/Karachi',
           profilePicture: editingStudent.profilePicture || editingStudent.avatar || '',
+          cameraRestricted: Boolean(editingStudent.cameraRestricted),
         });
 
         setGuardianInfo({
+          guardianType: editingStudent.guardianType || 'Father',
+          guardianTypeOther: editingStudent.guardianTypeOther || '',
           guardianName: editingStudent.guardianName || '',
           guardianPhone: editingStudent.guardianPhone || '',
+          guardianPhoneCode: editingStudent.phoneCode || '+92',
           guardianEmail: editingStudent.guardianEmail || '',
         });
 
@@ -118,6 +195,9 @@ export default function AdmissionWizard({
           status: editingStudent.studentStatus || editingStudent.status || 'Regular',
           trialStatus: editingStudent.trialStatus || 'N/A',
           isDiscontinued: Boolean(editingStudent.discontinued || editingStudent.isDiscontinued),
+          classDuration: Number(editingStudent.classDuration) || 60,
+          classesPerWeek: Number(editingStudent.classesPerWeek) || 5,
+          tier: editingStudent.tier || 'Beginner',
         });
 
         setFeeInfo({
@@ -125,7 +205,10 @@ export default function AdmissionWizard({
           currency: editingStudent.currency || 'USD',
           feeWaiverPercent: editingStudent.feeWaiverPercent ? String(editingStudent.feeWaiverPercent) : '0',
           customFeeNotes: editingStudent.customFeeNotes || '',
+          isFeeManuallyEdited: true,
         });
+
+        setNoteToTeacher(editingStudent.noteToTeacher || '');
 
         // Fetch student's existing enrollments
         fetchStudentEnrollments(editingStudent.id || editingStudent._id);
@@ -138,12 +221,19 @@ export default function AdmissionWizard({
           password: '',
           gender: 'Male',
           dob: '',
-          timezone: 'UTC',
+          country: 'PK',
+          phoneCode: '+92',
+          phone: '',
+          timezone: 'Asia/Karachi',
           profilePicture: '',
+          cameraRestricted: false,
         });
         setGuardianInfo({
+          guardianType: 'Father',
+          guardianTypeOther: '',
           guardianName: '',
           guardianPhone: '',
+          guardianPhoneCode: '+92',
           guardianEmail: '',
         });
         setEnrollmentStatus({
@@ -151,32 +241,26 @@ export default function AdmissionWizard({
           status: 'Regular',
           trialStatus: 'N/A',
           isDiscontinued: false,
+          classDuration: 60,
+          classesPerWeek: 5,
+          tier: 'Beginner',
         });
         setFeeInfo({
           monthlyFee: '50',
           currency: 'USD',
           feeWaiverPercent: '0',
           customFeeNotes: '',
+          isFeeManuallyEdited: false,
         });
+        setNoteToTeacher('');
         setSelectedCourseIds([]);
         setSelectedTeacherId('');
         setAssignTeacherLater(false);
       }
 
       fetchCoursesAndTeachers();
-      fetchFeeStructures();
     }
   }, [isOpen, editingStudent]);
-
-  const fetchFeeStructures = async () => {
-    try {
-      const res = await apiFetch(`${API_URL}/fees/structures`);
-      if (res.ok) {
-        const data = await res.json();
-        setFeeStructures(Array.isArray(data) ? data : []);
-      }
-    } catch (_) {}
-  };
 
   const fetchStudentEnrollments = async (studentId: string) => {
     try {
@@ -244,6 +328,19 @@ export default function AdmissionWizard({
         setErrorMsg('Please complete all required fields (Name, Email, Password).');
         return;
       }
+    } else if (step === 2) {
+      if (!guardianInfo.guardianName.trim()) {
+        setErrorMsg('Guardian Full Name is required.');
+        return;
+      }
+      if (guardianInfo.guardianType === 'Other' && !guardianInfo.guardianTypeOther.trim()) {
+        setErrorMsg('Please specify the guardian relationship.');
+        return;
+      }
+      if (!guardianInfo.guardianPhone.trim()) {
+        setErrorMsg('Guardian Contact Phone is required.');
+        return;
+      }
     }
     setStep((prev) => Math.min(prev + 1, 5));
   };
@@ -275,20 +372,38 @@ export default function AdmissionWizard({
         gender: personalInfo.gender,
         dob: personalInfo.dob || undefined,
         dateOfBirth: personalInfo.dob || undefined,
+        country: personalInfo.country,
+        phone: personalInfo.phone,
+        phoneCode: personalInfo.phoneCode,
         timezone: personalInfo.timezone,
         profilePicture: personalInfo.profilePicture || undefined,
+        cameraRestricted: personalInfo.cameraRestricted,
+
+        // Step 2: Guardian
+        guardianType: guardianInfo.guardianType,
+        guardianTypeOther: guardianInfo.guardianTypeOther,
+        guardianName: guardianInfo.guardianName,
+        guardianPhone: guardianInfo.guardianPhone,
+        guardianEmail: guardianInfo.guardianEmail,
+
+        // Step 3: Enrollment
         enrollmentDate: enrollmentStatus.enrollmentDate,
         studentStatus: enrollmentStatus.status,
         trialStatus: enrollmentStatus.trialStatus,
         discontinued: enrollmentStatus.isDiscontinued,
-        guardianName: guardianInfo.guardianName,
-        guardianPhone: guardianInfo.guardianPhone,
-        guardianEmail: guardianInfo.guardianEmail,
+        classDuration: enrollmentStatus.classDuration,
+        classesPerWeek: enrollmentStatus.classesPerWeek,
+        tier: enrollmentStatus.tier,
+
+        // Step 4: Fees
         monthlyFee: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
         monthlyFeeOverride: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
         currency: feeInfo.currency || 'USD',
         feeWaiverPercent: feeInfo.feeWaiverPercent ? Number(feeInfo.feeWaiverPercent) : 0,
         customFeeNotes: feeInfo.customFeeNotes,
+
+        // Step 5: Note
+        noteToTeacher,
       };
 
       if (personalInfo.password) {
@@ -298,7 +413,6 @@ export default function AdmissionWizard({
       let studentData: any = null;
 
       if (editingStudent) {
-        // Update existing student
         const targetId = editingStudent.id || editingStudent._id;
         const res = await apiFetch(`${API_URL}/users/${targetId}`, {
           method: 'PUT',
@@ -312,7 +426,6 @@ export default function AdmissionWizard({
 
         setCompletedMessage(`Student ${studentData.name} has been successfully updated.`);
       } else {
-        // Create new student
         const res = await apiFetch(`${API_URL}/users`, {
           method: 'POST',
           body: JSON.stringify(userPayload),
@@ -329,7 +442,7 @@ export default function AdmissionWizard({
         setCompletedMessage(`Student ${studentData.name} has been successfully admitted.`);
       }
 
-      // Course enrollment logic
+      // Course enrollment
       const studentId = studentData.id || studentData._id;
       if (!assignTeacherLater && selectedCourseIds.length > 0 && studentId) {
         for (const cId of selectedCourseIds) {
@@ -349,11 +462,11 @@ export default function AdmissionWizard({
   };
 
   const STEPS = [
-    { num: 1, label: 'Personal & Photo', icon: User },
-    { num: 2, label: 'Guardian / Parent', icon: Shield },
-    { num: 3, label: 'Enrollment Status', icon: GraduationCap },
+    { num: 1, label: 'Personal & Country', icon: User },
+    { num: 2, label: 'Guardian Details', icon: Shield },
+    { num: 3, label: 'Schedule & Tier', icon: GraduationCap },
     { num: 4, label: 'Fees & Billing', icon: CreditCard },
-    { num: 5, label: 'Teacher & Courses', icon: BookOpen },
+    { num: 5, label: 'Teacher & Note', icon: BookOpen },
   ];
 
   return (
@@ -363,12 +476,12 @@ export default function AdmissionWizard({
         <div className="flex items-center justify-between border-b border-border/40 pb-4 mb-6">
           <div>
             <h2 className="text-2xl font-display font-bold text-foreground">
-              {editingStudent ? 'Update Student Information' : 'Student Admission Onboarding'}
+              {editingStudent ? 'Update Student Profile' : 'Student Admission Onboarding'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               {editingStudent
-                ? 'Modify profile, guardian info, enrollment status, and course assignments.'
-                : 'Complete the multi-step admission wizard to admit a new student.'}
+                ? 'Modify profile, guardian info, duration, schedule, and course assignments.'
+                : 'Complete the comprehensive admission wizard to onboard a new student.'}
             </p>
           </div>
           <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
@@ -443,7 +556,7 @@ export default function AdmissionWizard({
           </div>
         ) : (
           <form onSubmit={handleSubmit}>
-            {/* STEP 1: Personal Info & 1:1 Profile Photo */}
+            {/* STEP 1: Personal Info & Country Selection */}
             {step === 1 && (
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
@@ -510,6 +623,29 @@ export default function AdmissionWizard({
                     />
                   </div>
 
+                  {/* Country Selector (Auto-selects Timezone, Currency & Dial Code) */}
+                  <div className="space-y-1">
+                    <CountrySelect
+                      label="Student Country *"
+                      value={personalInfo.country}
+                      onChange={handleCountryChange}
+                    />
+                  </div>
+
+                  {/* Phone with Country Dial Code */}
+                  <div className="space-y-1">
+                    <CountryPhoneInput
+                      label="Student Phone Number"
+                      countryCode={personalInfo.country}
+                      phoneCode={personalInfo.phoneCode}
+                      value={personalInfo.phone}
+                      onChange={(full, code, local) => {
+                        setPersonalInfo((prev) => ({ ...prev, phone: full, phoneCode: code }));
+                      }}
+                      placeholder="300 1234567"
+                    />
+                  </div>
+
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">Gender</label>
                     <select
@@ -533,7 +669,7 @@ export default function AdmissionWizard({
                         className="flex-1 bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
                       />
                       {personalInfo.dob && (
-                        <div className="bg-muted px-3 py-1.5 rounded-lg border border-border text-xs flex flex-col justify-center">
+                        <div className="bg-muted px-3 py-1.5 rounded-lg border border-border text-xs flex flex-col justify-center shrink-0">
                           <span className="font-bold">{computedAge.age} yrs</span>
                           <span className="text-[10px] text-muted-foreground">{computedAge.type}</span>
                         </div>
@@ -542,54 +678,97 @@ export default function AdmissionWizard({
                   </div>
 
                   <div className="space-y-1 md:col-span-2">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone</label>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone (Auto-filled from Country)</label>
                     <select
                       value={personalInfo.timezone}
                       onChange={(e) => setPersonalInfo({ ...personalInfo, timezone: e.target.value })}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono"
                     >
-                      <option value="UTC">UTC</option>
-                      <option value="EST">EST (New York)</option>
-                      <option value="CST">CST (Chicago)</option>
-                      <option value="PST">PST (Los Angeles)</option>
-                      <option value="GMT">GMT (London)</option>
-                      <option value="Asia/Karachi">PKT (Islamabad)</option>
+                      {timezonesList.map((tz) => (
+                        <option key={tz} value={tz}>
+                          {tz}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* STEP 2: Guardian Info */}
+            {/* STEP 2: Guardian Info (ALWAYS REQUIRED) */}
             {step === 2 && (
               <div className="space-y-4 animate-fadeIn">
-                <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
+                <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
                   <Shield className="h-5 w-5 text-brand" />
                   <span>Step 2: Guardian / Parent Information</span>
                 </h3>
-                <p className="text-xs text-muted-foreground">Required for minor students under 18 years of age.</p>
+                <p className="text-xs text-muted-foreground">Guardian contact details are required for all student accounts.</p>
 
-                <div className="space-y-3">
+                <div className="space-y-4 pt-2">
+                  {/* Guardian Type Selector */}
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Guardian Full Name</label>
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Guardian Relationship / Type *</label>
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                      {['Father', 'Mother', 'Brother', 'Sister', 'Other'].map((type) => {
+                        const isSelected = guardianInfo.guardianType === type;
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            onClick={() => setGuardianInfo({ ...guardianInfo, guardianType: type })}
+                            className={`py-2 px-3 rounded-lg text-xs font-semibold border transition-all ${
+                              isSelected
+                                ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
+                                : 'bg-background hover:bg-card border-border text-foreground'
+                            }`}
+                          >
+                            {type}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* If Guardian Type is "Other", show custom text input */}
+                  {guardianInfo.guardianType === 'Other' && (
+                    <div className="space-y-1 animate-fadeIn">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">Specify Other Guardian Relationship *</label>
+                      <input
+                        type="text"
+                        required
+                        value={guardianInfo.guardianTypeOther}
+                        onChange={(e) => setGuardianInfo({ ...guardianInfo, guardianTypeOther: e.target.value })}
+                        placeholder="e.g. Uncle, Grandparent, Legal Guardian"
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                      />
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase">Guardian Full Name *</label>
                     <input
                       type="text"
+                      required
                       value={guardianInfo.guardianName}
                       onChange={(e) => setGuardianInfo({ ...guardianInfo, guardianName: e.target.value })}
-                      placeholder="e.g. Mohammad Khan (Father)"
+                      placeholder={`e.g. Mohammad Khan (${guardianInfo.guardianType})`}
                       className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Guardian Contact Phone */}
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase">Guardian Contact Phone</label>
-                      <input
-                        type="tel"
+                      <CountryPhoneInput
+                        label="Guardian Contact Phone *"
+                        required
+                        countryCode={personalInfo.country}
+                        phoneCode={guardianInfo.guardianPhoneCode}
                         value={guardianInfo.guardianPhone}
-                        onChange={(e) => setGuardianInfo({ ...guardianInfo, guardianPhone: e.target.value })}
-                        placeholder="+1 555-0192"
-                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
+                        onChange={(full, code, local) => {
+                          setGuardianInfo((prev) => ({ ...prev, guardianPhone: full, guardianPhoneCode: code }));
+                        }}
+                        placeholder="300 1234567"
                       />
                     </div>
 
@@ -608,15 +787,112 @@ export default function AdmissionWizard({
               </div>
             )}
 
-            {/* STEP 3: Enrollment Details */}
+            {/* STEP 3: Class Duration, Days/Week & Student Tier */}
             {step === 3 && (
-              <div className="space-y-4 animate-fadeIn">
-                <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
+              <div className="space-y-5 animate-fadeIn">
+                <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
                   <GraduationCap className="h-5 w-5 text-brand" />
-                  <span>Step 3: Enrollment Status & Classification</span>
+                  <span>Step 3: Class Duration, Schedule & Tier</span>
                 </h3>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Class Duration */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
+                    <Clock className="h-3.5 w-3.5 text-brand" />
+                    <span>Class Duration *</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { duration: 30, label: '30 Minutes', desc: 'Short focus session' },
+                      { duration: 60, label: '1 Hour', desc: 'Standard class session' },
+                      { duration: 120, label: '2 Hours', desc: 'Extended intensive class' },
+                    ].map((d) => {
+                      const isSelected = enrollmentStatus.classDuration === d.duration;
+                      return (
+                        <div
+                          key={d.duration}
+                          onClick={() => setEnrollmentStatus({ ...enrollmentStatus, classDuration: d.duration })}
+                          className={`p-3 rounded-xl border cursor-pointer transition-all text-center ${
+                            isSelected
+                              ? 'bg-primary/10 border-primary ring-2 ring-primary/20 shadow-sm'
+                              : 'bg-card/40 border-border/70 hover:bg-card/80'
+                          }`}
+                        >
+                          <p className={`text-sm font-bold ${isSelected ? 'text-primary' : 'text-foreground'}`}>
+                            {d.label}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{d.desc}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Days / Week */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
+                    <Calendar className="h-3.5 w-3.5 text-brand" />
+                    <span>Classes Per Week (Days) *</span>
+                  </label>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {[1, 2, 3, 4, 5, 6, 7].map((num) => {
+                      const isSelected = enrollmentStatus.classesPerWeek === num;
+                      return (
+                        <button
+                          key={num}
+                          type="button"
+                          onClick={() => setEnrollmentStatus({ ...enrollmentStatus, classesPerWeek: num })}
+                          className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                            isSelected
+                              ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
+                              : 'bg-card border-border hover:bg-muted text-foreground'
+                          }`}
+                        >
+                          {num} {num === 1 ? 'day' : 'days'}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Selected: {enrollmentStatus.classesPerWeek} classes per week ({enrollmentStatus.classDuration} mins each)
+                  </p>
+                </div>
+
+                {/* 3. Student Tier */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
+                    <Sparkles className="h-3.5 w-3.5 text-brand" />
+                    <span>Student Tier / Level *</span>
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { tier: 'Beginner', color: 'border-emerald-500/40 hover:bg-emerald-500/5', desc: 'Noorani Qaida & Basics' },
+                      { tier: 'Intermediate', color: 'border-blue-500/40 hover:bg-blue-500/5', desc: 'Tajweed & Nazra Recitation' },
+                      { tier: 'Advanced', color: 'border-purple-500/40 hover:bg-purple-500/5', desc: 'Hifz & Advanced Qiraat' },
+                    ].map((t) => {
+                      const isSelected = enrollmentStatus.tier === t.tier;
+                      return (
+                        <div
+                          key={t.tier}
+                          onClick={() => setEnrollmentStatus({ ...enrollmentStatus, tier: t.tier })}
+                          className={`p-3 rounded-xl border cursor-pointer transition-all text-center ${
+                            isSelected
+                              ? 'bg-primary text-primary-foreground border-primary shadow-md ring-2 ring-primary/20 font-bold'
+                              : `bg-card/40 ${t.color} text-foreground`
+                          }`}
+                        >
+                          <p className="text-sm font-bold">{t.tier}</p>
+                          <p className={`text-[10px] mt-0.5 ${isSelected ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                            {t.desc}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. Enrollment Date & Status */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-border/40">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">Enrollment Date</label>
                     <input
@@ -639,33 +915,6 @@ export default function AdmissionWizard({
                       <option value="On Hold">On Hold</option>
                     </select>
                   </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Trial Status</label>
-                    <select
-                      value={enrollmentStatus.trialStatus}
-                      onChange={(e) => setEnrollmentStatus({ ...enrollmentStatus, trialStatus: e.target.value })}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
-                    >
-                      <option value="N/A">N/A</option>
-                      <option value="Active">Active</option>
-                      <option value="Completed">Completed</option>
-                      <option value="Failed">Failed</option>
-                    </select>
-                  </div>
-
-                  <div className="flex items-center space-x-2 mt-7">
-                    <input
-                      type="checkbox"
-                      id="wizardDiscontinued"
-                      checked={enrollmentStatus.isDiscontinued}
-                      onChange={(e) => setEnrollmentStatus({ ...enrollmentStatus, isDiscontinued: e.target.checked })}
-                      className="rounded border-border text-primary focus:ring-primary h-4 w-4"
-                    />
-                    <label htmlFor="wizardDiscontinued" className="text-sm font-semibold text-foreground">
-                      Discontinued (Inactive)
-                    </label>
-                  </div>
                 </div>
               </div>
             )}
@@ -673,13 +922,15 @@ export default function AdmissionWizard({
             {/* STEP 4: Fees & Billing */}
             {step === 4 && (
               <div className="space-y-4 animate-fadeIn">
-                <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
+                <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-brand" />
                   <span>Step 4: Student Individual Fees & Billing Setup</span>
                 </h3>
-                <p className="text-xs text-muted-foreground">Configure individual student monthly tuition rates, currency, and waiver percentages.</p>
+                <p className="text-xs text-muted-foreground">
+                  Fee is automatically suggested based on {enrollmentStatus.classDuration} mins class × {enrollmentStatus.classesPerWeek} days/week.
+                </p>
 
-                <div className="space-y-4">
+                <div className="space-y-4 pt-2">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="space-y-1">
                       <label className="text-xs font-semibold text-muted-foreground uppercase">Monthly Tuition Fee *</label>
@@ -688,7 +939,7 @@ export default function AdmissionWizard({
                         min="0"
                         placeholder="e.g. 50"
                         value={feeInfo.monthlyFee}
-                        onChange={(e) => setFeeInfo({ ...feeInfo, monthlyFee: e.target.value })}
+                        onChange={(e) => setFeeInfo({ ...feeInfo, monthlyFee: e.target.value, isFeeManuallyEdited: true })}
                         className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold"
                       />
                     </div>
@@ -700,10 +951,11 @@ export default function AdmissionWizard({
                         onChange={(e) => setFeeInfo({ ...feeInfo, currency: e.target.value })}
                         className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none font-mono font-bold"
                       >
-                        <option value="USD">USD ($)</option>
-                        <option value="PKR">PKR (Rs)</option>
-                        <option value="GBP">GBP (£)</option>
-                        <option value="EUR">EUR (€)</option>
+                        {currenciesList.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -724,7 +976,7 @@ export default function AdmissionWizard({
                     <label className="text-xs font-semibold text-muted-foreground uppercase">Special Fee Notes / Discount Remarks</label>
                     <textarea
                       rows={2}
-                      placeholder="e.g. Sibling discount applied, custom monthly billing arrangements..."
+                      placeholder="e.g. Sibling discount applied, custom payment schedule..."
                       value={feeInfo.customFeeNotes}
                       onChange={(e) => setFeeInfo({ ...feeInfo, customFeeNotes: e.target.value })}
                       className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none resize-none"
@@ -732,12 +984,14 @@ export default function AdmissionWizard({
                   </div>
 
                   {/* Summary Card */}
-                  <div className="p-3.5 rounded-xl bg-card border border-border/80 flex items-center justify-between">
+                  <div className="p-4 rounded-xl bg-card border border-border/80 flex items-center justify-between">
                     <div>
                       <p className="text-xs text-muted-foreground font-semibold">Net Calculated Monthly Billing</p>
-                      <p className="text-xs text-muted-foreground">Base: {feeInfo.monthlyFee || 0} {feeInfo.currency} — {feeInfo.feeWaiverPercent || 0}% Waiver</p>
+                      <p className="text-xs text-muted-foreground">
+                        {enrollmentStatus.classDuration}m class × {enrollmentStatus.classesPerWeek}d/wk • Base: {feeInfo.monthlyFee || 0} {feeInfo.currency} ({feeInfo.feeWaiverPercent || 0}% Waiver)
+                      </p>
                     </div>
-                    <span className="text-base font-mono font-bold text-brand">
+                    <span className="text-lg font-mono font-bold text-brand">
                       {Math.max(0, Math.round(Number(feeInfo.monthlyFee || 0) * (1 - Number(feeInfo.feeWaiverPercent || 0) / 100)))} {feeInfo.currency} / mo
                     </span>
                   </div>
@@ -745,15 +999,50 @@ export default function AdmissionWizard({
               </div>
             )}
 
-            {/* STEP 5: Teacher & Course Assignment */}
+            {/* STEP 5: Teacher, Courses & Admin Note */}
             {step === 5 && (
               <div className="space-y-4 animate-fadeIn">
-                <h3 className="text-base font-bold font-display text-foreground mb-3 flex items-center gap-2">
+                <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-brand" />
-                  <span>Step 5: Teacher & Course Assignment</span>
+                  <span>Step 5: Teacher, Courses & Note</span>
                 </h3>
 
-                {/* Optional Teacher Assignment Toggle */}
+                {/* 1. Note to Teacher */}
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
+                    <FileText className="h-3.5 w-3.5 text-brand" />
+                    <span>Note to Teacher (Instructions / Student Background)</span>
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="e.g. Focus on Quran pronunciation and Makharij. Student is at Beginner tier and prefers slower pace..."
+                    value={noteToTeacher}
+                    onChange={(e) => setNoteToTeacher(e.target.value)}
+                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none resize-none"
+                  />
+                </div>
+
+                {/* 2. Admin Camera Restriction Toggle */}
+                <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <VideoOff className="h-5 w-5 text-amber-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-foreground">Restrict Student Camera</p>
+                      <p className="text-[10px] text-muted-foreground">Disables video camera publishing during online classes</p>
+                    </div>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={personalInfo.cameraRestricted}
+                      onChange={(e) => setPersonalInfo({ ...personalInfo, cameraRestricted: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-10 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                  </label>
+                </div>
+
+                {/* 3. Teacher & Course Assignment */}
                 <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <BookUser className="h-5 w-5 text-brand" />
@@ -774,7 +1063,7 @@ export default function AdmissionWizard({
                 </div>
 
                 {!assignTeacherLater && (
-                  <div className="space-y-2">
+                  <div className="space-y-1">
                     <label className="text-xs font-semibold text-muted-foreground uppercase">Filter Courses by Teacher</label>
                     <select
                       value={selectedTeacherId}
@@ -794,7 +1083,7 @@ export default function AdmissionWizard({
                 <p className="text-xs text-muted-foreground">Select one or more courses to assign the student:</p>
 
                 {loadingCourses ? (
-                  <div className="py-8 flex justify-center">
+                  <div className="py-6 flex justify-center">
                     <Loader2 className="animate-spin text-primary" size={24} />
                   </div>
                 ) : filteredCourses.length === 0 ? (
@@ -802,7 +1091,7 @@ export default function AdmissionWizard({
                     No active courses found. You can complete admission now and assign courses later.
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[240px] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-1">
                     {filteredCourses.map((course) => {
                       const cId = course.id || course._id || '';
                       const isSelected = selectedCourseIds.includes(cId);
@@ -810,7 +1099,7 @@ export default function AdmissionWizard({
                         <div
                           key={cId}
                           onClick={() => toggleCourseSelection(cId)}
-                          className={`p-3.5 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
+                          className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
                             isSelected
                               ? 'bg-primary/10 border-primary shadow-sm'
                               : 'bg-card/40 border-border/60 hover:bg-card/80'
@@ -824,7 +1113,7 @@ export default function AdmissionWizard({
                             )}
                           </div>
                           <div
-                            className={`h-5 w-5 rounded-md flex items-center justify-center border ${
+                            className={`h-5 w-5 rounded-md flex items-center justify-center border shrink-0 ${
                               isSelected ? 'bg-primary text-primary-foreground border-primary' : 'border-border bg-background'
                             }`}
                           >
