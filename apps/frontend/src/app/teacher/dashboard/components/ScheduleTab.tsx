@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check } from 'lucide-react';
 import Link from 'next/link';
 import DailyScheduleView from '@/components/DailyScheduleView';
+import TeacherTimetableGrid from '@/components/TeacherTimetableGrid';
 
 interface SessionItem {
   id: string;
@@ -68,7 +69,7 @@ export default function ScheduleTab({
   teacherId,
 }: ScheduleTabProps) {
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'daily' | 'list'>('daily');
+  const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'list'>('daily');
 
   const handleCopyLink = (sessionId: string) => {
     const link = `${window.location.origin}/classroom/${sessionId}`;
@@ -97,6 +98,13 @@ export default function ScheduleTab({
                 Daily Timetable
               </button>
               <button
+                onClick={() => setViewMode('weekly')}
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${viewMode === 'weekly' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+                  }`}
+              >
+                Weekly Grid
+              </button>
+              <button
                 onClick={() => setViewMode('list')}
                 className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${viewMode === 'list' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
                   }`}
@@ -117,6 +125,12 @@ export default function ScheduleTab({
             teacherId={teacherId}
             onStartClass={(sId) => handleStartClass(sId)}
             onJoinClass={(sId) => router.push(`/classroom/${sId}`)}
+          />
+        ) : viewMode === 'weekly' ? (
+          <TeacherTimetableGrid
+            teacherId={teacherId || ''}
+            selfView={true}
+            readOnly={true}
           />
         ) : sessionsLoading ? (
           <div className="flex items-center justify-center py-16">

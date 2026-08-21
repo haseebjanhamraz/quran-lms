@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, Clock, Loader2, BookOpen } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface SlotAssignment {
   id?: string;
@@ -20,34 +21,44 @@ interface TeacherTimetableGridProps {
   teacherId: string;
   teacherName?: string;
   readOnly?: boolean;
+  selfView?: boolean;
 }
 
-const TIME_SLOTS = [
+export const TIME_SLOTS = [
   '09:00 - 09:30', '09:30 - 10:00', '10:00 - 10:30', '10:30 - 11:00',
   '11:00 - 11:30', '11:30 - 12:00', '12:00 - 12:30', '12:30 - 01:00',
   '01:00 - 01:30', '01:30 - 02:00', '02:00 - 02:30', '02:30 - 03:00'
 ];
 
-const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export default function TeacherTimetableGrid({ teacherId, teacherName }: TeacherTimetableGridProps) {
+export default function TeacherTimetableGrid({
+  teacherId,
+  teacherName,
+  readOnly = true,
+  selfView = false,
+}: TeacherTimetableGridProps) {
   const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>({});
   const [loading, setLoading] = useState<boolean>(true);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
   const fetchSchedule = useCallback(async () => {
-    if (!teacherId) return;
+    if (!teacherId && !selfView) return;
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_URL}/schedule/grid`);
+      // If selfView, query scoped endpoint /schedule/grid/my for privacy and speed
+      const endpoint = selfView ? `${API_URL}/schedule/grid/my` : `${API_URL}/schedule/grid`;
+      const res = await apiFetch(endpoint);
       if (res.ok) {
         const data: SlotAssignment[] = await res.json();
-        // Filter slots specifically for this teacher
-        const teacherSlots = data.filter((s) => {
-          const tId = typeof s.teacherId === 'object' ? (s.teacherId as any)?._id || (s.teacherId as any)?.id : s.teacherId;
-          return tId === teacherId || s.teacher?.id === teacherId;
-        });
+        // Filter slots specifically for this teacher if not already scoped
+        const teacherSlots = selfView
+          ? data
+          : data.filter((s) => {
+              const tId = typeof s.teacherId === 'object' ? (s.teacherId as any)?._id || (s.teacherId as any)?.id : s.teacherId;
+              return tId === teacherId || s.teacher?.id === teacherId;
+            });
 
         const map: Record<string, SlotAssignment> = {};
         teacherSlots.forEach((slot) => {
@@ -60,7 +71,14 @@ export default function TeacherTimetableGrid({ teacherId, teacherName }: Teacher
     } finally {
       setLoading(false);
     }
-  }, [API_URL, teacherId]);
+  }, [API_URL, teacherId, selfView]);
+
+  useWebSocket({
+    eventFilter: 'schedule_update',
+    onMessage: () => {
+      fetchSchedule();
+    },
+  });
 
   useEffect(() => {
     fetchSchedule();
@@ -97,9 +115,9 @@ export default function TeacherTimetableGrid({ teacherId, teacherName }: Teacher
           </div>
           <div>
             <h4 className="text-sm font-bold text-foreground">
-              Weekly Timetable for {teacherName || 'Teacher'}
+              Weekly Timetable Grid {teacherName ? `for ${teacherName}` : ''}
             </h4>
-            <p className="text-xs text-muted-foreground mt-0.5">Assigned time slots across weekly schedule</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Assigned recurring time slots across the week (Read-Only)</p>
           </div>
         </div>
 

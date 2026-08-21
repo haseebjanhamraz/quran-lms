@@ -10,6 +10,7 @@ import {
 } from '../schemas';
 import { UpsertSlotDto } from './dto/upsert-slot.dto';
 import { ScheduleGateway } from './schedule.gateway';
+import { RedisCacheService } from '../cache/redis-cache.service';
 
 @Injectable()
 export class ScheduleService {
@@ -27,9 +28,14 @@ export class ScheduleService {
     @InjectModel(Enrollment.name)
     private readonly enrollmentModel: Model<EnrollmentDocument>,
     private readonly scheduleGateway: ScheduleGateway,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async getAvailableTeachers() {
+    const cacheKey = 'schedule:teachers:available';
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
     const teachers = await this.userModel.find({ role: Role.TEACHER, isActive: true }).select('id name email profilePicture timezone');
     const slots = await this.weeklySlotModel.find({ isActive: true });
 
@@ -39,16 +45,23 @@ export class ScheduleService {
       slotCountMap[tId] = (slotCountMap[tId] || 0) + 1;
     });
 
-    return teachers.map((t) => {
+    const result = teachers.map((t) => {
       const teacherObj = t.toObject();
       return {
         ...teacherObj,
         assignedDaysCount: slotCountMap[t._id.toString()] || 0,
       };
     });
+
+    await this.cacheService.set(cacheKey, result, 120); // 120s cache TTL
+    return result;
   }
 
   async getWeeklyScheduleGrid() {
+    const cacheKey = 'schedule:grid:admin';
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
     const rawSlots = await this.weeklySlotModel.find({ isActive: true })
       .populate('teacher', 'id name email profilePicture')
       .populate('course', 'id title type')
@@ -88,7 +101,7 @@ export class ScheduleService {
       }
     });
 
-    return rawSlots.map((slotDoc) => {
+    const result = rawSlots.map((slotDoc) => {
       const slot: any = slotDoc.toObject();
       const tId = slot.teacherId ? slot.teacherId.toString() : (slot.teacher?._id || slot.teacher?.id)?.toString();
 
@@ -113,6 +126,177 @@ export class ScheduleService {
 
       return slot;
     });
+
+    await this.cacheService.set(cacheKey, result, 60); // 60s cache TTL
+    return result;
+  }
+
+  // Scoped strictly to logged-in teacher (prevents reading other teachers' schedule)
+  async getTeacherScheduleGrid(teacherId: string) {
+    const cacheKey = `schedule:grid:teacher:${teacherId}`;
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const rawSlots = await this.weeklySlotModel.find({ teacherId, isActive: true })
+      .populate('teacher', 'id name email profilePicture')
+      .populate('course', 'id title type')
+      .populate('student', 'id name email');
+
+    // Fetch courses assigned to this teacher
+    const courses = await this.courseModel.find({
+      $or: [{ teacherId }, { teacherIds: teacherId }],
+    }).lean();
+
+    const courseIds = courses.map((c) => c._id);
+    const enrollments = await this.enrollmentModel.find({ courseId: { $in: courseIds } })
+      .populate('student', 'id name email')
+      .lean();
+
+    const teacherCourseMap: Record<string, any> = {};
+    courses.forEach((c: any) => {
+      const courseIdStr = c._id.toString();
+      const courseObj = { id: courseIdStr, _id: courseIdStr, title: c.title, type: c.type };
+      teacherCourseMap[teacherId] = courseObj;
+    });
+
+    const courseStudentsMap: Record<string, any[]> = {};
+    enrollments.forEach((e: any) => {
+      if (e.courseId && e.student) {
+        const cIdStr = e.courseId.toString();
+        if (!courseStudentsMap[cIdStr]) {
+          courseStudentsMap[cIdStr] = [];
+        }
+        const studentObj = typeof e.student === 'object'
+          ? { id: e.student._id?.toString() || e.student.id, name: e.student.name, email: e.student.email }
+          : { id: e.student, name: 'Enrolled Student' };
+        courseStudentsMap[cIdStr].push(studentObj);
+      }
+    });
+
+    const result = rawSlots.map((slotDoc) => {
+      const slot: any = slotDoc.toObject();
+
+      if (!slot.course && teacherCourseMap[teacherId]) {
+        slot.course = teacherCourseMap[teacherId];
+        slot.courseId = teacherCourseMap[teacherId].id;
+      }
+
+      const courseIdStr = slot.course ? (slot.course._id || slot.course.id || slot.courseId)?.toString() : null;
+      const enrolledStudents = courseIdStr ? (courseStudentsMap[courseIdStr] || []) : [];
+
+      if (!slot.student && enrolledStudents.length > 0) {
+        const studentIdx = slot.timeSlotIndex % enrolledStudents.length;
+        slot.student = enrolledStudents[studentIdx];
+        slot.studentId = enrolledStudents[studentIdx].id;
+      }
+
+      slot.enrolledStudents = enrolledStudents;
+      return slot;
+    });
+
+    await this.cacheService.set(cacheKey, result, 60); // 60s cache TTL
+    return result;
+  }
+
+  // Scoped schedule grid for logged-in student
+  async getStudentScheduleGrid(studentId: string) {
+    const cacheKey = `schedule:grid:student:${studentId}`;
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    // Fetch enrollments for student
+    const enrollments = await this.enrollmentModel.find({ studentId }).lean();
+    const enrolledCourseIds = enrollments.map((e: any) => e.courseId?.toString()).filter(Boolean);
+
+    // Fetch courses the student is enrolled in
+    const courses = await this.courseModel.find({
+      _id: { $in: enrolledCourseIds },
+    }).lean();
+
+    const courseMap: Record<string, any> = {};
+    courses.forEach((c: any) => {
+      const cIdStr = c._id.toString();
+      courseMap[cIdStr] = { id: cIdStr, _id: cIdStr, title: c.title, type: c.type };
+    });
+
+    const studentUser = await this.userModel.findById(studentId).select('id name email').lean();
+    const studentObj = studentUser
+      ? { id: studentUser._id.toString(), name: studentUser.name, email: studentUser.email }
+      : null;
+
+    // 1. Direct recurring slots assigned to this student
+    const directSlots = await this.weeklySlotModel.find({
+      isActive: true,
+      studentId,
+    })
+      .populate('teacher', 'id name email profilePicture')
+      .populate('course', 'id title type')
+      .populate('student', 'id name email')
+      .lean();
+
+    // 2. Real scheduled class sessions for this student
+    const studentSessions = await this.classSessionModel.find({
+      studentId,
+      status: { $ne: ClassStatus.CANCELLED },
+    })
+      .populate('teacher', 'id name email profilePicture')
+      .populate('course', 'id title type')
+      .populate('student', 'id name email')
+      .lean();
+
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const slotMap: Record<string, any> = {};
+
+    directSlots.forEach((slot: any) => {
+      const key = `${slot.dayOfWeek}-${slot.timeSlotIndex}`;
+      slotMap[key] = {
+        ...slot,
+        id: slot._id?.toString() || slot.id,
+        course: slot.course || (slot.courseId ? courseMap[slot.courseId.toString()] : null),
+        student: slot.student || studentObj,
+      };
+    });
+
+    studentSessions.forEach((sess: any) => {
+      const d = new Date(sess.scheduledAt);
+      const dayOfWeek = dayNames[d.getDay()];
+      const hours = d.getHours();
+      const minutes = d.getMinutes();
+
+      const totalMinutesFrom9 = (hours - 9) * 60 + minutes;
+      let timeSlotIndex = Math.floor(totalMinutesFrom9 / 30);
+      if (timeSlotIndex < 0) timeSlotIndex = 0;
+      if (timeSlotIndex > 11) timeSlotIndex = 11;
+
+      const key = `${dayOfWeek}-${timeSlotIndex}`;
+      const startH = Math.floor((9 * 60 + timeSlotIndex * 30) / 60);
+      const startM = (9 * 60 + timeSlotIndex * 30) % 60;
+      const endH = Math.floor((9 * 60 + (timeSlotIndex + 1) * 30) / 60);
+      const endM = (9 * 60 + (timeSlotIndex + 1) * 30) % 60;
+
+      const startTime = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+      const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+      slotMap[key] = {
+        id: sess._id?.toString() || sess.id,
+        dayOfWeek,
+        timeSlotIndex,
+        startTime,
+        endTime,
+        teacherId: sess.teacherId,
+        teacher: sess.teacher,
+        courseId: sess.courseId,
+        course: sess.course || (sess.courseId ? courseMap[sess.courseId.toString()] : null),
+        studentId,
+        student: studentObj,
+        sessionId: sess._id?.toString() || sess.id,
+        sessionStatus: sess.status,
+      };
+    });
+
+    const result = Object.values(slotMap);
+    await this.cacheService.set(cacheKey, result, 60); // 60s cache TTL
+    return result;
   }
 
   async upsertSlot(dto: UpsertSlotDto) {
@@ -182,6 +366,9 @@ export class ScheduleService {
       if (s) slotObj.student = s.toObject();
     }
 
+    // Invalidate caches
+    await this.cacheService.delByPattern('schedule:*');
+
     // Broadcast update via WebSocket gateway with senderClientId tag
     this.scheduleGateway.broadcastScheduleUpdate('UPSERT_SLOT', slotObj, dto.clientId);
 
@@ -195,6 +382,8 @@ export class ScheduleService {
     });
 
     if (deleted) {
+      // Invalidate caches
+      await this.cacheService.delByPattern('schedule:*');
       this.scheduleGateway.broadcastScheduleUpdate('REMOVE_SLOT', { dayOfWeek, timeSlotIndex }, clientId);
     }
 
@@ -203,6 +392,7 @@ export class ScheduleService {
 
   async clearAllSlots() {
     await this.weeklySlotModel.deleteMany({});
+    await this.cacheService.delByPattern('schedule:*');
     this.scheduleGateway.broadcastScheduleUpdate('CLEAR_ALL', {});
     return { success: true };
   }

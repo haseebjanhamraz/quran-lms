@@ -19,7 +19,10 @@ import {
   X,
 } from 'lucide-react';
 import RescheduleModal from '@/components/RescheduleModal';
-
+import ThemeToggle from '@/components/ThemeToggle';
+import UpcomingClassBanner from '@/components/UpcomingClassBanner';
+import { VideoPlayerModal } from '@/components/VideoPlayerModal';
+import DailyScheduleView from '@/components/DailyScheduleView';
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
 interface SessionItem {
@@ -117,7 +120,7 @@ export default function StudentDashboard() {
       const [sRes, cRes, stRes] = await Promise.all([
         fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' }),
         fetch(`${API_URL}/courses/enrolled`, { credentials: 'include' }),
-        fetch(`${API_URL}/students/stats`, { credentials: 'include' }),
+        fetch(`${API_URL}/class-sessions/stats`, { credentials: 'include' }),
       ]);
 
       if (sRes.ok) {
@@ -146,7 +149,7 @@ export default function StudentDashboard() {
         const sData = await sRes.json();
         setSessions(Array.isArray(sData) ? sData : sData.data ?? []);
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   useEffect(() => {
@@ -202,31 +205,28 @@ export default function StudentDashboard() {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('learning')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === 'learning'
-                  ? 'bg-brand/15 text-brand border border-brand/30'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${activeTab === 'learning'
+                ? 'bg-brand/15 text-brand border border-brand/30'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
             >
               Learning Portal
             </button>
             <button
               onClick={() => setActiveTab('schedule')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === 'schedule'
-                  ? 'bg-brand/15 text-brand border border-brand/30'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${activeTab === 'schedule'
+                ? 'bg-brand/15 text-brand border border-brand/30'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
             >
               Daily Schedule
             </button>
             <button
               onClick={() => setActiveTab('attendance')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                activeTab === 'attendance'
-                  ? 'bg-brand/15 text-brand border border-brand/30'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${activeTab === 'attendance'
+                ? 'bg-brand/15 text-brand border border-brand/30'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                }`}
             >
               Attendance Logs
             </button>
@@ -255,7 +255,7 @@ export default function StudentDashboard() {
       {/* ═══════════════ MAIN ═══════════════ */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* HERO */}
-        <section className="relative overflow-hidden rounded-2xl border border-border bg-card/70 p-6 md:p-8 backdrop-blur-xl mb-8 shadow-sm">
+        {/* <section className="relative overflow-hidden rounded-2xl border border-border bg-card/70 p-6 md:p-8 backdrop-blur-xl mb-8 shadow-sm">
           <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
             <div className="flex-1">
               <div className="inline-flex items-center gap-1.5 bg-brand/15 border border-brand/30 rounded-full px-3 py-1 mb-3">
@@ -280,7 +280,7 @@ export default function StudentDashboard() {
               <GraduationCap className="w-14 h-14 text-brand" />
             </div>
           </div>
-        </section>
+        </section> */}
 
         {/* Blinking Live / Upcoming Class Banner */}
         <UpcomingClassBanner userRole="STUDENT" className="mb-8" />
@@ -361,11 +361,10 @@ export default function StudentDashboard() {
                   {upcomingSessions.map((session) => (
                     <div key={session.id} className="rounded-xl border border-border bg-background/50 p-4 flex flex-wrap items-center justify-between gap-4">
                       <div className="flex items-center gap-3.5 min-w-0">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${
-                          session.status === 'LIVE'
-                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
-                            : 'bg-blue-500/15 border-blue-500/30 text-blue-500'
-                        }`}>
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${session.status === 'LIVE'
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
+                          : 'bg-blue-500/15 border-blue-500/30 text-blue-500'
+                          }`}>
                           {session.status === 'LIVE' ? <PlayCircle className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                         </div>
                         <div className="min-w-0">
@@ -460,6 +459,7 @@ export default function StudentDashboard() {
             studentId={user?.id}
             sessions={sessions}
             onJoinClass={(sessionId) => router.push(`/classroom/${sessionId}`)}
+            onReschedule={(session) => setSelectedRescheduleSession(session)}
           />
         ) : (
           /* ATTENDANCE & RECORDINGS TAB */

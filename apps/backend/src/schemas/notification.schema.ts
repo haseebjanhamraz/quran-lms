@@ -14,6 +14,10 @@ export enum NotificationType {
   RESCHEDULE_REJECTED = 'RESCHEDULE_REJECTED',
   CLASS_EXPIRED = 'CLASS_EXPIRED',
   CLASS_FROZEN = 'CLASS_FROZEN',
+  LEAVE_REQUESTED = 'LEAVE_REQUESTED',
+  LEAVE_APPROVED = 'LEAVE_APPROVED',
+  LEAVE_REJECTED = 'LEAVE_REJECTED',
+  LEAVE_CANCELLED = 'LEAVE_CANCELLED',
 }
 
 @Schema({ timestamps: { createdAt: true, updatedAt: false }, toJSON: { virtuals: true }, toObject: { virtuals: true } })

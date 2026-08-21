@@ -5,6 +5,7 @@ import { UpdateCourseDto } from './dto/update-course.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '../schemas';
 
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -45,6 +46,11 @@ export class CoursesController {
   @Get()
   async findAll() {
     return this.coursesService.findAll();
+  }
+
+  @Get('enrolled')
+  async findEnrolledCourses(@CurrentUser() user: any) {
+    return this.coursesService.findEnrolledCourses(user.id);
   }
 
   @Get('teacher/:teacherId')

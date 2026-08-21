@@ -23,6 +23,6 @@ import {
   ],
   controllers: [ScheduleController],
   providers: [ScheduleService, ScheduleGateway],
-  exports: [ScheduleService],
+  exports: [ScheduleService, ScheduleGateway],
 })
 export class ScheduleModule {}

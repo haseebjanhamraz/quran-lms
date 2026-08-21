@@ -12,11 +12,14 @@ import {
   PipelineLog, PipelineLogDocument,
   Enrollment, EnrollmentDocument,
   SupervisorAssignment, SupervisorAssignmentDocument,
-  ClassReview, ClassReviewDocument, ReviewStatus
+  ClassReview, ClassReviewDocument, ReviewStatus,
+  LeaveRequest, LeaveRequestDocument, LeaveStatus,
+  LeaveBalance, LeaveBalanceDocument,
 } from '../schemas';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { RecordingsService } from '../recordings/recordings.service';
 import { LocalStorageService } from '../local-storage/local-storage.service';
+import { RedisCacheService } from '../cache/redis-cache.service';
 
 @Injectable()
 export class ClassSessionsService {
@@ -29,9 +32,12 @@ export class ClassSessionsService {
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     @InjectModel(SupervisorAssignment.name) private readonly supervisorAssignmentModel: Model<SupervisorAssignmentDocument>,
     @InjectModel(ClassReview.name) private readonly classReviewModel: Model<ClassReviewDocument>,
+    @InjectModel(LeaveRequest.name) private readonly leaveRequestModel: Model<LeaveRequestDocument>,
+    @InjectModel(LeaveBalance.name) private readonly leaveBalanceModel: Model<LeaveBalanceDocument>,
     private readonly configService: ConfigService,
     private readonly recordingsService: RecordingsService,
     private readonly localStorageService: LocalStorageService,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async checkTeacherConflict(
@@ -248,8 +254,15 @@ export class ClassSessionsService {
     const enrollments = await this.enrollmentModel.find({ studentId }, 'courseId');
     const courseIds = enrollments.map((e) => e.courseId);
 
-    return this.classSessionModel.find({ courseId: { $in: courseIds } })
+    return this.classSessionModel.find({
+      $or: [
+        { studentId },
+        { courseId: { $in: courseIds }, studentId: { $exists: false } },
+        { courseId: { $in: courseIds }, studentId: null },
+      ],
+    })
       .populate('course', 'title type')
+      .populate('teacher', 'id name email profilePicture')
       .populate('recording')
       .sort({ scheduledAt: 1 });
   }
@@ -473,12 +486,29 @@ export class ClassSessionsService {
     }
 
     if (role === Role.TEACHER) {
+      const cacheKey = `stats:teacher:${userId}`;
+      const cached = await this.cacheService.get(cacheKey);
+      if (cached) return cached;
+
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       const todayEnd = new Date();
       todayEnd.setHours(23, 59, 59, 999);
+      const now = new Date();
 
-      const [total, scheduled, live, completed, cancelled, today, courses] = await Promise.all([
+      const [
+        total,
+        scheduled,
+        live,
+        completed,
+        cancelled,
+        today,
+        courses,
+        pendingLeaves,
+        approvedLeaves,
+        leaveBalanceDoc,
+        nextClass,
+      ] = await Promise.all([
         this.classSessionModel.countDocuments({ teacherId: userId }),
         this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.SCHEDULED }),
         this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.LIVE }),
@@ -489,6 +519,14 @@ export class ClassSessionsService {
           scheduledAt: { $gte: todayStart, $lt: todayEnd },
         }),
         this.courseModel.find({ teacherId: userId }, 'id'),
+        this.leaveRequestModel.countDocuments({ teacherId: userId, status: LeaveStatus.PENDING }),
+        this.leaveRequestModel.countDocuments({ teacherId: userId, status: LeaveStatus.APPROVED }),
+        this.leaveBalanceModel.findOne({ teacherId: userId, year: now.getFullYear() }),
+        this.classSessionModel.findOne({
+          teacherId: userId,
+          status: { $in: [ClassStatus.SCHEDULED, ClassStatus.LIVE] },
+          scheduledAt: { $gte: new Date(now.getTime() - 60 * 60 * 1000) },
+        }).populate('course', 'title type').sort({ scheduledAt: 1 }).lean(),
       ]);
 
       const completedSessions = await this.classSessionModel.find(
@@ -500,7 +538,20 @@ export class ClassSessionsService {
       const courseIds = courses.map((c) => c._id);
       const studentCountResult = await this.enrollmentModel.distinct('studentId', { courseId: { $in: courseIds } });
 
-      return {
+      const allocated = leaveBalanceDoc?.allocated || { sick: 10, casual: 12, annual: 15, other: 5 };
+      const used = leaveBalanceDoc?.used || { sick: 0, casual: 0, annual: 0, other: 0 };
+      const remainingLeaves = {
+        sick: Math.max(0, (allocated.sick || 0) - (used.sick || 0)),
+        casual: Math.max(0, (allocated.casual || 0) - (used.casual || 0)),
+        annual: Math.max(0, (allocated.annual || 0) - (used.annual || 0)),
+        other: Math.max(0, (allocated.other || 0) - (used.other || 0)),
+        totalRemaining: Math.max(0,
+          ((allocated.sick || 0) + (allocated.casual || 0) + (allocated.annual || 0) + (allocated.other || 0)) -
+          ((used.sick || 0) + (used.casual || 0) + (used.annual || 0) + (used.other || 0))
+        ),
+      };
+
+      const result = {
         total,
         scheduled,
         live,
@@ -509,7 +560,21 @@ export class ClassSessionsService {
         today,
         totalHours: Math.round(totalMinutes / 60),
         totalStudents: studentCountResult.length,
+        pendingLeaves,
+        approvedLeaves,
+        remainingLeaves,
+        nextClass: nextClass ? {
+          id: nextClass._id.toString(),
+          title: (nextClass as any).course?.title || 'Quran Session',
+          type: (nextClass as any).course?.type || 'NAZIRA',
+          scheduledAt: nextClass.scheduledAt,
+          durationMinutes: nextClass.durationMinutes,
+          status: nextClass.status,
+        } : null,
       };
+
+      await this.cacheService.set(cacheKey, result, 30); // 30s cache TTL
+      return result;
     }
 
     if (role === Role.STUDENT) {

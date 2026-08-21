@@ -30,6 +30,8 @@ import { SupportModule } from './support/support.module';
 import { ScheduleModule } from './schedule/schedule.module';
 import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { RescheduleModule } from './reschedule/reschedule.module';
+import { LeaveModule } from './leave/leave.module';
+import { RedisCacheModule } from './cache/redis-cache.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
@@ -57,6 +59,9 @@ import * as path from 'path';
       connection: {
         host: process.env.REDIS_HOST || 'localhost',
         port: Number(process.env.REDIS_PORT) || 6379,
+        connectTimeout: 1500,
+        maxRetriesPerRequest: null,
+        retryStrategy: (times) => (times > 2 ? null : 1000),
       },
     }),
     ThrottlerModule.forRoot([{
@@ -87,6 +92,8 @@ import * as path from 'path';
     SupportModule,
     ScheduleModule,
     RescheduleModule,
+    LeaveModule,
+    RedisCacheModule,
   ],
   controllers: [AppController],
   providers: [

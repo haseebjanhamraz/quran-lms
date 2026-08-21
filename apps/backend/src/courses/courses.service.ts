@@ -96,6 +96,15 @@ export class CoursesService {
     return this.courseModel.findByIdAndDelete(id);
   }
 
+  async findEnrolledCourses(studentId: string) {
+    const enrollments = await this.enrollmentModel.find({ studentId }).lean();
+    const courseIds = enrollments.map((e: any) => e.courseId);
+    return this.courseModel.find({ _id: { $in: courseIds } })
+      .populate('teacher', 'id name email')
+      .populate('teachers', 'id name email')
+      .sort({ createdAt: -1 });
+  }
+
   async findByTeacher(teacherId: string) {
     const courses = await this.courseModel.find({
       $or: [{ teacherId }, { teacherIds: teacherId }],

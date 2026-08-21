@@ -6,7 +6,7 @@ import { Permission, PermissionDocument, RolePermission, RolePermissionDocument,
 const MODULES = [
   'users', 'students', 'teachers', 'courses', 'schedule',
   'enrollments', 'fees', 'hr', 'supervisors', 'audit-logs', 'settings', 'feedback',
-  'expenses', 'salary-config', 'support', 'reports'
+  'expenses', 'salary-config', 'support', 'reports', 'leave'
 ];
 
 const ACTIONS = ['create', 'read', 'update', 'delete'] as const;

@@ -24,7 +24,8 @@ import {
   GraduationCap,
   BookUser,
   CreditCard,
-  Briefcase
+  Briefcase,
+  PlaneTakeoff
 } from 'lucide-react';
 import Image from 'next/image';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
@@ -49,6 +50,7 @@ const PRIMARY_NAV: NavItem[] = [
 ];
 
 const MORE_NAV: NavItem[] = [
+  { label: 'Leave Requests', icon: PlaneTakeoff, href: '/admin/leave-requests' },
   { label: 'Fees Collection', icon: CreditCard, href: '/admin/hr?tab=fees' },
   { label: 'Users & Accounts', icon: Users, href: '/admin/users' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },

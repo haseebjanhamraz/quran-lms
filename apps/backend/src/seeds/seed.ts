@@ -59,7 +59,7 @@ async function main() {
   const modulesList = [
     'users', 'students', 'teachers', 'courses', 'schedule',
     'enrollments', 'fees', 'hr', 'supervisors', 'audit-logs', 'settings', 'feedback',
-    'expenses', 'salary-config', 'support', 'reports'
+    'expenses', 'salary-config', 'support', 'reports', 'leave'
   ];
   const actionsList = ['create', 'read', 'update', 'delete'];
 
@@ -106,7 +106,7 @@ async function main() {
 
   // Role Permissions for HR
   permissions.forEach((p) => {
-    if (['fees', 'hr', 'expenses', 'salary-config', 'support', 'reports', 'students', 'teachers', 'enrollments'].includes(p.module)) {
+    if (['fees', 'hr', 'expenses', 'salary-config', 'support', 'reports', 'students', 'teachers', 'enrollments', 'leave'].includes(p.module)) {
       rolePermDocs.push({
         role: Role.HR,
         permissionId: p._id,
@@ -117,8 +117,8 @@ async function main() {
 
   // Role Permissions for Teacher
   permissions.forEach((p) => {
-    if (['courses', 'schedule', 'students', 'enrollments', 'feedback'].includes(p.module)) {
-      if (p.action === 'read' || (p.action === 'update' && p.module === 'schedule')) {
+    if (['courses', 'schedule', 'students', 'enrollments', 'feedback', 'leave'].includes(p.module)) {
+      if (p.action === 'read' || p.action === 'create' || (p.action === 'update' && (p.module === 'schedule' || p.module === 'leave'))) {
         rolePermDocs.push({
           role: Role.TEACHER,
           permissionId: p._id,

@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev:frontend": "npm run dev -w apps/frontend",
-    "dev:backend": "npm run start:dev -w apps/backend",
+    "dev:backend": "npm run dev -w apps/backend",
     "build:frontend": "npm run build -w apps/frontend",
     "build:backend": "npm run build -w apps/backend",
     "db:seed": "npm run seed -w apps/backend",

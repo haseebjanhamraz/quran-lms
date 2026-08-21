@@ -13,6 +13,8 @@ import {
   Enrollment, EnrollmentSchema,
   SupervisorAssignment, SupervisorAssignmentSchema,
   ClassReview, ClassReviewSchema,
+  LeaveRequest, LeaveRequestSchema,
+  LeaveBalance, LeaveBalanceSchema,
 } from '../schemas';
 
 import { ClassExpiryService } from './class-expiry.service';
@@ -30,6 +32,8 @@ import { ClassExpiryService } from './class-expiry.service';
       { name: Enrollment.name, schema: EnrollmentSchema },
       { name: SupervisorAssignment.name, schema: SupervisorAssignmentSchema },
       { name: ClassReview.name, schema: ClassReviewSchema },
+      { name: LeaveRequest.name, schema: LeaveRequestSchema },
+      { name: LeaveBalance.name, schema: LeaveBalanceSchema },
     ]),
   ],
   controllers: [ClassSessionsController],
