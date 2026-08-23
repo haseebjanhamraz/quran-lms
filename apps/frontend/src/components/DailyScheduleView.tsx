@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useTimeSlots, DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
 
 export interface TeacherItem {
   id: string;
@@ -43,11 +44,8 @@ export interface SessionItem {
   recording?: { filePath: string | null; status: string } | null;
 }
 
-export const TIME_SLOTS = [
-  '09:00 - 09:30', '09:30 - 10:00', '10:00 - 10:30', '10:30 - 11:00',
-  '11:00 - 11:30', '11:30 - 12:00', '12:00 - 12:30', '12:30 - 01:00',
-  '01:00 - 01:30', '01:30 - 02:00', '02:00 - 02:30', '02:30 - 03:00'
-];
+export { DEFAULT_TIME_SLOTS };
+export const TIME_SLOTS = DEFAULT_TIME_SLOTS;
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -86,6 +84,7 @@ interface DailyScheduleViewProps {
   teachers?: TeacherItem[];
   gridAssignments?: Record<string, SlotAssignment>;
   sessions?: SessionItem[];
+  timeSlots?: string[];
   allowDragDrop?: boolean;
   onDropSlot?: (targetDay: string, targetTimeIdx: number, payload: any) => void;
   onRemoveSlot?: (dayOfWeek: string, timeSlotIndex: number) => void;
@@ -101,6 +100,7 @@ export default function DailyScheduleView({
   teachers = [],
   gridAssignments: initialGridAssignments,
   sessions: initialSessions,
+  timeSlots: customTimeSlots,
   allowDragDrop = false,
   onDropSlot,
   onRemoveSlot,
@@ -108,6 +108,8 @@ export default function DailyScheduleView({
   onJoinClass,
   onReschedule,
 }: DailyScheduleViewProps) {
+  const { timeSlots: hookTimeSlots } = useTimeSlots();
+  const timeSlots = customTimeSlots || hookTimeSlots || DEFAULT_TIME_SLOTS;
   const currentTodayName = useMemo(() => getCurrentDayOfWeek(), []);
   const [selectedDay, setSelectedDay] = useState<string>(currentTodayName);
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -143,38 +145,27 @@ export default function DailyScheduleView({
         const coursesData = await res.json();
         const map: Record<string, { courseTitle: string; enrolledStudents: { id: string; name: string; email?: string }[] }> = {};
 
-        await Promise.all(
-          coursesData.map(async (c: any) => {
+        if (Array.isArray(coursesData)) {
+          coursesData.forEach((c: any) => {
             const teacherIds = [c.teacherId, ...(c.teacherIds || [])].filter(Boolean);
-            const courseIdStr = c._id || c.id;
-
-            let enrolledStudents: { id: string; name: string; email?: string }[] = [];
-            try {
-              const detailRes = await apiFetch(`${API_URL}/courses/${courseIdStr}`);
-              if (detailRes.ok) {
-                const detail = await detailRes.json();
-                if (Array.isArray(detail.enrollments)) {
-                  enrolledStudents = detail.enrollments
-                    .map((e: any) => e.student)
-                    .filter(Boolean)
-                    .map((s: any) => ({
-                      id: s._id || s.id,
-                      name: s.name,
-                      email: s.email,
-                    }));
-                }
-              }
-            } catch (_) {}
+            const courseTitle = c.title || 'Quran Class';
+            const enrolledStudents = Array.isArray(c.enrollments)
+              ? c.enrollments.map((e: any) => e.student).filter(Boolean).map((s: any) => ({
+                  id: s._id || s.id,
+                  name: s.name,
+                  email: s.email,
+                }))
+              : [];
 
             teacherIds.forEach((tId: any) => {
               const tIdStr = tId.toString();
               map[tIdStr] = {
-                courseTitle: c.title,
+                courseTitle,
                 enrolledStudents,
               };
             });
-          })
-        );
+          });
+        }
 
         setTeacherCourseMap(map);
       }
@@ -188,6 +179,12 @@ export default function DailyScheduleView({
       setLoadingData(true);
       await fetchTeacherCourseEnrollments();
 
+      // If initial grid assignments were already provided by parent (Admin), skip redundant grid fetch
+      if (initialGridAssignments && Object.keys(initialGridAssignments).length > 0) {
+        setLoadingData(false);
+        return;
+      }
+
       // Scoped endpoint call by role
       const gridUrl = role === 'TEACHER' 
         ? `${API_URL}/schedule/grid/my` 
@@ -199,9 +196,11 @@ export default function DailyScheduleView({
       if (res.ok) {
         const gridData: SlotAssignment[] = await res.json();
         const map: Record<string, SlotAssignment> = {};
-        gridData.forEach((slot) => {
-          map[`${slot.dayOfWeek}-${slot.timeSlotIndex}`] = slot;
-        });
+        if (Array.isArray(gridData)) {
+          gridData.forEach((slot) => {
+            map[`${slot.dayOfWeek}-${slot.timeSlotIndex}`] = slot;
+          });
+        }
         setGridAssignments(map);
       }
     } catch (err) {
@@ -209,19 +208,22 @@ export default function DailyScheduleView({
     } finally {
       setLoadingData(false);
     }
-  }, [API_URL, role, fetchTeacherCourseEnrollments]);
+  }, [API_URL, role, fetchTeacherCourseEnrollments, initialGridAssignments]);
 
-  // Real-time updates via WebSocket
+  const fetchDailyDataRef = useRef(fetchDailyData);
+  fetchDailyDataRef.current = fetchDailyData;
+
+  // Real-time updates via shared WebSocket
   useWebSocket({
     eventFilter: 'schedule_update',
     onMessage: () => {
-      fetchDailyData();
+      fetchDailyDataRef.current();
     },
   });
 
   useEffect(() => {
-    fetchDailyData();
-  }, [fetchDailyData]);
+    fetchDailyDataRef.current();
+  }, []);
 
   // Map day to actual day sessions for correlation
   const daySessionsMap = useMemo(() => {
@@ -244,7 +246,7 @@ export default function DailyScheduleView({
 
   // Extract daily slots for the selected day
   const dailySlots = useMemo(() => {
-    return TIME_SLOTS.map((timeSlot, timeIdx) => {
+    return timeSlots.map((timeSlot, timeIdx) => {
       const slotKey = `${selectedDay}-${timeIdx}`;
       const assignment = gridAssignments[slotKey];
 
@@ -267,7 +269,7 @@ export default function DailyScheduleView({
         session: relatedSession,
       };
     });
-  }, [selectedDay, gridAssignments, daySessionsMap]);
+  }, [selectedDay, gridAssignments, daySessionsMap, timeSlots]);
 
   // Filter slots based on user role, selected teacher filter, and search query
   const filteredSlots = useMemo(() => {
@@ -343,7 +345,7 @@ export default function DailyScheduleView({
     const counts: Record<string, number> = {};
     DAYS.forEach((day) => {
       let count = 0;
-      TIME_SLOTS.forEach((timeSlot, idx) => {
+      timeSlots.forEach((timeSlot, idx) => {
         const slotKey = `${day}-${idx}`;
         const hasGridSlot = Boolean(gridAssignments[slotKey]);
         const hasSession = (daySessionsMap[day] || []).some((s) => {
@@ -365,7 +367,7 @@ export default function DailyScheduleView({
       counts[day] = count;
     });
     return counts;
-  }, [gridAssignments, daySessionsMap]);
+  }, [gridAssignments, daySessionsMap, timeSlots]);
 
   // Total classes scheduled for student across the entire week
   const totalWeeklyClasses = useMemo(() => {

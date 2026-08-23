@@ -32,6 +32,7 @@ import { ScheduleModule as NestScheduleModule } from '@nestjs/schedule';
 import { RescheduleModule } from './reschedule/reschedule.module';
 import { LeaveModule } from './leave/leave.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
+import { SystemSettingsModule } from './system-settings/system-settings.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
@@ -66,7 +67,7 @@ import * as path from 'path';
     }),
     ThrottlerModule.forRoot([{
       ttl: 60000,
-      limit: 120,
+      limit: 300,
     }]),
     UsersModule,
     AuthModule,
@@ -94,6 +95,7 @@ import * as path from 'path';
     RescheduleModule,
     LeaveModule,
     RedisCacheModule,
+    SystemSettingsModule,
   ],
   controllers: [AppController],
   providers: [

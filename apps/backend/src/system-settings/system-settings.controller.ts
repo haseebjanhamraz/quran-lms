@@ -10,6 +10,20 @@ import { Role } from '../schemas';
 export class SystemSettingsController {
   constructor(private readonly settingsService: SystemSettingsService) {}
 
+  @Get('time-slots')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  async getTimeSlots() {
+    const slots = await this.settingsService.getTimeSlots();
+    return { slots };
+  }
+
+  @Put('time-slots')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  async updateTimeSlots(@Body('slots') slots: string[]) {
+    const updatedSlots = await this.settingsService.setTimeSlots(slots);
+    return { success: true, slots: updatedSlots };
+  }
+
   @Get()
   @Roles(Role.ADMIN, Role.SUPERVISOR)
   async getAll() {

@@ -5,12 +5,16 @@ export const dynamic = 'force-dynamic';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Calendar as CalendarIcon, Clock, Filter, UserCheck, Move, CheckCircle2,
-  AlertCircle, RefreshCw, Repeat, Trash2, Info
+  AlertCircle, RefreshCw, Repeat, Trash2, Info, Settings, Plus, X,
+  ChevronUp, ChevronDown, RotateCcw, Save
 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import DailyScheduleView from '@/components/DailyScheduleView';
+import { useTimeSlots, DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface TeacherItem {
   id: string;
@@ -29,12 +33,6 @@ interface SlotAssignment {
   teacherId: string;
   teacher?: { id: string; name: string; email?: string };
 }
-
-const TIME_SLOTS = [
-  '09:00 - 09:30', '09:30 - 10:00', '10:00 - 10:30', '10:30 - 11:00',
-  '11:00 - 11:30', '11:30 - 12:00', '12:00 - 12:30', '12:30 - 01:00',
-  '01:00 - 01:30', '01:30 - 02:00', '02:00 - 02:30', '02:30 - 03:00'
-];
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -62,13 +60,8 @@ function getTeacherColor(index: number): string {
   return TEACHER_COLORS[index % TEACHER_COLORS.length];
 }
 
-const DAILY_SCHEDULE_DATA = [
-  { id: 1, teacherTime: '09:00 am - 09:30 am', studentTime: '12:00 pm', studentName: 'Ali Khan', courseName: 'Quran Reading', status: 'Regular' },
-  { id: 2, teacherTime: '10:00 am - 10:30 am', studentTime: '01:00 pm', studentName: 'Sara Ahmed', courseName: 'Tajweed', status: 'Trial' },
-  { id: 3, teacherTime: '11:30 am - 12:00 pm', studentTime: '02:30 pm', studentName: 'Omar Farooq', courseName: 'Hifz', status: 'Regular' }
-];
-
 export default function ScheduleManagement() {
+  const { timeSlots, loading: timeSlotsLoading, saveTimeSlots, refetch: refetchTimeSlots } = useTimeSlots();
   const [view, setView] = useState<'weekly' | 'daily'>('weekly');
   const [teachers, setTeachers] = useState<TeacherItem[]>(DEFAULT_TEACHERS);
   const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>({});
@@ -76,11 +69,15 @@ export default function ScheduleManagement() {
   const [loading, setLoading] = useState<boolean>(true);
   const [generating, setGenerating] = useState<boolean>(false);
 
+  // Time Slot Management Modal State
+  const [isSlotsModalOpen, setIsSlotsModalOpen] = useState<boolean>(false);
+  const [modalSlots, setModalSlots] = useState<string[]>([]);
+  const [newSlotStart, setNewSlotStart] = useState<string>('15:00');
+  const [newSlotEnd, setNewSlotEnd] = useState<string>('15:30');
+  const [savingSlots, setSavingSlots] = useState<boolean>(false);
+
   // Drag and drop state
   const [dragOverSlotKey, setDragOverSlotKey] = useState<string | null>(null);
-  const [wsConnected, setWsConnected] = useState<boolean>(false);
-
-  const socketRef = useRef<WebSocket | null>(null);
   const clientIdRef = useRef<string>(Math.random().toString(36).substring(7));
 
   const showNotification = (msg: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -148,58 +145,96 @@ export default function ScheduleManagement() {
     }
   }, [API_URL]);
 
-  // Real-time WebSocket connection with graceful error handling
+  const fetchDataRef = useRef(fetchData);
+  fetchDataRef.current = fetchData;
+
+  const refetchTimeSlotsRef = useRef(refetchTimeSlots);
+  refetchTimeSlotsRef.current = refetchTimeSlots;
+
+  // Real-time WebSocket connection via shared singleton hook
+  const { isConnected: wsConnected } = useWebSocket({
+    eventFilter: 'schedule_update',
+    onMessage: (message) => {
+      fetchDataRef.current();
+      refetchTimeSlotsRef.current();
+      if (message.senderClientId && message.senderClientId !== clientIdRef.current) {
+        showNotification('Schedule updated in real-time by another admin!', 'info');
+      }
+    },
+  });
+
   useEffect(() => {
-    fetchData();
+    fetchDataRef.current();
+  }, []);
 
-    let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:5001';
-    if (typeof window !== 'undefined') {
-      const isSecure = window.location.protocol === 'https:';
-      const wsProtocol = isSecure ? 'wss:' : 'ws:';
-      if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
-        wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-      }
+  // Open modal and sync with current timeSlots
+  const handleOpenSlotsModal = () => {
+    setModalSlots([...timeSlots]);
+    setIsSlotsModalOpen(true);
+  };
+
+  const handleSlotChange = (index: number, val: string) => {
+    setModalSlots((prev) => {
+      const copy = [...prev];
+      copy[index] = val;
+      return copy;
+    });
+  };
+
+  const handleAddSlot = () => {
+    const start = newSlotStart.trim();
+    const end = newSlotEnd.trim();
+    if (!start || !end) {
+      showNotification('Please provide both start and end times', 'error');
+      return;
     }
+    const formatted = `${start} - ${end}`;
+    setModalSlots((prev) => [...prev, formatted]);
+  };
 
-    let ws: WebSocket | null = null;
+  const handleRemoveModalSlot = (index: number) => {
+    if (modalSlots.length <= 1) {
+      showNotification('At least one time slot is required', 'error');
+      return;
+    }
+    setModalSlots((prev) => prev.filter((_, i) => i !== index));
+  };
 
+  const handleMoveSlot = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= modalSlots.length) return;
+    setModalSlots((prev) => {
+      const copy = [...prev];
+      const temp = copy[index];
+      copy[index] = copy[targetIndex];
+      copy[targetIndex] = temp;
+      return copy;
+    });
+  };
+
+  const handleResetDefaultSlots = () => {
+    setModalSlots([...DEFAULT_TIME_SLOTS]);
+    showNotification('Reset to default standard time slots', 'info');
+  };
+
+  const handleSaveModalSlots = async () => {
     try {
-      ws = new WebSocket(wsUrl);
-      socketRef.current = ws;
-
-      ws.onopen = () => {
-        setWsConnected(true);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          if (message.event === 'schedule_update') {
-            fetchData();
-            if (message.senderClientId && message.senderClientId !== clientIdRef.current) {
-              showNotification('Schedule updated in real-time by another admin!', 'info');
-            }
-          }
-        } catch (_) { }
-      };
-
-      ws.onclose = () => {
-        setWsConnected(false);
-      };
-
-      ws.onerror = () => {
-        setWsConnected(false);
-      };
-    } catch (_) {
-      setWsConnected(false);
-    }
-
-    return () => {
-      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
-        socketRef.current.close();
+      setSavingSlots(true);
+      const cleanSlots = modalSlots.map((s) => s.trim()).filter(Boolean);
+      if (cleanSlots.length === 0) {
+        showNotification('At least one valid time slot is required', 'error');
+        return;
       }
-    };
-  }, [fetchData]);
+      await saveTimeSlots(cleanSlots);
+      showNotification('Time slots updated and saved to MongoDB settings successfully!');
+      setIsSlotsModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      showNotification(err?.message || 'Failed to save time slots', 'error');
+    } finally {
+      setSavingSlots(false);
+    }
+  };
 
   // Drag handlers
   const handleDragStartFromTopBar = (e: React.DragEvent, teacher: TeacherItem) => {
@@ -232,7 +267,8 @@ export default function ScheduleManagement() {
     try {
       const payload = JSON.parse(rawData);
       const targetSlotKey = `${targetDay}-${targetTimeIdx}`;
-      const [startTime, endTime] = TIME_SLOTS[targetTimeIdx].split(' - ');
+      const slotRange = timeSlots[targetTimeIdx] || `${targetTimeIdx}:00 - ${targetTimeIdx}:30`;
+      const [startTime, endTime] = slotRange.split(' - ').map((s) => s?.trim() || '');
 
       const teacher = teachers.find((t) => t.id === payload.teacherId);
       const teacherName = teacher?.name || payload.teacherName;
@@ -248,8 +284,8 @@ export default function ScheduleManagement() {
         [targetSlotKey]: {
           dayOfWeek: targetDay,
           timeSlotIndex: targetTimeIdx,
-          startTime,
-          endTime,
+          startTime: startTime || '09:00',
+          endTime: endTime || '09:30',
           teacherId: payload.teacherId,
           teacher: { id: payload.teacherId, name: teacherName },
         },
@@ -262,15 +298,15 @@ export default function ScheduleManagement() {
           body: JSON.stringify({
             dayOfWeek: targetDay,
             timeSlotIndex: targetTimeIdx,
-            startTime,
-            endTime,
+            startTime: startTime || '09:00',
+            endTime: endTime || '09:30',
             teacherId: payload.teacherId,
             clientId: clientIdRef.current,
           }),
         });
 
         if (res.ok) {
-          showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+          showNotification(`Assigned ${teacherName} to ${targetDay} (${slotRange})`);
           if (payload.type === 'MOVE_SLOT' && payload.sourceSlotKey) {
             const [sourceDay, sourceIdx] = payload.sourceSlotKey.split('-');
             await apiFetch(`${API_URL}/schedule/slot?dayOfWeek=${sourceDay}&timeSlotIndex=${sourceIdx}&clientId=${clientIdRef.current}`, {
@@ -279,10 +315,10 @@ export default function ScheduleManagement() {
           }
           fetchData();
         } else {
-          showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+          showNotification(`Assigned ${teacherName} to ${targetDay} (${slotRange})`);
         }
       } catch (_) {
-        showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+        showNotification(`Assigned ${teacherName} to ${targetDay} (${slotRange})`);
       }
     } catch (_) {
       fetchData();
@@ -330,7 +366,7 @@ export default function ScheduleManagement() {
 
   const calculateDailyClasses = (day: string) => {
     let count = 0;
-    TIME_SLOTS.forEach((_, index) => {
+    timeSlots.forEach((_, index) => {
       const slot = gridAssignments[`${day}-${index}`];
       if (slot && (!activeFilter || activeFilter === slot.teacherId || activeFilter === slot.teacher?.name)) {
         count++;
@@ -359,11 +395,21 @@ export default function ScheduleManagement() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Manage Time Slots Button */}
+          <button
+            onClick={handleOpenSlotsModal}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-card border border-border/80 text-foreground font-semibold text-xs shadow-sm hover:bg-muted hover:border-brand/40 transition-all"
+            title="Configure dynamic schedule time slots in MongoDB"
+          >
+            <Settings className="h-4 w-4 text-brand" />
+            Manage Time Slots ({timeSlots.length})
+          </button>
+
           <button
             onClick={handleGenerateWeeklySessions}
             disabled={generating}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand text-brand-foreground font-semibold text-sm shadow-md hover:bg-brand/90 transition-all disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-brand-foreground font-semibold text-xs shadow-md hover:bg-brand/90 transition-all disabled:opacity-50"
           >
             {generating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Repeat className="h-4 w-4" />}
             Auto-Repeat Weekly Schedule
@@ -373,18 +419,18 @@ export default function ScheduleManagement() {
           <div className="flex items-center p-1 bg-card border border-border rounded-xl shadow-sm">
             <button
               onClick={() => setView('weekly')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === 'weekly' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${view === 'weekly' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
                 }`}
             >
-              <CalendarIcon size={16} />
+              <CalendarIcon size={14} />
               Weekly Grid
             </button>
             <button
               onClick={() => setView('daily')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${view === 'daily' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:bg-muted'
                 }`}
             >
-              <Clock size={16} />
+              <Clock size={14} />
               Daily View
             </button>
           </div>
@@ -431,25 +477,27 @@ export default function ScheduleManagement() {
 
       {view === 'weekly' ? (
         <div className="space-y-6 animate-fadeIn">
-          {/* Teacher Filter Dropdown */}
-          <div className="glass-panel p-4 rounded-xl flex items-center justify-between gap-4 border border-border/50">
+          {/* Teacher Filter Dropdown & Quick Slot Stats */}
+          <div className="glass-panel p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-border/50">
             <div className="flex items-center gap-2">
               <Filter size={16} className="text-brand" />
               <span className="text-sm font-semibold text-foreground">Filter View by Teacher:</span>
             </div>
-            <div className="relative min-w-[240px]">
-              <select
-                value={activeFilter || ''}
-                onChange={(e) => setActiveFilter(e.target.value || null)}
-                className="w-full bg-card border border-border rounded-xl px-4 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/50 cursor-pointer transition-all"
-              >
-                <option value="">All Teachers (Show Everyone)</option>
-                {teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} {t.assignedDaysCount !== undefined ? `(${t.assignedDaysCount} slots)` : ''}
-                  </option>
-                ))}
-              </select>
+            <div className="flex items-center gap-3">
+              <div className="relative min-w-[240px]">
+                <select
+                  value={activeFilter || ''}
+                  onChange={(e) => setActiveFilter(e.target.value || null)}
+                  className="w-full bg-card border border-border rounded-xl px-4 py-2 text-sm font-semibold text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-brand/50 cursor-pointer transition-all"
+                >
+                  <option value="">All Teachers (Show Everyone)</option>
+                  {teachers.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.assignedDaysCount !== undefined ? `(${t.assignedDaysCount} slots)` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -459,8 +507,20 @@ export default function ScheduleManagement() {
               <table className="w-full text-left border-collapse text-sm">
                 <thead>
                   <tr className="bg-muted/50 border-b border-border">
-                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider w-36 border-r border-border">
-                      Time Slot
+                    <th className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider w-44 border-r border-border">
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-brand" />
+                          Time Slot
+                        </span>
+                        <button
+                          onClick={handleOpenSlotsModal}
+                          title="Configure Dynamic Time Slots"
+                          className="p-1 rounded-lg text-muted-foreground hover:text-brand hover:bg-muted/80 transition-colors"
+                        >
+                          <Settings size={14} />
+                        </button>
+                      </div>
                     </th>
                     {DAYS.map((day) => (
                       <th key={day} className="p-4 font-semibold text-xs text-muted-foreground uppercase tracking-wider text-center border-r border-border last:border-0">
@@ -470,9 +530,9 @@ export default function ScheduleManagement() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {TIME_SLOTS.map((slot, timeIdx) => (
-                    <tr key={slot} className="hover:bg-card/30 transition-colors">
-                      <td className="p-3 font-mono text-xs text-foreground/80 border-r border-border whitespace-nowrap">
+                  {timeSlots.map((slot, timeIdx) => (
+                    <tr key={`${slot}-${timeIdx}`} className="hover:bg-card/30 transition-colors">
+                      <td className="p-3 font-mono text-xs text-foreground/80 border-r border-border whitespace-nowrap bg-card/10">
                         {slot}
                       </td>
                       {DAYS.map((day) => {
@@ -542,10 +602,12 @@ export default function ScheduleManagement() {
           role="ADMIN"
           teachers={teachers}
           gridAssignments={gridAssignments}
+          timeSlots={timeSlots}
           allowDragDrop={true}
           onDropSlot={async (targetDay, targetTimeIdx, payload) => {
             const targetSlotKey = `${targetDay}-${targetTimeIdx}`;
-            const [startTime, endTime] = TIME_SLOTS[targetTimeIdx].split(' - ');
+            const slotRange = timeSlots[targetTimeIdx] || `${targetTimeIdx}:00 - ${targetTimeIdx}:30`;
+            const [startTime, endTime] = slotRange.split(' - ').map((s) => s?.trim() || '');
             const teacher = teachers.find((t) => t.id === payload.teacherId);
             const teacherName = teacher?.name || payload.teacherName;
 
@@ -559,8 +621,8 @@ export default function ScheduleManagement() {
               [targetSlotKey]: {
                 dayOfWeek: targetDay,
                 timeSlotIndex: targetTimeIdx,
-                startTime,
-                endTime,
+                startTime: startTime || '09:00',
+                endTime: endTime || '09:30',
                 teacherId: payload.teacherId,
                 teacher: { id: payload.teacherId, name: teacherName },
               },
@@ -572,15 +634,15 @@ export default function ScheduleManagement() {
                 body: JSON.stringify({
                   dayOfWeek: targetDay,
                   timeSlotIndex: targetTimeIdx,
-                  startTime,
-                  endTime,
+                  startTime: startTime || '09:00',
+                  endTime: endTime || '09:30',
                   teacherId: payload.teacherId,
                   clientId: clientIdRef.current,
                 }),
               });
 
               if (res.ok) {
-                showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+                showNotification(`Assigned ${teacherName} to ${targetDay} (${slotRange})`);
                 if (payload.type === 'MOVE_SLOT' && payload.sourceSlotKey) {
                   const [sourceDay, sourceIdx] = payload.sourceSlotKey.split('-');
                   await apiFetch(`${API_URL}/schedule/slot?dayOfWeek=${sourceDay}&timeSlotIndex=${sourceIdx}&clientId=${clientIdRef.current}`, {
@@ -589,10 +651,10 @@ export default function ScheduleManagement() {
                 }
                 fetchData();
               } else {
-                showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+                showNotification(`Assigned ${teacherName} to ${targetDay} (${slotRange})`);
               }
             } catch (_) {
-              showNotification(`Assigned ${teacherName} to ${targetDay} (${TIME_SLOTS[targetTimeIdx]})`);
+              showNotification(`Assigned ${teacherName} to ${targetDay} (${slotRange})`);
             }
           }}
           onRemoveSlot={async (dayOfWeek, timeSlotIndex) => {
@@ -601,6 +663,164 @@ export default function ScheduleManagement() {
           }}
         />
       )}
+
+      {/* ─── TIME SLOTS MANAGEMENT MODAL ─── */}
+      {isSlotsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn">
+          <div className="glass-panel w-full max-w-2xl rounded-2xl border border-border shadow-2xl overflow-hidden bg-card/95 flex flex-col max-h-[85vh]">
+            {/* Modal Header */}
+            <div className="p-5 border-b border-border flex items-center justify-between bg-muted/40">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-brand/10 text-brand border border-brand/20">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-display font-bold text-foreground">
+                    Manage Dynamic Time Slots
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Add, edit, reorder or remove time slots. Saved directly to MongoDB settings collection.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsSlotsModalOpen(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body: Scrollable Slot List */}
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground px-1">
+                  <span>Current Slots ({modalSlots.length})</span>
+                  <span>Order & Actions</span>
+                </div>
+
+                {modalSlots.map((slot, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 p-2.5 rounded-xl border border-border/80 bg-background/60 hover:border-brand/30 transition-all"
+                  >
+                    <span className="w-7 text-center font-mono text-xs font-bold text-muted-foreground">
+                      #{index + 1}
+                    </span>
+                    <input
+                      type="text"
+                      value={slot}
+                      onChange={(e) => handleSlotChange(index, e.target.value)}
+                      placeholder="e.g. 09:00 - 09:30"
+                      className="flex-1 bg-card border border-border rounded-lg px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all"
+                    />
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveSlot(index, 'up')}
+                        disabled={index === 0}
+                        title="Move Up"
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronUp size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveSlot(index, 'down')}
+                        disabled={index === modalSlots.length - 1}
+                        title="Move Down"
+                        className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveModalSlot(index)}
+                        title="Delete Slot"
+                        className="p-1.5 rounded-md text-destructive/80 hover:text-destructive hover:bg-destructive/10 transition-colors ml-1"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add New Time Slot Box */}
+              <div className="p-4 rounded-xl border border-dashed border-border/80 bg-muted/20 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-brand" />
+                  <span className="text-xs font-bold text-foreground">Add New Time Slot</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-medium">Start:</span>
+                    <input
+                      type="text"
+                      value={newSlotStart}
+                      onChange={(e) => setNewSlotStart(e.target.value)}
+                      placeholder="03:00"
+                      className="w-24 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground font-medium">End:</span>
+                    <input
+                      type="text"
+                      value={newSlotEnd}
+                      onChange={(e) => setNewSlotEnd(e.target.value)}
+                      placeholder="03:30"
+                      className="w-24 bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:ring-2 focus:ring-brand/50"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddSlot}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-brand text-brand-foreground text-xs font-semibold hover:bg-brand/90 transition-all ml-auto"
+                  >
+                    <Plus size={14} />
+                    Add Slot
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-border flex items-center justify-between bg-muted/40">
+              <button
+                type="button"
+                onClick={handleResetDefaultSlots}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card text-muted-foreground hover:text-foreground text-xs font-semibold hover:bg-muted transition-all"
+                title="Restore original 12 standard half-hour slots"
+              >
+                <RotateCcw size={13} />
+                Reset Defaults
+              </button>
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsSlotsModalOpen(false)}
+                  disabled={savingSlots}
+                  className="px-4 py-2 rounded-xl border border-border text-foreground text-xs font-semibold hover:bg-muted transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveModalSlots}
+                  disabled={savingSlots}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand text-brand-foreground text-xs font-semibold shadow-md hover:bg-brand/90 transition-all disabled:opacity-50"
+                >
+                  {savingSlots ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+

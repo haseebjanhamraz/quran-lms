@@ -8,7 +8,7 @@ export class UpsertSlotDto {
 
   @IsInt()
   @Min(0)
-  @Max(20)
+  @Max(100)
   timeSlotIndex: number;
 
   @IsString()

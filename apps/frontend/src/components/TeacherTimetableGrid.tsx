@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Calendar, Clock, Loader2, BookOpen } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useTimeSlots, DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
 
 interface SlotAssignment {
   id?: string;
@@ -22,13 +23,11 @@ interface TeacherTimetableGridProps {
   teacherName?: string;
   readOnly?: boolean;
   selfView?: boolean;
+  timeSlots?: string[];
 }
 
-export const TIME_SLOTS = [
-  '09:00 - 09:30', '09:30 - 10:00', '10:00 - 10:30', '10:30 - 11:00',
-  '11:00 - 11:30', '11:30 - 12:00', '12:00 - 12:30', '12:30 - 01:00',
-  '01:00 - 01:30', '01:30 - 02:00', '02:00 - 02:30', '02:30 - 03:00'
-];
+export { DEFAULT_TIME_SLOTS };
+export const TIME_SLOTS = DEFAULT_TIME_SLOTS;
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -37,7 +36,10 @@ export default function TeacherTimetableGrid({
   teacherName,
   readOnly = true,
   selfView = false,
+  timeSlots: customTimeSlots,
 }: TeacherTimetableGridProps) {
+  const { timeSlots: hookTimeSlots } = useTimeSlots();
+  const timeSlots = customTimeSlots || hookTimeSlots || DEFAULT_TIME_SLOTS;
   const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>({});
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -86,7 +88,7 @@ export default function TeacherTimetableGrid({
 
   const calculateDailyClasses = (day: string) => {
     let count = 0;
-    TIME_SLOTS.forEach((_, index) => {
+    timeSlots.forEach((_, index) => {
       if (gridAssignments[`${day}-${index}`]) {
         count++;
       }
@@ -145,7 +147,7 @@ export default function TeacherTimetableGrid({
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {TIME_SLOTS.map((slot, timeIdx) => (
+              {timeSlots.map((slot, timeIdx) => (
                 <tr key={slot} className="hover:bg-card/40 transition-colors">
                   <td className="p-2.5 font-mono text-[11px] text-foreground/80 border-r border-border whitespace-nowrap">
                     {slot}
