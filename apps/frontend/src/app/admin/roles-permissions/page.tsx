@@ -3,13 +3,15 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, ShieldAlert, CheckCircle2, Save, Loader2, RefreshCw, CheckSquare, Square } from 'lucide-react';
 
+import { useAuth } from '@/context/AuthContext';
+
 const ROLES = ['SUPER_ADMIN', 'ADMIN', 'HR', 'TEACHER', 'STUDENT', 'SUPERVISOR'];
 const MODULE_NAMES: Record<string, string> = {
   users: 'Users Management',
   students: 'Student Admissions',
   teachers: 'Teacher Roster',
   courses: 'Courses & Curriculum',
-  schedule: 'Timetable & Class Schedule',
+  schedule: 'Class Sessions & Timetable',
   enrollments: 'Student Enrollments',
   fees: 'Fees Collection & Billing',
   hr: 'HR & Staff Payroll',
@@ -17,6 +19,7 @@ const MODULE_NAMES: Record<string, string> = {
   'audit-logs': 'System Audit Logs',
   settings: 'Global Settings',
   feedback: 'Student Feedback & Ratings',
+  leave: 'Leave Requests & Approvals',
 };
 
 type Action = 'create' | 'read' | 'update' | 'delete';
@@ -40,6 +43,9 @@ const createDefaultMatrix = (): PermissionState => {
 };
 
 export default function RolesPermissionsManagement() {
+  const { user } = useAuth();
+  const isSuperAdmin = user?.role === 'SUPER_ADMIN';
+
   const [activeRole, setActiveRole] = useState(ROLES[0]);
   const [permissions, setPermissions] = useState<PermissionState>(createDefaultMatrix);
   const [loading, setLoading] = useState(false);
@@ -47,6 +53,8 @@ export default function RolesPermissionsManagement() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const isRoleReadOnly = activeRole === 'SUPER_ADMIN' || (activeRole === 'ADMIN' && !isSuperAdmin);
 
   const fetchMatrix = async () => {
     setLoading(true);
@@ -68,7 +76,7 @@ export default function RolesPermissionsManagement() {
         if (Array.isArray(allPerms)) {
           const matrix = createDefaultMatrix();
 
-          for (const role of ['TEACHER', 'STUDENT', 'SUPERVISOR']) {
+          for (const role of ['ADMIN', 'HR', 'TEACHER', 'STUDENT', 'SUPERVISOR']) {
             const rRes = await fetch(`${API_URL}/permissions/role/${role}`, { credentials: 'include' }).catch(() => null);
             if (rRes && rRes.ok) {
               const rpList = await rRes.json();
@@ -97,7 +105,7 @@ export default function RolesPermissionsManagement() {
   }, []);
 
   const togglePermission = (moduleKey: string, action: Action) => {
-    if (activeRole === 'SUPER_ADMIN' || activeRole === 'ADMIN') return;
+    if (isRoleReadOnly) return;
 
     setPermissions((prev) => {
       const roleState = prev[activeRole] || {};
@@ -117,7 +125,7 @@ export default function RolesPermissionsManagement() {
   };
 
   const handleSelectAllForRole = (enable: boolean) => {
-    if (activeRole === 'SUPER_ADMIN' || activeRole === 'ADMIN') return;
+    if (isRoleReadOnly) return;
 
     setPermissions((prev) => {
       const roleCopy = { ...(prev[activeRole] || {}) };
@@ -210,7 +218,7 @@ export default function RolesPermissionsManagement() {
           </button>
           <button
             onClick={handleSaveMatrix}
-            disabled={saving || activeRole === 'ADMIN'}
+            disabled={saving || isRoleReadOnly}
             className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold px-5 py-2.5 rounded-xl shadow-md transition-all disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -242,7 +250,11 @@ export default function RolesPermissionsManagement() {
               }`}
             >
               <Shield className={`h-4 w-4 ${activeRole === role ? 'text-primary-foreground' : 'text-muted-foreground/70'}`} />
-              <span>{role}</span>
+              <div className="flex flex-col items-start text-left">
+                <span>{role}</span>
+                {role === 'SUPER_ADMIN' && <span className="text-[10px] opacity-75 font-normal">System Owner</span>}
+                {role === 'ADMIN' && <span className="text-[10px] opacity-75 font-normal">Administrator</span>}
+              </div>
             </button>
           ))}
         </div>
@@ -253,12 +265,35 @@ export default function RolesPermissionsManagement() {
             <div className="flex items-center gap-3">
               <ShieldAlert className="text-brand h-6 w-6" />
               <div>
-                <h3 className="font-bold text-sm text-foreground">Editing Permissions for Role: <span className="text-brand">{activeRole}</span></h3>
-                <p className="text-xs text-muted-foreground">Changes to this matrix are enforced across all active API endpoints and user sessions.</p>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-sm text-foreground">Editing Permissions for Role: <span className="text-brand">{activeRole}</span></h3>
+                  {activeRole === 'SUPER_ADMIN' && (
+                    <span className="text-[10px] bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded-full font-bold">
+                      Full Root Access (Immutable)
+                    </span>
+                  )}
+                  {activeRole === 'ADMIN' && isSuperAdmin && (
+                    <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold">
+                      Customizable by Super Admin
+                    </span>
+                  )}
+                  {activeRole === 'ADMIN' && !isSuperAdmin && (
+                    <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-bold">
+                      Managed by Super Admin (Read-Only)
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {activeRole === 'SUPER_ADMIN'
+                    ? 'Super Admin (CEO) possesses absolute access to every module and cannot be restricted.'
+                    : activeRole === 'ADMIN' && !isSuperAdmin
+                    ? 'Admin role permissions are centrally governed by the Super Admin.'
+                    : 'Changes to this matrix are enforced across all active API endpoints and user sessions.'}
+                </p>
               </div>
             </div>
 
-            {activeRole !== 'ADMIN' && (
+            {!isRoleReadOnly && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleSelectAllForRole(true)}
@@ -303,11 +338,16 @@ export default function RolesPermissionsManagement() {
                     return (
                       <tr key={modKey} className="hover:bg-card/30 transition-colors">
                         <td className="p-4 font-semibold text-foreground border-r border-border">
-                          {modName}
-                          <span className="block text-[10px] text-muted-foreground/70 font-mono">{modKey}.*</span>
+                          <div>{modName}</div>
+                          {modKey === 'schedule' && (
+                            <span className="block text-[11px] text-primary/80 font-normal mt-0.5">
+                              • Create: Start instant classes &amp; schedule timetable sessions
+                            </span>
+                          )}
+                          <span className="block text-[10px] text-muted-foreground/70 font-mono mt-0.5">{modKey}.*</span>
                         </td>
                         {(['create', 'read', 'update', 'delete'] as Action[]).map((action) => {
-                          const isChecked = activeRole === 'ADMIN' ? true : (perms[action] ?? false);
+                          const isChecked = activeRole === 'SUPER_ADMIN' ? true : (perms[action] ?? false);
                           return (
                             <td key={action} className="p-4 text-center border-r border-border last:border-0">
                               <label className="relative inline-flex items-center cursor-pointer">
@@ -316,7 +356,7 @@ export default function RolesPermissionsManagement() {
                                   className="sr-only peer"
                                   checked={Boolean(isChecked)}
                                   onChange={() => togglePermission(modKey, action)}
-                                  disabled={activeRole === 'ADMIN'}
+                                  disabled={isRoleReadOnly}
                                 />
                                 <div className="w-10 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary peer-disabled:opacity-50 peer-disabled:cursor-not-allowed"></div>
                               </label>

@@ -19,4 +19,7 @@ export class CreateClassSessionDto {
   @IsInt()
   @Min(1)
   durationMinutes: number;
+
+  @IsOptional()
+  isInstant?: boolean;
 }

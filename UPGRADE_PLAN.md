@@ -1,4 +1,4 @@
-# Quran LMS — Professional Upgrade Roadmap
+# Ain Ul Quran — Professional Upgrade Roadmap
 
 > A strategic development plan for evolving the Quran Learning Management System from its current state into a comprehensive, enterprise-grade e-learning platform.
 

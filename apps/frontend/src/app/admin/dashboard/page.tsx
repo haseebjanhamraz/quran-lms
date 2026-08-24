@@ -6,17 +6,9 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutDashboard,
-  Users,
-  BookOpen,
-  Calendar,
-  UserCheck,
-  ShieldCheck,
   Flag,
-  AlertTriangle,
-  TrendingUp,
   Clock,
   Activity,
-  ArrowRight,
   Sparkles,
 } from 'lucide-react';
 
@@ -147,32 +139,6 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
-function StatCard({ label, value, icon, iconBg, trend }: any) {
-  return (
-    <div className="relative overflow-hidden rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm transition-all duration-300 hover:border-brand/40 hover:shadow-lg">
-      <div className="pointer-events-none absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-10 blur-2xl" style={{ background: iconBg }} />
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="mt-2 text-3xl font-bold tracking-tight text-foreground">{value}</p>
-          {trend && (
-            <p className="mt-1 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
-              <TrendingUp size={12} />
-              {trend}
-            </p>
-          )}
-        </div>
-        <div
-          className="flex h-12 w-12 items-center justify-center rounded-xl"
-          style={{ background: iconBg + '25' }}
-        >
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
@@ -219,22 +185,11 @@ export default function AdminDashboardPage() {
     load();
   }, []);
 
-  const totalTeachers = users.filter((u) => u.role === 'TEACHER').length;
-  const totalStudents = users.filter((u) => u.role === 'STUDENT').length;
-  const totalCourses = sessions.reduce((acc, s) => {
-    if (s.course && !acc.includes(s.course.title)) {
-      acc.push(s.course.title);
-    }
-    return acc;
-  }, [] as string[]).length || (users.length > 0 ? 6 : 0);
-
-  const classesToday = sessions.filter((s) => isToday(s.scheduledAt)).length;
   const recentSessions = [...sessions]
     .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime())
     .slice(0, 10);
 
   // Enrollment distribution computations
-  const totalEnrollments = enrollStats?.total ?? 0;
   const types = ['NAZIRA', 'TAJWEED', 'HIFZ_UL_QURAN', 'ISLAMIC_STUDIES'];
   const maxEnrollTypeVal = Math.max(...types.map((t) => enrollStats?.byType?.[t] ?? 0), 1);
 
@@ -249,65 +204,21 @@ export default function AdminDashboardPage() {
   const maxSessionStatusVal = Math.max(...Object.values(statusCounts), 1);
 
   return (
-    <div className="relative mx-auto max-w-7xl">
+    <div className="relative mx-auto max-w-7xl space-y-6">
       {/* ── Top Bar ── */}
-      <div className="mb-8 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-border/60">
         <div>
-          <h1 className="text-2xl font-bold text-foreground font-display">
-            Assalamu Alaikum,{' '}
-            <span className="text-brand">{user?.name ?? 'Admin'}</span> 👋
+          <h1 className="text-xl font-bold tracking-tight text-foreground font-display">
+            Dashboard Overview
           </h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">{todayLabel()}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground">{todayLabel()}</p>
         </div>
         {loading && (
           <div className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs text-muted-foreground">
             <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
-            Loading system metrics&hellip;
+            Updating overview&hellip;
           </div>
         )}
-      </div>
-
-      {/* ── Stats Row (6 Cards) ── */}
-      <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <StatCard
-          label="Teachers"
-          value={totalTeachers}
-          icon={<BookOpen size={20} className="text-emerald-500" />}
-          iconBg="#10b981"
-          trend="Active educators"
-        />
-        <StatCard
-          label="Students"
-          value={totalStudents}
-          icon={<Users size={20} className="text-blue-500" />}
-          iconBg="#3b82f6"
-          trend="Enrolled learners"
-        />
-        <StatCard
-          label="Classes Today"
-          value={classesToday}
-          icon={<Calendar size={20} className="text-brand" />}
-          iconBg="#C9A84C"
-        />
-        <StatCard
-          label="Enrollments"
-          value={totalEnrollments}
-          icon={<UserCheck size={20} className="text-emerald-500" />}
-          iconBg="#10b981"
-          trend="Total connections"
-        />
-        <StatCard
-          label="Schedules"
-          value={sessions.length}
-          icon={<Clock size={20} className="text-purple-500" />}
-          iconBg="#8b5cf6"
-        />
-        <StatCard
-          label="Flagged Reviews"
-          value={flagged.length}
-          icon={<AlertTriangle size={20} className="text-destructive" />}
-          iconBg="#ef4444"
-        />
       </div>
 
       {/* ── Two-column Dashboard Area ── */}
@@ -538,78 +449,6 @@ export default function AdminDashboardPage() {
           </section>
         </div>
       </div>
-
-      {/* ── Quick Actions ── */}
-      <section>
-        <h2 className="mb-4 flex items-center gap-2 text-base font-semibold text-foreground">
-          <TrendingUp size={16} className="text-brand" />
-          Admin Toolbelt Roster
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          {[
-            {
-              href: '/admin/users',
-              icon: <Users size={24} />,
-              iconColor: '#3b82f6',
-              title: 'Manage Users',
-              desc: 'Edit teacher/student roles.',
-            },
-            {
-              href: '/admin/courses',
-              icon: <BookOpen size={24} />,
-              iconColor: '#10b981',
-              title: 'Manage Courses',
-              desc: 'Configure Quran syllabus.',
-            },
-            {
-              href: '/admin/schedule',
-              icon: <Calendar size={24} />,
-              iconColor: '#C9A84C',
-              title: 'Class Scheduling',
-              desc: 'Roster timing check.',
-            },
-            {
-              href: '/admin/supervisor-assignments',
-              icon: <ShieldCheck size={24} />,
-              iconColor: '#8b5cf6',
-              title: 'QA Supervisors',
-              desc: 'Syllabus compliance assigning.',
-            },
-            {
-              href: '/admin/audit-logs',
-              icon: <Activity size={24} />,
-              iconColor: '#10b981',
-              title: 'Audit Logs',
-              desc: 'Trace platform events.',
-            },
-          ].map(({ href, icon, iconColor, title, desc }) => (
-            <Link
-              key={href}
-              href={href}
-              className="group relative overflow-hidden rounded-2xl border border-border bg-card/80 p-4 backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-lg shadow-sm"
-            >
-              <div
-                className="pointer-events-none absolute -right-4 -top-4 h-16 w-16 rounded-full opacity-10 blur-2xl transition-opacity group-hover:opacity-20"
-                style={{ background: iconColor }}
-              />
-              <div
-                className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110"
-                style={{ background: iconColor + '22', color: iconColor }}
-              >
-                {icon}
-              </div>
-              <h3 className="mb-0.5 font-semibold text-foreground text-sm truncate">{title}</h3>
-              <p className="text-[11px] leading-relaxed text-muted-foreground truncate">{desc}</p>
-              <span
-                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold transition-all duration-200"
-                style={{ color: iconColor }}
-              >
-                Open <ArrowRight size={10} className="transition-transform group-hover:translate-x-1" />
-              </span>
-            </Link>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

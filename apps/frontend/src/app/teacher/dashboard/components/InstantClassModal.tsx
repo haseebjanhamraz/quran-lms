@@ -12,6 +12,7 @@ interface InstantClassModalProps {
   onClose: () => void;
   courses: Course[];
   coursesLoading: boolean;
+  canStartInstantClass?: boolean;
   onStartInstantClass: (courseId: string, durationMinutes: number) => Promise<void>;
 }
 
@@ -20,6 +21,7 @@ export default function InstantClassModal({
   onClose,
   courses,
   coursesLoading,
+  canStartInstantClass = true,
   onStartInstantClass,
 }: InstantClassModalProps) {
   const [courseId, setCourseId] = useState('');
@@ -31,6 +33,10 @@ export default function InstantClassModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canStartInstantClass) {
+      setError('Permission Denied: You do not have permission to start instant classes. Please contact an Administrator to enable schedule creation in Roles & Permissions.');
+      return;
+    }
     if (!courseId) {
       setError('Please select a course first.');
       return;
@@ -66,6 +72,12 @@ export default function InstantClassModal({
 
         {/* Form */}
         <form onSubmit={handleSubmit} className="mt-5 space-y-5">
+          {!canStartInstantClass && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-400">
+              <strong>Permission Required:</strong> Instant live class creation is currently disabled for your role by the Administrator in Roles &amp; Permissions (schedule.create).
+            </div>
+          )}
+
           {error && (
             <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
               {error}

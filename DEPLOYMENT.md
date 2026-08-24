@@ -1,6 +1,6 @@
-# Quran LMS — Production Deployment Guide for Ubuntu LTS
+# Ain Ul Quran — Production Deployment Guide for Ubuntu LTS
 
-This guide provides step-by-step instructions for deploying the Quran LMS application on an Ubuntu LTS server. All services run in **Docker** and are exposed publicly via **Cloudflare Tunnels** using **subdomain-based routing**.
+This guide provides step-by-step instructions for deploying the Ain Ul Quran application on an Ubuntu LTS server. All services run in **Docker** and are exposed publicly via **Cloudflare Tunnels** using **subdomain-based routing**.
 
 ---
 

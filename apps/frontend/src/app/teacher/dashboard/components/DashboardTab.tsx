@@ -22,13 +22,15 @@ interface DashboardTabProps {
   onOpenInstantModal: () => void;
   onNavigateTab: (tab: any) => void;
   router: any;
+  canStartInstantClass?: boolean;
 }
 
 const TYPE_COLORS: Record<string, string> = {
   NAZIRA: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
   ARABIC: 'text-sky-400 bg-sky-400/10 border-sky-400/30',
   TAJWEED: 'text-violet-400 bg-violet-400/10 border-violet-400/30',
-  ISLAMIC_STUDIES: 'text-amber-400 bg-amber-400/10 border-amber-400/30',
+  HIFZ_UL_QURAN: 'text-amber-400 bg-amber-400/10 border-amber-400/30',
+  ISLAMIC_STUDIES: 'text-rose-400 bg-rose-400/10 border-rose-400/30',
 };
 
 function formatTime(iso: string): string {
@@ -61,6 +63,7 @@ export default function DashboardTab({
   onOpenInstantModal,
   onNavigateTab,
   router,
+  canStartInstantClass = true,
 }: DashboardTabProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
@@ -144,10 +147,16 @@ export default function DashboardTab({
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={onOpenInstantModal}
-              className="flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all hover:scale-105"
+              title={canStartInstantClass ? 'Start Instant Class' : 'Instant class creation disabled in Roles & Permissions (schedule.create)'}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+                canStartInstantClass
+                  ? 'bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 hover:scale-105'
+                  : 'bg-muted text-muted-foreground border border-border opacity-70 hover:opacity-100'
+              }`}
             >
               <Sparkles size={16} />
               <span>Instant Class</span>
+              {!canStartInstantClass && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded ml-1">Disabled</span>}
             </button>
             <Link
               href="/teacher/leave"
@@ -402,13 +411,21 @@ export default function DashboardTab({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <button
               onClick={onOpenInstantModal}
+              title={canStartInstantClass ? 'Start Instant Class' : 'Instant class creation disabled in Roles & Permissions (schedule.create)'}
               className="p-4 rounded-2xl border border-border bg-card/60 hover:bg-card hover:border-primary/40 text-left transition-all group shadow-sm"
             >
               <div className="p-2.5 rounded-xl bg-primary/10 text-primary w-fit mb-3 group-hover:scale-110 transition-transform">
                 <Sparkles size={18} />
               </div>
-              <p className="text-xs font-bold text-foreground">Instant Class</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Start now (30-60m)</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-foreground">Instant Class</p>
+                {!canStartInstantClass && (
+                  <span className="text-[9px] font-bold bg-amber-500/20 text-amber-400 px-1 py-0.2 rounded">Off</span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {canStartInstantClass ? 'Start now (30-60m)' : 'Permission required'}
+              </p>
             </button>
 
             <button

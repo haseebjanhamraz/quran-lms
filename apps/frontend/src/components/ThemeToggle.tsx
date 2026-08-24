@@ -31,7 +31,7 @@ export default function ThemeToggle() {
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-card/60 p-2 text-foreground hover:bg-muted transition-all duration-200 shadow-sm outline-none focus:ring-2 focus:ring-primary/30"
+        className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-white p-2 text-foreground hover:bg-muted transition-all duration-200 shadow-sm outline-none focus:ring-2 focus:ring-primary/30"
         title={`Current theme: ${theme} (${resolvedTheme})`}
         aria-label="Toggle theme"
       >
@@ -53,11 +53,10 @@ export default function ThemeToggle() {
                   setTheme(key);
                   setIsOpen(false);
                 }}
-                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                  isSelected
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${isSelected
                     ? 'bg-primary/10 text-primary font-semibold'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
+                  }`}
               >
                 <Icon className={`h-4 w-4 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
                 <span>{label}</span>

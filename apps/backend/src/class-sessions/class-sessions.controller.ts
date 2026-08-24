@@ -5,19 +5,35 @@ import { UpdateClassSessionDto } from './dto/update-class-session.dto';
 import { LogAttendanceDto } from './dto/log-attendance.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '../schemas';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('class-sessions')
 export class ClassSessionsController {
   constructor(private readonly classSessionsService: ClassSessionsService) {}
 
+  @Post('instant')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
+  @RequirePermissions('schedule.create')
+  async createInstant(
+    @Body() createClassSessionDto: CreateClassSessionDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.create({ ...createClassSessionDto, isInstant: true }, user);
+  }
+
   @Post()
-  @Roles(Role.ADMIN, Role.TEACHER)
-  async create(@Body() createClassSessionDto: CreateClassSessionDto) {
-    return this.classSessionsService.create(createClassSessionDto);
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
+  @RequirePermissions('schedule.create')
+  async create(
+    @Body() createClassSessionDto: CreateClassSessionDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.create(createClassSessionDto, user);
   }
 
   @Get()
@@ -72,13 +88,15 @@ export class ClassSessionsController {
   }
 
   @Put(':id')
-  @Roles(Role.ADMIN, Role.TEACHER)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
+  @RequirePermissions('schedule.update')
   async update(@Param('id') id: string, @Body() updateClassSessionDto: UpdateClassSessionDto) {
     return this.classSessionsService.update(id, updateClassSessionDto);
   }
 
   @Delete(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  @RequirePermissions('schedule.delete')
   async remove(@Param('id') id: string) {
     return this.classSessionsService.remove(id);
   }

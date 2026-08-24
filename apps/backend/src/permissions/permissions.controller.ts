@@ -53,24 +53,36 @@ export class PermissionsController {
   }
 
   @Put('role/:role/batch')
-  @Roles(Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   updateRoleBatch(
     @Param('role') role: string,
     @Body('enabledPermissions') enabledPermissions: { module: string; action: string }[],
     @CurrentUser() user: any,
   ) {
     const roleEnum = this.parseRole(role);
+    if (roleEnum === Role.SUPER_ADMIN) {
+      throw new BadRequestException('Super Admin permissions cannot be modified.');
+    }
+    if (roleEnum === Role.ADMIN && user.role !== Role.SUPER_ADMIN) {
+      throw new BadRequestException('Only Super Admin (CEO) can modify Admin permissions.');
+    }
     return this.permissionsService.updateRoleBatch(roleEnum, enabledPermissions || [], user?.id);
   }
 
   @Post('role/:role/batch')
-  @Roles(Role.ADMIN)
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
   postRoleBatch(
     @Param('role') role: string,
     @Body('enabledPermissions') enabledPermissions: { module: string; action: string }[],
     @CurrentUser() user: any,
   ) {
     const roleEnum = this.parseRole(role);
+    if (roleEnum === Role.SUPER_ADMIN) {
+      throw new BadRequestException('Super Admin permissions cannot be modified.');
+    }
+    if (roleEnum === Role.ADMIN && user.role !== Role.SUPER_ADMIN) {
+      throw new BadRequestException('Only Super Admin (CEO) can modify Admin permissions.');
+    }
     return this.permissionsService.updateRoleBatch(roleEnum, enabledPermissions || [], user?.id);
   }
 

@@ -1,4 +1,4 @@
-# Quran LMS — Online Class Recording & AI Evaluation Platform
+# Ain Ul Quran — Online Class Recording & AI Evaluation Platform
 
 An enterprise-grade Learning Management System (LMS) designed for online Quran education. Featuring role-based dashboards, live video classrooms (via LiveKit), automated session recording, secure cloud backups (Google Drive), speech-to-text transcription, and post-class AI evaluation.
 

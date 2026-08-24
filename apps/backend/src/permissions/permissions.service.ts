@@ -28,7 +28,7 @@ export class PermissionsService {
   }
 
   async getUserPermissions(role: Role): Promise<string[]> {
-    if (role === Role.SUPER_ADMIN || role === Role.ADMIN) {
+    if (role === Role.SUPER_ADMIN) {
       await this.ensureAllModulePermissions();
       const all = await this.permissionModel.find();
       return all.map((p) => p.name);
@@ -40,16 +40,42 @@ export class PermissionsService {
       if (p && p.name) perms.push(p.name);
     }
 
-    // Default fallback permissions for HR if not explicitly set in matrix yet
-    if (role === Role.HR && perms.length === 0) {
-      return [
-        'fees.create', 'fees.read', 'fees.update', 'fees.delete',
-        'hr.create', 'hr.read', 'hr.update', 'hr.delete',
-        'expenses.create', 'expenses.read', 'expenses.update',
-        'salary-config.create', 'salary-config.read', 'salary-config.update',
-        'support.create', 'support.read', 'support.update', 'support.delete',
-        'reports.read', 'students.read', 'teachers.read', 'enrollments.read'
-      ];
+    // Default fallback permissions if role has no DB entries
+    if (perms.length === 0) {
+      if (role === Role.ADMIN) {
+        await this.ensureAllModulePermissions();
+        const all = await this.permissionModel.find();
+        return all.map((p) => p.name);
+      }
+      if (role === Role.HR) {
+        return [
+          'fees.create', 'fees.read', 'fees.update', 'fees.delete',
+          'hr.create', 'hr.read', 'hr.update', 'hr.delete',
+          'expenses.create', 'expenses.read', 'expenses.update',
+          'salary-config.create', 'salary-config.read', 'salary-config.update',
+          'support.create', 'support.read', 'support.update', 'support.delete',
+          'reports.read', 'students.read', 'teachers.read', 'enrollments.read'
+        ];
+      }
+      if (role === Role.TEACHER) {
+        return [
+          'courses.read', 'schedule.read', 'schedule.create', 'schedule.update',
+          'students.read', 'enrollments.read', 'feedback.create', 'feedback.read',
+          'leave.create', 'leave.read'
+        ];
+      }
+      if (role === Role.SUPERVISOR) {
+        return [
+          'courses.read', 'schedule.read', 'students.read',
+          'supervisors.create', 'supervisors.read', 'feedback.create', 'feedback.read'
+        ];
+      }
+      if (role === Role.STUDENT) {
+        return [
+          'courses.read', 'schedule.read', 'enrollments.read',
+          'feedback.create', 'feedback.read', 'support.create', 'support.read'
+        ];
+      }
     }
 
     return perms;
@@ -78,17 +104,43 @@ export class PermissionsService {
       }
     }
 
-    // Default SUPER_ADMIN & ADMIN to all true
+    // Default SUPER_ADMIN to all true unconditionally
     MODULES.forEach((mod) => {
       ACTIONS.forEach((act) => {
         matrix[Role.SUPER_ADMIN][mod][act] = true;
-        matrix[Role.ADMIN][mod][act] = true;
       });
     });
 
+    // Default ADMIN in matrix ONLY if role has no DB entries yet
+    const adminPermCount = await this.rolePermissionModel.countDocuments({ role: Role.ADMIN });
+    if (adminPermCount === 0) {
+      MODULES.forEach((mod) => {
+        ACTIONS.forEach((act) => {
+          matrix[Role.ADMIN][mod][act] = true;
+        });
+      });
+    }
+
+    // Default Teacher permissions in matrix if role has no DB entries
+    const teacherPermCount = await this.rolePermissionModel.countDocuments({ role: Role.TEACHER });
+    if (teacherPermCount === 0) {
+      ['courses', 'schedule', 'students', 'enrollments', 'feedback', 'leave'].forEach((mod) => {
+        if (matrix[Role.TEACHER][mod]) matrix[Role.TEACHER][mod]['read'] = true;
+      });
+      if (matrix[Role.TEACHER]['schedule']) {
+        matrix[Role.TEACHER]['schedule']['create'] = true;
+        matrix[Role.TEACHER]['schedule']['update'] = true;
+      }
+      if (matrix[Role.TEACHER]['feedback']) matrix[Role.TEACHER]['feedback']['create'] = true;
+      if (matrix[Role.TEACHER]['leave']) {
+        matrix[Role.TEACHER]['leave']['create'] = true;
+        matrix[Role.TEACHER]['leave']['update'] = true;
+      }
+    }
+
     // Default HR permissions in matrix if role has no DB entries
-    const hrPerms = await this.rolePermissionModel.findOne({ role: Role.HR });
-    if (!hrPerms) {
+    const hrPermCount = await this.rolePermissionModel.countDocuments({ role: Role.HR });
+    if (hrPermCount === 0) {
       const hrDefaults = [
         'fees', 'hr', 'expenses', 'salary-config', 'support', 'reports'
       ];
@@ -106,6 +158,9 @@ export class PermissionsService {
   }
 
   async updateRoleBatch(role: Role, enabledPermissions: { module: string; action: string }[], grantedByUserId?: string) {
+    if (role === Role.SUPER_ADMIN) {
+      throw new ConflictException('Super Admin permissions are absolute and cannot be modified.');
+    }
     // Fetch all permission docs
     const allPerms = await this.permissionModel.find();
     const permMap = new Map<string, string>(); // "module:action" -> permId

@@ -70,7 +70,7 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             <Image src="/logo.png" width={32} height={32} alt="Logo" />
             <div className="hidden lg:block">
-              <p className="text-sm font-bold leading-tight text-brand">Quran Academy</p>
+              <p className="text-sm font-bold leading-tight text-brand">Ain Ul Quran</p>
               <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">HR Management Portal</p>
             </div>
           </div>
@@ -83,11 +83,10 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`flex h-full items-center gap-2 px-3 text-xs font-semibold transition-colors ${
-                    isActive
+                  className={`flex h-full items-center gap-2 px-3 text-xs font-semibold transition-colors ${isActive
                       ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
                       : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
-                  }`}
+                    }`}
                 >
                   <Icon size={16} className={isActive ? 'text-brand' : 'text-sidebar-foreground/70'} />
                   {item.label}

@@ -74,14 +74,24 @@ export class ClassSessionsService {
     return false;
   }
 
-  async create(createClassSessionDto: CreateClassSessionDto) {
+  async create(createClassSessionDto: CreateClassSessionDto, currentUser?: any) {
     const course = await this.courseModel.findById(createClassSessionDto.courseId);
     if (!course) {
       throw new NotFoundException('Course not found');
     }
 
     const scheduledDate = new Date(createClassSessionDto.scheduledAt);
-    const teacherId = createClassSessionDto.teacherId || course.teacherId?.toString() || course.teacherIds?.[0]?.toString();
+    const currentUserId = (currentUser?.id || currentUser?._id)?.toString();
+
+    let teacherId = createClassSessionDto.teacherId;
+    if (!teacherId) {
+      if (currentUser && currentUser.role === Role.TEACHER && currentUserId) {
+        teacherId = currentUserId;
+      } else {
+        teacherId = course.teacherId?.toString() || course.teacherIds?.[0]?.toString();
+      }
+    }
+
     if (!teacherId) {
       throw new ConflictException('No teacher assigned to this course.');
     }
@@ -359,19 +369,37 @@ export class ClassSessionsService {
     let isAuthorized = false;
     let isReviewer = false;
 
-    if (user.role === Role.ADMIN) {
+    const currentUserId = (user?.id || user?._id || user?.sub)?.toString();
+    const sessionTeacherId = (session.teacherId as any)?._id?.toString() || (session.teacherId as any)?.id?.toString() || session.teacherId?.toString();
+
+    if (user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN) {
       isAuthorized = true;
       isReviewer = true;
     } else if (user.role === Role.TEACHER) {
-      isAuthorized = session.teacherId.toString() === user.id;
+      const courseTeacherId = (course?.teacherId as any)?._id?.toString() || (course?.teacherId as any)?.id?.toString() || course?.teacherId?.toString();
+      const courseTeacherIds = (course?.teacherIds || []).map((t: any) =>
+        (t as any)?._id?.toString() || (t as any)?.id?.toString() || t?.toString()
+      );
+
+      isAuthorized =
+        sessionTeacherId === currentUserId ||
+        courseTeacherId === currentUserId ||
+        courseTeacherIds.includes(currentUserId);
     } else if (user.role === Role.STUDENT) {
       const enrollments: any[] = course?.enrollments || [];
-      isAuthorized = enrollments.some((e: any) => e.studentId.toString() === user.id);
+      const sessionStudentId = (session.studentId as any)?._id?.toString() || (session.studentId as any)?.id?.toString() || session.studentId?.toString();
+      isAuthorized =
+        sessionStudentId === currentUserId ||
+        enrollments.some((e: any) => {
+          const sId = (e.studentId as any)?._id?.toString() || (e.studentId as any)?.id?.toString() || e.studentId?.toString();
+          return sId === currentUserId;
+        });
     } else if (user.role === Role.SUPERVISOR) {
       const supervisorAssignments: any[] = course?.supervisorAssignments || [];
-      isAuthorized = supervisorAssignments.some(
-        (a: any) => a.supervisorId.toString() === user.id && a.isActive,
-      );
+      isAuthorized = supervisorAssignments.some((a: any) => {
+        const supId = (a.supervisorId as any)?._id?.toString() || (a.supervisorId as any)?.id?.toString() || a.supervisorId?.toString();
+        return supId === currentUserId && a.isActive;
+      });
       isReviewer = true;
     }
 

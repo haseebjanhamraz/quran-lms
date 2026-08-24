@@ -4,7 +4,7 @@ import { AuthProvider } from "../context/AuthContext";
 import { ThemeProvider } from "../context/ThemeContext";
 
 export const metadata: Metadata = {
-  title: "Quran LMS — E-Learning & QA Platform",
+  title: "Ain Ul Quran — E-Learning & QA Platform",
   description: "Modern E-Learning platform for Quran Academies with live video classes, attendance tracking, and human review system.",
 };
 

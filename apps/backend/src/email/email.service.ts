@@ -5,11 +5,11 @@ import { ConfigService } from '@nestjs/config';
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
     const apiKey = this.configService.get<string>('RESEND_API_KEY') || process.env.RESEND_API_KEY;
-    const fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL') || 'Quran LMS <onboarding@resend.dev>';
+    const fromEmail = this.configService.get<string>('RESEND_FROM_EMAIL') || 'Ain Ul Quran <onboarding@resend.dev>';
 
     if (!apiKey) {
       this.logger.warn(`[Resend Email Mock] RESEND_API_KEY not set. Email to ${to} with subject "${subject}" was logged.`);
@@ -54,10 +54,10 @@ export class EmailService {
     dueDate: string,
     billingMonth: string,
   ): Promise<boolean> {
-    const subject = `Fee Payment Reminder — Quran Academy (${billingMonth})`;
+    const subject = `Fee Payment Reminder — Ain Ul Quran (${billingMonth})`;
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; rounded: 12px; background-color: #ffffff;">
-        <h2 style="color: #0f766e; text-align: center;">Quran Academy</h2>
+        <h2 style="color: #0f766e; text-align: center;">Ain Ul Quran</h2>
         <h3 style="color: #334155;">Monthly Fee Payment Reminder</h3>
         <p>Assalamu Alaikum <strong>${studentName}</strong>,</p>
         <p>This is a friendly reminder that your monthly course fee for <strong>${courseTitle}</strong> (${billingMonth}) is due for payment.</p>
@@ -69,7 +69,7 @@ export class EmailService {
         </div>
         <p>Please clear the fee through our Cash Gateway or contact administration for payment details.</p>
         <br />
-        <p style="color: #64748b; font-size: 12px;">BarakAllahu Feekum,<br />Quran LMS Administration</p>
+        <p style="color: #64748b; font-size: 12px;">BarakAllahu Feekum,<br />Ain Ul Quran Administration</p>
       </div>
     `;
 

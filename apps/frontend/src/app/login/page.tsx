@@ -66,7 +66,7 @@ export default function LoginPage() {
               <Image src="/logo.png" width={50} height={50} alt="Logo" />
             </div>
             <h1 className="text-3xl font-display font-bold tracking-tight text-foreground">
-              Quran <span className="text-primary">LMS</span>
+              <span className="text-primary">Ain Ul Quran</span>
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
               E-Learning &amp; Quality Monitoring Portal

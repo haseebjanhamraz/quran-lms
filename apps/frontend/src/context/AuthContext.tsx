@@ -135,8 +135,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const hasPermission = (permission: string) => {
     if (!user) return false;
-    if (user.role === 'SUPER_ADMIN' || user.role === 'ADMIN') return true;
+    if (user.role === 'SUPER_ADMIN') return true;
     const perms = user.permissions || [];
+    if (perms.length === 0 && user.role === 'ADMIN') return true;
     return perms.includes(permission) || perms.includes(`${permission.split('.')[0]}.*`);
   };
 

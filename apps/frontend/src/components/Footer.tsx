@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { HelpCircle, Heart } from 'lucide-react';
+import { HelpCircle, Heart, Phone, Mail, MapPin, MessageSquare } from 'lucide-react';
 import SupportModal from './SupportModal';
 
 export default function Footer() {
@@ -11,28 +11,32 @@ export default function Footer() {
 
   return (
     <>
-      <footer className="w-full border-t border-border bg-sidebar/80 backdrop-blur-xl mt-auto py-8 px-4 md:px-8 transition-colors">
+      <footer className="w-full border-t border-border bg-sidebar/80 backdrop-blur-xl mt-auto py-8 px-4 md:px-8 transition-colors space-y-6">
         <div className="mx-auto max-w-7xl flex flex-col md:flex-row items-center justify-between gap-6">
-          
+
           {/* Brand & Tagline */}
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" width={36} height={36} alt="Quran Academy Logo" className="object-contain" />
+            <Image src="/logo.png" width={36} height={36} alt="Ain Ul Quran Logo" className="object-contain bg-white p-1/5 rounded-sm" />
             <div>
-              <p className="font-display text-base font-bold text-brand leading-tight">Quran Academy</p>
-              <p className="text-xs text-muted-foreground">E-Learning & Quality Assurance Portal</p>
+              <p className="font-display text-base font-bold text-brand leading-tight">Ain Ul Quran</p>
+              <p className="text-xs text-muted-foreground">E-Learning &amp; Quality Assurance Portal</p>
             </div>
           </div>
 
-          {/* Center: Copyright & Legal */}
-          <div className="text-center md:text-left text-xs text-muted-foreground space-y-1">
-            <p>© {new Date().getFullYear()} Quran LMS Academy. All rights reserved.</p>
-            <div className="flex items-center justify-center md:justify-start gap-4 text-xs font-medium">
-              <Link href="#" className="hover:text-foreground transition-colors">Privacy Policy</Link>
-              <span>•</span>
-              <Link href="#" className="hover:text-foreground transition-colors">Terms of Service</Link>
-              <span>•</span>
-              <span className="flex items-center gap-1">Made with <Heart className="h-3 w-3 text-red-500 fill-red-500" /> for Quran Education</span>
-            </div>
+          {/* Contact Information Bar */}
+          <div className="flex flex-wrap items-center justify-center gap-y-2 gap-x-6 text-xs text-muted-foreground">
+            <a href="tel:+15552345678" className="flex items-center gap-1.5 hover:text-brand transition-colors">
+              <Phone className="h-3.5 w-3.5 text-brand" />
+              <span>+1 (555) 234-5678</span>
+            </a>
+            <a href="mailto:support@ainulquran.com" className="flex items-center gap-1.5 hover:text-brand transition-colors">
+              <Mail className="h-3.5 w-3.5 text-brand" />
+              <span>support@ainulquran.com</span>
+            </a>
+            <span className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-brand" />
+              <span>123 Quran Academy Way, Suite 400</span>
+            </span>
           </div>
 
           {/* Right: Social Media & Support Button */}
@@ -101,7 +105,18 @@ export default function Footer() {
               <span>Get Support</span>
             </button>
           </div>
+        </div>
 
+        {/* Bottom Sub-row: Copyright & Legal */}
+        <div className="mx-auto max-w-7xl pt-4 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+          <p>© {new Date().getFullYear()} Ain Ul Quran Academy. All rights reserved.</p>
+          <div className="flex items-center gap-4 text-xs">
+            <Link href="#" className="hover:text-foreground transition-colors">Privacy Policy</Link>
+            <span>•</span>
+            <Link href="#" className="hover:text-foreground transition-colors">Terms of Service</Link>
+            <span>•</span>
+            <span className="flex items-center gap-1">Made with <Heart className="h-3 w-3 text-red-500 fill-red-500" /> for Quran Education</span>
+          </div>
         </div>
       </footer>
 

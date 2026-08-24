@@ -28,8 +28,8 @@ export class PermissionsGuard implements CanActivate {
       throw new ForbiddenException('User authentication session is missing');
     }
 
-    // Admin bypasses granular permission checks
-    if (user.role === Role.ADMIN) {
+    // Only Super Admin unconditionally bypasses granular permission checks
+    if (user.role === Role.SUPER_ADMIN) {
       return true;
     }
 

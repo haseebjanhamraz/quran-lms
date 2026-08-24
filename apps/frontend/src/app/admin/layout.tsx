@@ -37,30 +37,31 @@ interface NavItem {
   label: string;
   icon: any;
   href: string;
+  permission?: string;
   isFlaggedReviews?: boolean;
 }
 
 const PRIMARY_NAV: NavItem[] = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin/dashboard' },
-  { label: 'Students', icon: GraduationCap, href: '/admin/students' },
-  { label: 'Teachers', icon: BookUser, href: '/admin/teachers' },
-  { label: 'Courses', icon: BookOpen, href: '/admin/courses' },
-  { label: 'Schedule', icon: Calendar, href: '/admin/schedule' },
-  { label: 'HR & Finance', icon: Briefcase, href: '/admin/hr' },
+  { label: 'Students', icon: GraduationCap, href: '/admin/students', permission: 'students.read' },
+  { label: 'Teachers', icon: BookUser, href: '/admin/teachers', permission: 'teachers.read' },
+  { label: 'Courses', icon: BookOpen, href: '/admin/courses', permission: 'courses.read' },
+  { label: 'Schedule', icon: Calendar, href: '/admin/schedule', permission: 'schedule.read' },
+  { label: 'HR & Finance', icon: Briefcase, href: '/admin/hr', permission: 'hr.read' },
 ];
 
 const MORE_NAV: NavItem[] = [
-  { label: 'Leave Requests', icon: PlaneTakeoff, href: '/admin/leave-requests' },
-  { label: 'Fees Collection', icon: CreditCard, href: '/admin/hr?tab=fees' },
-  { label: 'Users & Accounts', icon: Users, href: '/admin/users' },
-  { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments' },
-  { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments' },
-  { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports' },
+  { label: 'Leave Requests', icon: PlaneTakeoff, href: '/admin/leave-requests', permission: 'leave.read' },
+  { label: 'Fees Collection', icon: CreditCard, href: '/admin/hr?tab=fees', permission: 'fees.read' },
+  { label: 'Users & Accounts', icon: Users, href: '/admin/users', permission: 'users.read' },
+  { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments', permission: 'enrollments.read' },
+  { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments', permission: 'supervisors.read' },
+  { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports', permission: 'reports.read' },
   { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },
-  { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs' },
-  { label: 'Feedback & Complaints', icon: Clock, href: '/admin/feedback' },
+  { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs', permission: 'audit-logs.read' },
+  { label: 'Feedback & Complaints', icon: Clock, href: '/admin/feedback', permission: 'feedback.read' },
   { label: 'Roles & Permissions', icon: Shield, href: '/admin/roles-permissions' },
-  { label: 'Settings', icon: Settings, href: '/admin/settings' },
+  { label: 'Settings', icon: Settings, href: '/admin/settings', permission: 'settings.read' },
 ];
 
 function getInitials(name: string): string {
@@ -74,7 +75,7 @@ function getInitials(name: string): string {
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout } = useAuth() as any;
+  const { user, logout, hasPermission } = useAuth() as any;
   const router = useRouter();
   const pathname = usePathname();
 
@@ -85,6 +86,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const moreRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
+
+  const visiblePrimaryNav = PRIMARY_NAV.filter(item => !item.permission || !hasPermission || hasPermission(item.permission));
+  const visibleMoreNav = MORE_NAV.filter(item => !item.permission || !hasPermission || hasPermission(item.permission));
+  const allNavItems = [...visiblePrimaryNav, ...visibleMoreNav];
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -120,8 +125,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     router.push('/login');
   }
 
-  const allNavItems = [...PRIMARY_NAV, ...MORE_NAV];
-
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground overflow-x-hidden">
       {/* Fixed Top Nav */}
@@ -129,16 +132,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Left: Logo and Primary Nav */}
         <div className="flex items-center gap-6 h-full">
-          <div className="flex items-center gap-2">
-            <Image src="/logo.png" width={32} height={32} alt="Logo" />
+          <div className="flex items-center gap-2 ">
+            <Image src="/logo.png" width={32} height={32} alt="Logo" className="bg-white p-1/5 rounded-sm" />
             <div className="hidden lg:block">
-              <p className="text-sm font-bold leading-tight text-brand">Quran Academy</p>
-              <p className="text-[9px] font-medium uppercase tracking-widest text-muted-foreground">Admin Portal</p>
+              <p className="text-sm font-bold leading-tight text-brand">Ain Ul Quran</p>
+              <p className="text-[9px] font-medium uppercase tracking-widest text-white">Admin Portal</p>
             </div>
           </div>
 
           <nav className="hidden md:flex items-center gap-1 h-full">
-            {PRIMARY_NAV.map((item) => {
+            {visiblePrimaryNav.map((item) => {
               const isActive = pathname === item.href;
               const Icon = item.icon;
               return (
@@ -147,7 +150,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href={item.href}
                   className={`flex h-full items-center gap-2 px-3 text-sm font-medium transition-colors ${isActive
                     ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
-                    : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
+                    : 'text-white hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
                     }`}
                 >
                   <Icon size={16} className={isActive ? 'text-brand' : 'text-sidebar-foreground/70'} />
@@ -157,43 +160,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             })}
 
             {/* More Dropdown */}
-            <div className="relative h-full flex items-center" ref={moreRef}>
-              <button
-                onClick={() => setIsMoreOpen(!isMoreOpen)}
-                className={`flex h-full items-center gap-1 px-3 text-sm font-medium transition-colors ${MORE_NAV.some(item => pathname === item.href)
-                  ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
-                  : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
-                  }`}
-              >
-                More <ChevronDown size={14} className={`transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
-              </button>
+            {visibleMoreNav.length > 0 && (
+              <div className="relative h-full flex items-center" ref={moreRef}>
+                <button
+                  onClick={() => setIsMoreOpen(!isMoreOpen)}
+                  className={`flex h-full items-center gap-1 px-3 text-sm font-medium transition-colors ${visibleMoreNav.some(item => pathname === item.href)
+                    ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
+                    : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-foreground/5'
+                    }`}
+                >
+                  More <ChevronDown size={14} className={`transition-transform ${isMoreOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-              {isMoreOpen && (
-                <div className="absolute top-full left-0 mt-1 w-60 rounded-xl bg-card border border-border shadow-xl py-2 flex flex-col z-50">
-                  {MORE_NAV.map((item) => {
-                    const isActive = pathname === item.href;
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={item.label}
-                        href={item.href}
-                        onClick={() => setIsMoreOpen(false)}
-                        className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                          }`}
-                      >
-                        <Icon size={16} />
-                        {item.label}
-                        {item.isFlaggedReviews && flaggedCount > 0 && (
-                          <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
-                            {flaggedCount}
-                          </span>
-                        )}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                {isMoreOpen && (
+                  <div className="absolute top-full left-0 mt-1 w-60 rounded-xl bg-card border border-border shadow-xl py-2 flex flex-col z-50">
+                    {visibleMoreNav.map((item) => {
+                      const isActive = pathname === item.href;
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.label}
+                          href={item.href}
+                          onClick={() => setIsMoreOpen(false)}
+                          className={`flex items-center gap-3 px-4 py-2 text-sm transition-colors ${isActive ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                            }`}
+                        >
+                          <Icon size={16} />
+                          {item.label}
+                          {item.isFlaggedReviews && flaggedCount > 0 && (
+                            <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 text-[10px] font-bold text-destructive-foreground">
+                              {flaggedCount}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </nav>
         </div>
 

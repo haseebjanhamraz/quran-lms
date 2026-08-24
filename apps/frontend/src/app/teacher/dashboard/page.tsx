@@ -83,8 +83,10 @@ function NavTab({ label, active, onClick }: { label: string; active: boolean; on
 }
 
 export default function TeacherDashboard() {
-  const { user, logout, loading: authLoading } = useAuth();
+  const { user, logout, loading: authLoading, hasPermission } = useAuth();
   const router = useRouter();
+
+  const canStartInstantClass = hasPermission ? hasPermission('schedule.create') : true;
 
   const [activeTab, setActiveTab] = useState<TabType>('Dashboard');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
@@ -109,7 +111,7 @@ export default function TeacherDashboard() {
   };
 
   const handleStartInstantClass = async (courseId: string, durationMinutes: number) => {
-    const res = await apiFetch(`${API_URL}/class-sessions`, {
+    const res = await apiFetch(`${API_URL}/class-sessions/instant`, {
       method: 'POST',
       body: JSON.stringify({
         courseId,
@@ -119,12 +121,15 @@ export default function TeacherDashboard() {
     });
 
     if (!res.ok) {
-      const err = await res.json();
+      if (res.status === 403) {
+        throw new Error('Permission Denied: You do not have permission to start instant classes. An Administrator must enable schedule creation permissions (schedule.create) for your role in Roles & Permissions.');
+      }
+      const err = await res.json().catch(() => ({}));
       throw new Error(err.message || 'Failed to create instant class session.');
     }
 
     const newSession = await res.json();
-    await handleStartClass(newSession.id);
+    await handleStartClass(newSession.id || newSession._id);
   };
 
   // Fetch sessions
@@ -441,6 +446,7 @@ export default function TeacherDashboard() {
             onOpenInstantModal={handleOpenInstantModal}
             onNavigateTab={(tab) => setActiveTab(tab)}
             router={router}
+            canStartInstantClass={canStartInstantClass}
           />
         )}
 
@@ -501,6 +507,7 @@ export default function TeacherDashboard() {
         onClose={() => setIsInstantModalOpen(false)}
         courses={courses}
         coursesLoading={coursesLoading}
+        canStartInstantClass={canStartInstantClass}
         onStartInstantClass={handleStartInstantClass}
       />
     </div>
