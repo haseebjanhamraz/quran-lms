@@ -71,6 +71,13 @@ export class UpdateUserDto {
   @IsOptional()
   classesPerWeek?: number;
 
+  @IsOptional()
+  classDays?: Array<{ day: string; time: string }>;
+
+  @IsString()
+  @IsOptional()
+  assignedTeacher?: string;
+
   @IsString()
   @IsOptional()
   tier?: string;

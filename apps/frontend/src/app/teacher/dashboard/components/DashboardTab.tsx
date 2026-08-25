@@ -1,13 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
-  Calendar, Clock, Award, PlayCircle, MonitorPlay, Users,
-  TrendingUp, Video, ArrowRight, ShieldCheck, Plus, CheckCircle2,
-  AlertCircle, ChevronRight, Copy, Check, PlaneTakeoff, Sparkles
+  Calendar, Clock, PlayCircle, PlaneTakeoff,
+  History, Sparkles, X, Loader2, CheckCircle2
 } from 'lucide-react';
 import Link from 'next/link';
-import Image from 'next/image';
+import { apiFetch } from '@/utils/apiFetch';
 
 interface DashboardTabProps {
   user: any;
@@ -25,558 +24,581 @@ interface DashboardTabProps {
   canStartInstantClass?: boolean;
 }
 
-const TYPE_COLORS: Record<string, string> = {
-  NAZIRA: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/30',
-  ARABIC: 'text-sky-400 bg-sky-400/10 border-sky-400/30',
-  TAJWEED: 'text-violet-400 bg-violet-400/10 border-violet-400/30',
-  HIFZ_UL_QURAN: 'text-amber-400 bg-amber-400/10 border-amber-400/30',
-  ISLAMIC_STUDIES: 'text-rose-400 bg-rose-400/10 border-rose-400/30',
-};
-
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+function formatTeacherTimeRange(isoDate: string, durationMinutes: number, teacherTimezone?: string): string {
+  try {
+    const start = new Date(isoDate);
+    const end = new Date(start.getTime() + (durationMinutes || 30) * 60000);
+    const tz = teacherTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const sStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+    const eStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+    return `${sStr} - ${eStr}`;
+  } catch (_) {
+    return 'N/A';
+  }
 }
 
-function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+function formatStudentTime(isoDate: string, durationMinutes: number, studentTimezone?: string): string {
+  try {
+    const start = new Date(isoDate);
+    const tz = studentTimezone || 'UTC';
+    const sStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
+    return `${sStr} (${durationMinutes || 30} Mins)`;
+  } catch (_) {
+    return `${durationMinutes || 30} Mins`;
+  }
 }
 
 export default function DashboardTab({
   user,
-  stats,
   sessions,
-  courses,
-  students,
-  recentReviews,
-  leaves = [],
-  leaveBalance,
   handleStartClass,
   onOpenInstantModal,
-  onNavigateTab,
-  router,
   canStartInstantClass = true,
 }: DashboardTabProps) {
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState<string>('');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return new Date().toISOString().split('T')[0];
+  });
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(
-        now.toLocaleTimeString('en-US', {
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit',
-          timeZoneName: 'short',
-        })
-      );
-    };
-    updateTime();
-    const timer = setInterval(updateTime, 1000);
-    return () => clearInterval(timer);
-  }, []);
+  const [historyStudent, setHistoryStudent] = useState<any | null>(null);
+  const [historySessions, setHistorySessions] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
 
-  const handleCopyLink = (sessionId: string) => {
-    const link = `${window.location.origin}/classroom/${sessionId}`;
-    navigator.clipboard.writeText(link).then(() => {
-      setCopiedId(sessionId);
-      setTimeout(() => setCopiedId(null), 2000);
-    });
+  const [leaveSession, setLeaveSession] = useState<any | null>(null);
+  const [leaveReason, setLeaveReason] = useState<string>('');
+  const [leaveSubmitting, setLeaveSubmitting] = useState<boolean>(false);
+  const [leaveSuccessMsg, setLeaveSuccessMsg] = useState<string | null>(null);
+  const [leaveErrorMsg, setLeaveErrorMsg] = useState<string | null>(null);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const daySessions = useMemo(() => {
+    return sessions
+      .filter((s) => {
+        try {
+          const sDate = new Date(s.scheduledAt).toISOString().split('T')[0];
+          return sDate === selectedDate;
+        } catch (_) {
+          return false;
+        }
+      })
+      .filter((s) => {
+        if (!searchQuery.trim()) return true;
+        const q = searchQuery.toLowerCase();
+        const studentName = s.student?.name || s.student?.preferredName || '';
+        const courseTitle = s.course?.title || '';
+        return studentName.toLowerCase().includes(q) || courseTitle.toLowerCase().includes(q);
+      })
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  }, [sessions, selectedDate, searchQuery]);
+
+  const handleSetToday = () => setSelectedDate(new Date().toISOString().split('T')[0]);
+  const handleSetYesterday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    setSelectedDate(d.toISOString().split('T')[0]);
+  };
+  const handleSetTomorrow = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    setSelectedDate(d.toISOString().split('T')[0]);
   };
 
-  // Filter today's sessions
-  const todayDateStr = new Date().toDateString();
-  const todaySessions = sessions.filter((s) => {
-    return new Date(s.scheduledAt).toDateString() === todayDateStr && s.status !== 'CANCELLED';
-  }).sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  const handleOpenHistory = async (session: any) => {
+    const student = session.student;
+    if (!student) {
+      alert('Student record not available for this session.');
+      return;
+    }
+    setHistoryStudent(student);
+    setLoadingHistory(true);
+    try {
+      const studentId = student.id || student._id;
+      const sRes = await apiFetch(`${API_URL}/class-sessions/calendar`).catch(() => null);
+      if (sRes && sRes.ok) {
+        const all = await sRes.json();
+        const filtered = Array.isArray(all)
+          ? all.filter((item) => (item.studentId === studentId || item.student?.id === studentId || item.student?._id === studentId))
+          : [];
+        setHistorySessions(filtered);
+      } else {
+        const fallback = sessions.filter((item) => item.student?.id === studentId || item.student?._id === studentId);
+        setHistorySessions(fallback);
+      }
+    } catch (_) {
+      setHistorySessions([]);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
-  // Next upcoming class (live first, or nearest scheduled)
-  const nextSession = sessions.find((s) => s.status === 'LIVE') ||
-    sessions
-      .filter((s) => s.status === 'SCHEDULED' && new Date(s.scheduledAt).getTime() >= Date.now() - 30 * 60 * 1000)
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+  const handleOpenLeaveModal = (session: any) => {
+    setLeaveSession(session);
+    setLeaveReason('');
+    setLeaveSuccessMsg(null);
+    setLeaveErrorMsg(null);
+  };
 
-  // Recent 3 leaves
-  const recentLeaves = leaves.slice(0, 3);
+  const handleSubmitLeave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!leaveSession) return;
+    setLeaveSubmitting(true);
+    setLeaveErrorMsg(null);
+    try {
+      const payload = {
+        startDate: new Date(leaveSession.scheduledAt).toISOString().split('T')[0],
+        endDate: new Date(leaveSession.scheduledAt).toISOString().split('T')[0],
+        reason: leaveReason || `Leave requested for ${leaveSession.student?.name || 'student'} on ${new Date(leaveSession.scheduledAt).toDateString()}`,
+        type: 'CASUAL',
+      };
+      const res = await apiFetch(`${API_URL}/leave`, {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to submit leave request.');
+      }
+      setLeaveSuccessMsg('Leave request submitted successfully!');
+      setTimeout(() => {
+        setLeaveSession(null);
+      }, 1500);
+    } catch (err: any) {
+      setLeaveErrorMsg(err.message || 'An error occurred.');
+    } finally {
+      setLeaveSubmitting(false);
+    }
+  };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
-      {/* 1. Welcome & Time Banner */}
-      <div className="relative overflow-hidden rounded-3xl border border-border/80 bg-gradient-to-r from-card via-card/90 to-primary/10 p-6 md:p-8 shadow-xl backdrop-blur-xl">
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex items-center gap-4">
-            <div className="relative h-16 w-16 rounded-2xl border-2 border-primary/40 bg-primary/10 flex items-center justify-center overflow-hidden shadow-inner shrink-0">
-              {user?.profilePicture ? (
-                <Image
-                  src={user.profilePicture}
-                  alt={user.name}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <span className="text-2xl font-bold font-display text-primary">
-                  {user?.name ? user.name.charAt(0).toUpperCase() : 'T'}
-                </span>
-              )}
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl md:text-3xl font-display font-extrabold text-foreground tracking-tight">
-                  Assalamu Alaikum, {user?.name || 'Teacher'}
-                </h1>
-                <span className="hidden sm:inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 text-xs font-semibold text-emerald-400">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Active
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-1">
-                {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })} &bull; <span className="font-mono text-foreground font-semibold">{currentTime || 'Loading...'}</span>
-              </p>
+    <div className="space-y-6 animate-fadeIn">
+      <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-foreground tracking-tight">
+              Teacher Student's List
+            </h1>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 font-medium">
+              <span>Home</span>
+              <span>&raquo;</span>
+              <span className="text-primary font-semibold">Current Day Class List</span>
             </div>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3">
             <button
               onClick={onOpenInstantModal}
-              title={canStartInstantClass ? 'Start Instant Class' : 'Instant class creation disabled in Roles & Permissions (schedule.create)'}
-              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all ${
+              title={canStartInstantClass ? 'Start Instant Live Class' : 'Instant class creation disabled in Roles & Permissions'}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-bold transition-all shadow-md ${
                 canStartInstantClass
-                  ? 'bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 hover:scale-105'
-                  : 'bg-muted text-muted-foreground border border-border opacity-70 hover:opacity-100'
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105'
+                  : 'bg-muted text-muted-foreground border border-border opacity-70'
               }`}
             >
-              <Sparkles size={16} />
+              <Sparkles size={14} />
               <span>Instant Class</span>
               {!canStartInstantClass && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded ml-1">Disabled</span>}
             </button>
             <Link
               href="/teacher/leave"
-              className="flex items-center gap-2 rounded-xl border border-border bg-card/80 px-4 py-2.5 text-xs font-bold text-foreground shadow-sm hover:border-brand/50 hover:bg-card transition-all"
+              className="flex items-center gap-2 rounded-xl border border-border bg-muted/60 px-4 py-2 text-xs font-bold text-foreground hover:bg-muted transition-all"
             >
-              <PlaneTakeoff size={16} className="text-brand" />
+              <PlaneTakeoff size={14} className="text-brand" />
               <span>Apply for Leave</span>
             </Link>
           </div>
         </div>
-        <div className="pointer-events-none absolute -right-12 -bottom-12 h-48 w-48 rounded-full bg-primary/10 blur-3xl" />
-      </div>
 
-      {/* 2. Key Stats Row */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4 backdrop-blur-sm shadow-sm transition-transform hover:-translate-y-1">
-          <div className="flex items-center justify-between text-emerald-400 mb-2">
-            <Calendar size={18} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Today</span>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground">{stats?.today ?? todaySessions.length}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Classes Today</p>
-        </div>
-
-        <div className="rounded-2xl border border-sky-500/20 bg-sky-500/10 p-4 backdrop-blur-sm shadow-sm transition-transform hover:-translate-y-1">
-          <div className="flex items-center justify-between text-sky-400 mb-2">
-            <Clock size={18} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Hours</span>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground">{stats?.totalHours ?? 0}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Hours Taught</p>
-        </div>
-
-        <div className="rounded-2xl border border-violet-500/20 bg-violet-500/10 p-4 backdrop-blur-sm shadow-sm transition-transform hover:-translate-y-1">
-          <div className="flex items-center justify-between text-violet-400 mb-2">
-            <TrendingUp size={18} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Done</span>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground">{stats?.completed ?? 0}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Completed Sessions</p>
-        </div>
-
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 backdrop-blur-sm shadow-sm transition-transform hover:-translate-y-1">
-          <div className="flex items-center justify-between text-amber-400 mb-2">
-            <Users size={18} />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Students</span>
-          </div>
-          <p className="text-2xl font-extrabold text-foreground">{stats?.totalStudents ?? students.length}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Active Learners</p>
-        </div>
-
-        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 backdrop-blur-sm shadow-sm transition-transform hover:-translate-y-1">
-          <div className="flex items-center justify-between text-emerald-400 mb-2">
-            <span className="flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-ping" />
-              <Video size={18} />
+        {/* 2. Date Filter Controls */}
+        <div className="pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              List of Classes on:
             </span>
-            <span className="text-[10px] font-bold uppercase tracking-wider">Live</span>
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none font-mono"
+            />
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleSetYesterday}
+                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              >
+                Yesterday
+              </button>
+              <button
+                type="button"
+                onClick={handleSetToday}
+                className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${
+                  selectedDate === new Date().toISOString().split('T')[0]
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted hover:bg-muted/80 text-foreground'
+                }`}
+              >
+                Today
+              </button>
+              <button
+                type="button"
+                onClick={handleSetTomorrow}
+                className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-muted hover:bg-muted/80 text-foreground transition-colors"
+              >
+                Tomorrow
+              </button>
+            </div>
           </div>
-          <p className="text-2xl font-extrabold text-foreground">{stats?.live ?? 0}</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Live Classes Now</p>
-        </div>
 
-        <Link
-          href="/teacher/leave"
-          className="rounded-2xl border border-indigo-500/20 bg-indigo-500/10 p-4 backdrop-blur-sm shadow-sm transition-transform hover:-translate-y-1 group"
-        >
-          <div className="flex items-center justify-between text-indigo-400 mb-2">
-            <PlaneTakeoff size={18} />
-            <span className="text-[10px] font-bold uppercase tracking-wider group-hover:underline">Balance</span>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search student or course..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary w-48 sm:w-56"
+            />
+            <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
+              {daySessions.length} {daySessions.length === 1 ? 'Class' : 'Classes'}
+            </span>
           </div>
-          <p className="text-2xl font-extrabold text-foreground">
-            {leaveBalance?.summary?.totalRemaining ?? stats?.remainingLeaves?.totalRemaining ?? 37}
-            <span className="text-xs font-normal text-muted-foreground ml-1">days left</span>
-          </p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            {stats?.pendingLeaves ? `${stats.pendingLeaves} pending` : 'Leave Balance'}
-          </p>
-        </Link>
+        </div>
       </div>
 
-      {/* 3. Main Dashboard Body: 2 Columns */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Upcoming Class & Today's Schedule & Quick Actions */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* 3. Classes Schedule Table matching reference */}
+      <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm">
+        {daySessions.length === 0 ? (
+          <div className="py-20 text-center space-y-3">
+            <div className="h-14 w-14 rounded-full bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground">
+              <Calendar className="h-7 w-7 opacity-60" />
+            </div>
+            <p className="text-base font-bold text-foreground">No Classes Scheduled</p>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              There are no classes scheduled on {new Date(selectedDate + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border/80 bg-muted/40">
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] w-12 text-center">#</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Teacher</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Student</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Name</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Course</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">History</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Leave</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Advance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {daySessions.map((session, idx) => {
+                  const studentName = session.student?.name || session.student?.preferredName || 'Unassigned Student';
+                  const studentTimezone = session.student?.timezone || 'UTC';
+                  const teacherTimezone = user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+                  const isLive = session.status === 'LIVE';
 
-          {/* Next Class Hero Card */}
-          {nextSession ? (
-            <div className="relative overflow-hidden rounded-3xl border border-primary/40 bg-card/90 p-6 shadow-lg backdrop-blur-md">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    {nextSession.status === 'LIVE' ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-3 py-1 text-xs font-extrabold text-emerald-400 uppercase tracking-wider">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        Class is Live Right Now
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/15 border border-primary/30 px-3 py-1 text-xs font-extrabold text-primary uppercase tracking-wider">
-                        <Clock size={12} />
-                        Next Scheduled Session
-                      </span>
-                    )}
-                    <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${TYPE_COLORS[nextSession.course?.type] || 'text-muted-foreground bg-muted'}`}>
-                      {nextSession.course?.type?.replace(/_/g, ' ') || 'QURAN'}
-                    </span>
-                  </div>
+                  return (
+                    <tr
+                      key={session.id}
+                      className={`hover:bg-muted/30 transition-colors ${
+                        isLive ? 'bg-emerald-500/5' : ''
+                      }`}
+                    >
+                      {/* # Index */}
+                      <td className="py-3.5 px-4 text-center font-mono font-bold text-muted-foreground">
+                        {idx + 1}
+                      </td>
 
-                  <h3 className="text-xl font-display font-bold text-foreground">
-                    {nextSession.course?.title || 'Quran Recitation Session'}
+                      {/* Teacher Timezone Interval */}
+                      <td className="py-3.5 px-4 font-mono font-bold text-foreground whitespace-nowrap">
+                        {formatTeacherTimeRange(session.scheduledAt, session.durationMinutes, teacherTimezone)}
+                      </td>
+
+                      {/* Student Timezone Start Time & Duration */}
+                      <td className="py-3.5 px-4 font-mono font-semibold text-muted-foreground whitespace-nowrap">
+                        {formatStudentTime(session.scheduledAt, session.durationMinutes, studentTimezone)}
+                      </td>
+
+                      {/* Student Name */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-[10px] shrink-0 border border-brand/20">
+                            {studentName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-foreground">{studentName}</p>
+                            {session.student?.email && (
+                              <p className="text-[10px] text-muted-foreground">{session.student.email}</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Course */}
+                      <td className="py-3.5 px-4">
+                        <span className="font-semibold text-foreground">
+                          {session.course?.title || session.course?.type || 'Quran Recitation'}
+                        </span>
+                      </td>
+
+                      {/* History Button */}
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenHistory(session)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border"
+                          title="View Attendance & Progress History"
+                        >
+                          <History className="h-3.5 w-3.5 text-brand" />
+                          <span>History</span>
+                        </button>
+                      </td>
+
+                      {/* Status Badge */}
+                      <td className="py-3.5 px-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            session.status === 'LIVE'
+                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 animate-pulse'
+                              : session.status === 'COMPLETED'
+                              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                              : session.status === 'CANCELLED'
+                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                              : session.student?.studentStatus === 'Trial' || session.student?.status === 'Trial'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                          }`}
+                        >
+                          {session.status === 'LIVE'
+                            ? '● Live Now'
+                            : session.status === 'COMPLETED'
+                            ? 'Completed'
+                            : session.status === 'CANCELLED'
+                            ? 'Cancelled'
+                            : session.student?.studentStatus === 'Trial'
+                            ? 'Trial'
+                            : 'Regular'}
+                        </span>
+                      </td>
+
+                      {/* Leave Button (Blue) */}
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenLeaveModal(session)}
+                          className="px-3 py-1 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm"
+                          title="Request Leave for this Class"
+                        >
+                          Leave
+                        </button>
+                      </td>
+
+                      {/* Advance Button (Green) */}
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleStartClass(session.id)}
+                          className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
+                          title="Join / Advance to Live Class"
+                        >
+                          <PlayCircle className="h-3.5 w-3.5" />
+                          <span>Advance</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 4. Student History Modal */}
+      {historyStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="glass-panel w-full max-w-2xl rounded-2xl p-6 shadow-2xl relative border border-border bg-card">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-sm border border-brand/20">
+                  {historyStudent.name ? historyStudent.name.charAt(0).toUpperCase() : 'S'}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Class History: {historyStudent.name}
                   </h3>
-
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1">
-                      <Calendar size={13} className="text-primary" />
-                      {formatDate(nextSession.scheduledAt)}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <Clock size={13} className="text-primary" />
-                      {formatTime(nextSession.scheduledAt)} ({nextSession.durationMinutes} mins)
-                    </span>
-                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Timezone: <span className="font-mono text-foreground">{historyStudent.timezone || 'UTC'}</span>
+                  </p>
                 </div>
-
-                <div className="flex flex-wrap items-center gap-2 sm:self-center shrink-0">
-                  <button
-                    onClick={() => handleCopyLink(nextSession.id)}
-                    className={`flex items-center gap-1 px-3 py-2 text-xs font-semibold rounded-xl border transition-all ${
-                      copiedId === nextSession.id
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'border-border bg-muted/40 text-foreground hover:bg-muted'
-                    }`}
-                  >
-                    {copiedId === nextSession.id ? <Check size={14} /> : <Copy size={14} />}
-                    <span>{copiedId === nextSession.id ? 'Copied' : 'Copy Link'}</span>
-                  </button>
-
-                  {nextSession.status === 'LIVE' ? (
-                    <button
-                      onClick={() => router.push(`/classroom/${nextSession.id}`)}
-                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all hover:scale-105"
-                    >
-                      <MonitorPlay size={16} />
-                      <span>Enter Classroom</span>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => handleStartClass(nextSession.id)}
-                      className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-lg hover:bg-primary/90 transition-all hover:scale-105"
-                    >
-                      <PlayCircle size={16} />
-                      <span>Start Class</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-3xl border border-border bg-card/60 p-6 text-center backdrop-blur-sm">
-              <Calendar className="mx-auto h-8 w-8 text-muted-foreground/40 mb-2" />
-              <p className="text-sm font-semibold text-foreground">No upcoming classes right now</p>
-              <p className="text-xs text-muted-foreground mt-1">You are all caught up for the moment!</p>
-            </div>
-          )}
-
-          {/* Today's Schedule Card */}
-          <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-md backdrop-blur-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-display font-bold text-foreground flex items-center gap-2">
-                  <Calendar size={18} className="text-brand" />
-                  Today&apos;s Schedule
-                </h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {todaySessions.length} session{todaySessions.length !== 1 ? 's' : ''} scheduled for today
-                </p>
               </div>
               <button
-                onClick={() => onNavigateTab('Schedule')}
-                className="text-xs font-bold text-brand hover:underline flex items-center gap-1"
+                onClick={() => setHistoryStudent(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
               >
-                View Full Timetable <ChevronRight size={14} />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            {todaySessions.length === 0 ? (
-              <div className="py-8 text-center border border-dashed border-border/80 rounded-2xl">
-                <p className="text-xs text-muted-foreground">No classes scheduled for today.</p>
+            {/* Sessions List */}
+            {loadingHistory ? (
+              <div className="py-12 flex justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              </div>
+            ) : historySessions.length === 0 ? (
+              <div className="py-12 text-center text-xs text-muted-foreground">
+                No past class sessions recorded yet for this student.
               </div>
             ) : (
-              <div className="space-y-2.5">
-                {todaySessions.map((session) => (
+              <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+                {historySessions.map((hs, i) => (
                   <div
-                    key={session.id}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors"
+                    key={hs.id || i}
+                    className="p-3 rounded-xl bg-muted/40 border border-border/60 flex items-center justify-between gap-3 text-xs"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-mono text-xs font-bold shrink-0">
-                        {formatTime(session.scheduledAt).split(' ')[0]}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-xs font-bold text-foreground">{session.course?.title}</p>
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${TYPE_COLORS[session.course?.type] || 'text-muted-foreground bg-muted'}`}>
-                            {session.course?.type?.replace(/_/g, ' ')}
-                          </span>
-                          {session.status === 'LIVE' && (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                              LIVE
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {formatTime(session.scheduledAt)} &bull; {session.durationMinutes} mins
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-auto">
-                      {session.status === 'SCHEDULED' && (
-                        <button
-                          onClick={() => handleStartClass(session.id)}
-                          className="flex items-center gap-1 rounded-xl bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground hover:bg-primary/90 transition-all shadow-sm"
-                        >
-                          <PlayCircle size={13} />
-                          Start
-                        </button>
-                      )}
-                      {session.status === 'LIVE' && (
-                        <button
-                          onClick={() => router.push(`/classroom/${session.id}`)}
-                          className="flex items-center gap-1 rounded-xl bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-600 transition-all shadow-sm"
-                        >
-                          <MonitorPlay size={13} />
-                          Enter
-                        </button>
-                      )}
-                      {session.status === 'COMPLETED' && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
-                          <CheckCircle2 size={13} className="text-emerald-500" /> Completed
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Action Cards Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <button
-              onClick={onOpenInstantModal}
-              title={canStartInstantClass ? 'Start Instant Class' : 'Instant class creation disabled in Roles & Permissions (schedule.create)'}
-              className="p-4 rounded-2xl border border-border bg-card/60 hover:bg-card hover:border-primary/40 text-left transition-all group shadow-sm"
-            >
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary w-fit mb-3 group-hover:scale-110 transition-transform">
-                <Sparkles size={18} />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs font-bold text-foreground">Instant Class</p>
-                {!canStartInstantClass && (
-                  <span className="text-[9px] font-bold bg-amber-500/20 text-amber-400 px-1 py-0.2 rounded">Off</span>
-                )}
-              </div>
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                {canStartInstantClass ? 'Start now (30-60m)' : 'Permission required'}
-              </p>
-            </button>
-
-            <button
-              onClick={() => router.push('/teacher/schedule')}
-              className="p-4 rounded-2xl border border-border bg-card/60 hover:bg-card hover:border-brand/40 text-left transition-all group shadow-sm"
-            >
-              <div className="p-2.5 rounded-xl bg-brand/10 text-brand w-fit mb-3 group-hover:scale-110 transition-transform">
-                <Plus size={18} />
-              </div>
-              <p className="text-xs font-bold text-foreground">Schedule Class</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Plan ahead</p>
-            </button>
-
-            <Link
-              href="/teacher/leave"
-              className="p-4 rounded-2xl border border-border bg-card/60 hover:bg-card hover:border-indigo-500/40 text-left transition-all group shadow-sm"
-            >
-              <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 w-fit mb-3 group-hover:scale-110 transition-transform">
-                <PlaneTakeoff size={18} />
-              </div>
-              <p className="text-xs font-bold text-foreground">Leave Portal</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Manage leaves</p>
-            </Link>
-
-            <button
-              onClick={() => onNavigateTab('Class Recordings')}
-              className="p-4 rounded-2xl border border-border bg-card/60 hover:bg-card hover:border-violet-500/40 text-left transition-all group shadow-sm"
-            >
-              <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-400 w-fit mb-3 group-hover:scale-110 transition-transform">
-                <Video size={18} />
-              </div>
-              <p className="text-xs font-bold text-foreground">Recordings</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Watch archives</p>
-            </button>
-          </div>
-        </div>
-
-        {/* Right Column: Leave Quota & Recent QA Feedback */}
-        <div className="space-y-6">
-
-          {/* Leave Quota & Requests Widget */}
-          <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-md backdrop-blur-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-display font-bold text-foreground flex items-center gap-2">
-                <PlaneTakeoff size={18} className="text-indigo-400" />
-                Leave Overview
-              </h3>
-              <Link href="/teacher/leave" className="text-xs font-bold text-brand hover:underline">
-                View All &rarr;
-              </Link>
-            </div>
-
-            {/* Leave Balances Grid */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Sick Leave</p>
-                <p className="text-sm font-extrabold text-foreground mt-0.5">
-                  {leaveBalance?.remaining?.sick ?? 10} <span className="text-[10px] text-muted-foreground font-normal">/ {leaveBalance?.allocated?.sick ?? 10}</span>
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Casual Leave</p>
-                <p className="text-sm font-extrabold text-foreground mt-0.5">
-                  {leaveBalance?.remaining?.casual ?? 12} <span className="text-[10px] text-muted-foreground font-normal">/ {leaveBalance?.allocated?.casual ?? 12}</span>
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Annual Leave</p>
-                <p className="text-sm font-extrabold text-foreground mt-0.5">
-                  {leaveBalance?.remaining?.annual ?? 15} <span className="text-[10px] text-muted-foreground font-normal">/ {leaveBalance?.allocated?.annual ?? 15}</span>
-                </p>
-              </div>
-
-              <div className="p-2.5 rounded-xl border border-border/60 bg-muted/20">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold">Other Leave</p>
-                <p className="text-sm font-extrabold text-foreground mt-0.5">
-                  {leaveBalance?.remaining?.other ?? 5} <span className="text-[10px] text-muted-foreground font-normal">/ {leaveBalance?.allocated?.other ?? 5}</span>
-                </p>
-              </div>
-            </div>
-
-            {/* Recent Leaves Status */}
-            <div className="pt-2 border-t border-border/60 space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground">Recent Applications</p>
-              {recentLeaves.length === 0 ? (
-                <p className="text-xs text-muted-foreground/60 italic">No leave applications recorded.</p>
-              ) : (
-                recentLeaves.map((l) => (
-                  <div key={l._id || l.id} className="flex items-center justify-between p-2 rounded-xl bg-muted/30 text-xs">
                     <div>
-                      <p className="font-bold text-foreground">{l.leaveType} ({l.totalDays}d)</p>
-                      <p className="text-[10px] text-muted-foreground">{new Date(l.startDate).toLocaleDateString()}</p>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
-                      l.status === 'APPROVED' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
-                      l.status === 'REJECTED' ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30' :
-                      l.status === 'CANCELLED' ? 'bg-muted text-muted-foreground' :
-                      'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
-                    }`}>
-                      {l.status}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* QA Feedback Widget */}
-          <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-md backdrop-blur-sm space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-display font-bold text-foreground flex items-center gap-2">
-                <Award size={18} className="text-brand" />
-                QA Scorecards
-              </h3>
-              <Link href="/teacher/feedback" className="text-xs font-bold text-brand hover:underline">
-                View All &rarr;
-              </Link>
-            </div>
-
-            {recentReviews.length === 0 ? (
-              <div className="py-6 text-center border border-dashed border-border/80 rounded-2xl">
-                <p className="text-xs text-muted-foreground">No evaluation scorecards yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentReviews.slice(0, 3).map((rev) => (
-                  <div
-                    key={rev.id}
-                    onClick={() => router.push(`/teacher/feedback/${rev.session?.id || rev.id}`)}
-                    className="p-3 rounded-2xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-all cursor-pointer space-y-1"
-                  >
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs font-bold text-foreground truncate max-w-[150px]">
-                        {rev.session?.course?.title || 'Class Evaluation'}
+                      <p className="font-bold text-foreground">
+                        {new Date(hs.scheduledAt).toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
                       </p>
-                      <span className="text-xs font-mono font-extrabold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-md border border-amber-400/20">
-                        {rev.overallScore ? rev.overallScore.toFixed(1) : '5.0'}/5.0
-                      </span>
+                      <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+                        {new Date(hs.scheduledAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })} &bull; {hs.durationMinutes || 30} mins &bull; {hs.course?.title || 'Quran Class'}
+                      </p>
                     </div>
-                    <p className="text-[11px] text-muted-foreground line-clamp-1 italic">
-                      &ldquo;{rev.strengths || rev.improvements || 'Evaluation complete.'}&rdquo;
-                    </p>
+
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                          hs.status === 'COMPLETED'
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : hs.status === 'LIVE'
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 animate-pulse'
+                            : 'bg-muted text-muted-foreground border-border'
+                        }`}
+                      >
+                        {hs.status}
+                      </span>
+                      {hs.recording?.filePath && (
+                        <a
+                          href={hs.recording.filePath}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="p-1 rounded text-primary hover:bg-primary/10 transition-colors"
+                          title="Watch Recording"
+                        >
+                          <PlayCircle className="h-4 w-4" />
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             )}
+
+            <div className="mt-4 pt-3 border-t border-border/50 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setHistoryStudent(null)}
+                className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 5. Leave Request Modal */}
+      {leaveSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
+          <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative border border-border bg-card">
+            <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-4">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                  <PlaneTakeoff className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Submit Leave Application</h3>
+                  <p className="text-xs text-muted-foreground">Class with {leaveSession.student?.name || 'Student'}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLeaveSession(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {leaveSuccessMsg ? (
+              <div className="py-6 text-center space-y-2">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto" />
+                <p className="text-sm font-bold text-foreground">{leaveSuccessMsg}</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmitLeave} className="space-y-4">
+                {leaveErrorMsg && (
+                  <div className="p-2.5 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs font-medium">
+                    {leaveErrorMsg}
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Class Date</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={new Date(leaveSession.scheduledAt).toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      month: 'long',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                    className="w-full bg-muted/60 border border-border rounded-xl p-2.5 text-xs font-medium text-foreground outline-none cursor-not-allowed"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase">Reason for Leave *</label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Provide reason for missing / rescheduling this session..."
+                    value={leaveReason}
+                    onChange={(e) => setLeaveReason(e.target.value)}
+                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none resize-none"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-border/50">
+                  <button
+                    type="button"
+                    onClick={() => setLeaveSession(null)}
+                    className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={leaveSubmitting}
+                    className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {leaveSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                    <span>Submit Leave</span>
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

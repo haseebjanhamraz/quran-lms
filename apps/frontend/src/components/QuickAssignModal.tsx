@@ -126,8 +126,8 @@ export default function QuickAssignModal({
 
   const handleAssignTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCourseId || !selectedTeacherId) {
-      setErrorMsg('Please select both a course and a teacher.');
+    if (!selectedTeacherId) {
+      setErrorMsg('Please select a teacher to assign.');
       return;
     }
 
@@ -135,29 +135,20 @@ export default function QuickAssignModal({
     setErrorMsg(null);
 
     try {
-      // 1. Update course teacher
-      const res = await fetch(`${API_URL}/courses/${selectedCourseId}`, {
+      const studentId = student.id || student._id;
+      const res = await fetch(`${API_URL}/users/${studentId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ teacherId: selectedTeacherId }),
+        body: JSON.stringify({ assignedTeacher: selectedTeacherId }),
       });
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.message || 'Failed to update course teacher.');
+        throw new Error(errData.message || 'Failed to assign teacher to student.');
       }
 
-      // 2. Ensure student is enrolled in this course
-      const studentId = student.id || student._id;
-      await fetch(`${API_URL}/enrollments`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ studentId, courseId: selectedCourseId }),
-      }).catch(() => null); // ignore duplicate enrollment error if already enrolled
-
-      setSuccessMsg(`Teacher successfully assigned to course for ${student.name}!`);
+      setSuccessMsg(`Teacher successfully assigned to ${student.name}!`);
       setTimeout(() => {
         onSuccess();
         onClose();
@@ -248,23 +239,6 @@ export default function QuickAssignModal({
         ) : (
           <form onSubmit={handleAssignTeacher} className="space-y-4">
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-muted-foreground uppercase">Select Course *</label>
-              <select
-                required
-                value={selectedCourseId}
-                onChange={(e) => setSelectedCourseId(e.target.value)}
-                className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-3 text-sm outline-none font-medium"
-              >
-                <option value="">-- Select Course --</option>
-                {courses.map((c) => (
-                  <option key={c.id || c._id} value={c.id || c._id}>
-                    {c.title} ({c.type})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="space-y-1">
               <label className="text-xs font-semibold text-muted-foreground uppercase">Select Teacher to Assign *</label>
               <select
                 required
@@ -291,7 +265,7 @@ export default function QuickAssignModal({
               </button>
               <button
                 type="submit"
-                disabled={submitting || !selectedCourseId || !selectedTeacherId}
+                disabled={submitting || !selectedTeacherId}
                 className="px-5 py-2 text-xs font-bold rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground flex items-center gap-2 shadow-md disabled:opacity-50"
               >
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}

@@ -34,6 +34,7 @@ import { LeaveModule } from './leave/leave.module';
 import { RedisCacheModule } from './cache/redis-cache.module';
 import { SystemSettingsModule } from './system-settings/system-settings.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { MaterialsModule } from './materials/materials.module';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
 
@@ -96,6 +97,7 @@ import * as path from 'path';
     LeaveModule,
     RedisCacheModule,
     SystemSettingsModule,
+    MaterialsModule,
   ],
   controllers: [AppController],
   providers: [

@@ -1,7 +1,7 @@
 {
   "name": "Quran-LMS-Server",
-  "version": "1.4.0",
-  "description": "",
+  "version": "1.5.0",
+  "description": "Learning Management System",
   "author": "KP Cybers",
   "private": true,
   "license": "MIT",

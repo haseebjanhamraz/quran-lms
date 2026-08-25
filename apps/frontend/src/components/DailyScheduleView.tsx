@@ -9,6 +9,7 @@ import {
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTimeSlots, DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
+import { useRef } from 'react';
 
 export interface TeacherItem {
   id: string;
@@ -151,10 +152,10 @@ export default function DailyScheduleView({
             const courseTitle = c.title || 'Quran Class';
             const enrolledStudents = Array.isArray(c.enrollments)
               ? c.enrollments.map((e: any) => e.student).filter(Boolean).map((s: any) => ({
-                  id: s._id || s.id,
-                  name: s.name,
-                  email: s.email,
-                }))
+                id: s._id || s.id,
+                name: s.name,
+                email: s.email,
+              }))
               : [];
 
             teacherIds.forEach((tId: any) => {
@@ -186,11 +187,11 @@ export default function DailyScheduleView({
       }
 
       // Scoped endpoint call by role
-      const gridUrl = role === 'TEACHER' 
-        ? `${API_URL}/schedule/grid/my` 
+      const gridUrl = role === 'TEACHER'
+        ? `${API_URL}/schedule/grid/my`
         : role === 'STUDENT'
-        ? `${API_URL}/schedule/grid/student`
-        : `${API_URL}/schedule/grid`;
+          ? `${API_URL}/schedule/grid/student`
+          : `${API_URL}/schedule/grid`;
 
       const res = await apiFetch(gridUrl);
       if (res.ok) {
@@ -238,7 +239,7 @@ export default function DailyScheduleView({
         if (map[dayName]) {
           map[dayName].push(s);
         }
-      } catch (_) {}
+      } catch (_) { }
     });
 
     return map;
@@ -282,8 +283,8 @@ export default function DailyScheduleView({
 
       const assTeacherId = assignment
         ? (typeof assignment.teacherId === 'object'
-            ? (assignment.teacherId as any)?._id || (assignment.teacherId as any)?.id
-            : assignment.teacherId) || assignment.teacher?.id
+          ? (assignment.teacherId as any)?._id || (assignment.teacherId as any)?.id
+          : assignment.teacherId) || assignment.teacher?.id
         : session?.teacherId;
 
       // Teacher dashboard filter
@@ -297,8 +298,8 @@ export default function DailyScheduleView({
       if (studentId && role === 'STUDENT') {
         const assStudentId = assignment
           ? (typeof (assignment as any).studentId === 'object'
-              ? (assignment as any).studentId?._id || (assignment as any).studentId?.id
-              : (assignment as any).studentId) || assignment?.student?.id
+            ? (assignment as any).studentId?._id || (assignment as any).studentId?.id
+            : (assignment as any).studentId) || assignment?.student?.id
           : session?.studentId || session?.student?.id;
 
         if (assStudentId && assStudentId !== studentId) {
@@ -415,7 +416,7 @@ export default function DailyScheduleView({
       if (onDropSlot) {
         onDropSlot(selectedDay, timeIdx, payload);
       }
-    } catch (_) {}
+    } catch (_) { }
   };
 
   const handleDragStartFromSlot = (e: React.DragEvent, slot: SlotAssignment, timeIdx: number) => {
@@ -479,11 +480,10 @@ export default function DailyScheduleView({
                 <button
                   onClick={() => setDisplayLayout('cards')}
                   title="Card View"
-                  className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    displayLayout === 'cards'
+                  className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${displayLayout === 'cards'
                       ? 'bg-primary text-primary-foreground shadow'
                       : 'text-muted-foreground hover:bg-muted'
-                  }`}
+                    }`}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Cards</span>
@@ -491,11 +491,10 @@ export default function DailyScheduleView({
                 <button
                   onClick={() => setDisplayLayout('table')}
                   title="Table View"
-                  className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${
-                    displayLayout === 'table'
+                  className={`p-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1 ${displayLayout === 'table'
                       ? 'bg-primary text-primary-foreground shadow'
                       : 'text-muted-foreground hover:bg-muted'
-                  }`}
+                    }`}
                 >
                   <List className="w-3.5 h-3.5" />
                   <span className="hidden sm:inline">Table</span>
@@ -534,26 +533,23 @@ export default function DailyScheduleView({
               <button
                 key={day}
                 onClick={() => setSelectedDay(day)}
-                className={`relative px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 border ${
-                  isSelected
+                className={`relative px-4 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-2 border ${isSelected
                     ? 'bg-primary text-primary-foreground border-primary shadow-md scale-[1.03]'
                     : 'bg-card/60 text-muted-foreground border-border hover:bg-card hover:text-foreground'
-                }`}
+                  }`}
               >
                 <span>{day}</span>
                 {isToday && (
-                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${
-                    isSelected
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wide ${isSelected
                       ? 'bg-primary-foreground/20 text-primary-foreground'
                       : 'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
-                  }`}>
+                    }`}>
                     Today
                   </span>
                 )}
                 {daySlotCount > 0 && (
-                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                    isSelected ? 'bg-primary-foreground/25 text-primary-foreground' : 'bg-brand/15 text-brand'
-                  }`}>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold ${isSelected ? 'bg-primary-foreground/25 text-primary-foreground' : 'bg-brand/15 text-brand'
+                    }`}>
                     {daySlotCount}
                   </span>
                 )}
@@ -605,11 +601,10 @@ export default function DailyScheduleView({
                 return (
                   <div
                     key={timeSlotIndex}
-                    className={`rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between gap-4 shadow-sm backdrop-blur-sm ${
-                      isLive
+                    className={`rounded-2xl border transition-all duration-200 p-5 flex flex-col justify-between gap-4 shadow-sm backdrop-blur-sm ${isLive
                         ? 'border-emerald-500 bg-emerald-500/10 shadow-emerald-500/10 shadow-lg ring-1 ring-emerald-500'
                         : 'border-border/70 bg-card/80 hover:border-brand/40 hover:shadow-md'
-                    }`}
+                      }`}
                   >
                     {/* Card Top: Time & Status Badges */}
                     <div className="flex items-start justify-between gap-3">
@@ -745,8 +740,8 @@ export default function DailyScheduleView({
 
                     const assTeacherId = assignment
                       ? (typeof assignment.teacherId === 'object'
-                          ? (assignment.teacherId as any)?._id || (assignment.teacherId as any)?.id
-                          : assignment.teacherId) || assignment.teacher?.id
+                        ? (assignment.teacherId as any)?._id || (assignment.teacherId as any)?.id
+                        : assignment.teacherId) || assignment.teacher?.id
                       : session?.teacherId;
 
                     const mappedInfo = assTeacherId ? teacherCourseMap[assTeacherId] : null;
@@ -771,9 +766,8 @@ export default function DailyScheduleView({
                         onDragOver={(e) => handleDragOver(e, timeSlotIndex)}
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, timeSlotIndex)}
-                        className={`hover:bg-card/40 transition-colors ${
-                          isLive ? 'bg-emerald-500/10' : ''
-                        } ${isDragOver ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''}`}
+                        className={`hover:bg-card/40 transition-colors ${isLive ? 'bg-emerald-500/10' : ''
+                          } ${isDragOver ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''}`}
                       >
                         {/* Index */}
                         <td className="p-3.5 text-center font-mono font-medium text-muted-foreground border-r border-border">
@@ -811,9 +805,8 @@ export default function DailyScheduleView({
                             <div
                               draggable={allowDragDrop}
                               onDragStart={(e) => assignment && handleDragStartFromSlot(e, assignment, timeSlotIndex)}
-                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm ${
-                                allowDragDrop ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-all' : ''
-                              } ${colorClass}`}
+                              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border shadow-sm ${allowDragDrop ? 'cursor-grab active:cursor-grabbing hover:scale-105 transition-all' : ''
+                                } ${colorClass}`}
                             >
                               {allowDragDrop && <Move className="w-3 h-3 opacity-60" />}
                               <User className="w-3.5 h-3.5" />
@@ -881,11 +874,10 @@ export default function DailyScheduleView({
                             {(assignment || session) && role === 'STUDENT' && onJoinClass && (
                               <button
                                 onClick={() => onJoinClass(targetSessionId)}
-                                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${
-                                  isLive
+                                className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shadow-sm ${isLive
                                     ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/20'
                                     : 'bg-brand hover:bg-brand/90 text-brand-foreground'
-                                }`}
+                                  }`}
                               >
                                 <Video className="w-3.5 h-3.5" />
                                 <span>{isLive ? 'Join Live Class' : 'Enter Class'}</span>

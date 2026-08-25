@@ -69,7 +69,7 @@ export class UsersService {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
       guardianName, guardianType, guardianTypeOther, guardianPhone, guardianEmail,
-      classDuration, classesPerWeek, tier, noteToTeacher,
+      classDuration, classesPerWeek, classDays, assignedTeacher, tier, noteToTeacher,
       monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
       employeeId, bio, guarantors, phone, phoneCode, cnicOrId, canEditProfile,
@@ -91,6 +91,10 @@ export class UsersService {
 
     if (baseUserDto.role === Role.STUDENT) {
       const studentId = await this.getNextStudentId();
+      const calculatedClassesPerWeek = classDays && Array.isArray(classDays) && classDays.length > 0
+        ? classDays.length
+        : (classesPerWeek !== undefined ? Number(classesPerWeek) : 5);
+
       await this.studentModel.create({
         userId: createdUser._id,
         studentId,
@@ -110,7 +114,9 @@ export class UsersService {
           phoneCode,
           country,
           classDuration: classDuration !== undefined ? Number(classDuration) : 60,
-          classesPerWeek: classesPerWeek !== undefined ? Number(classesPerWeek) : 5,
+          classesPerWeek: calculatedClassesPerWeek,
+          classDays: classDays || [],
+          assignedTeacher: assignedTeacher || undefined,
           tier: tier || 'Beginner',
           noteToTeacher,
           monthlyFee: monthlyFee !== undefined ? Number(monthlyFee) : (monthlyFeeOverride !== undefined ? Number(monthlyFeeOverride) : undefined),
@@ -151,12 +157,20 @@ export class UsersService {
   async findByEmail(email: string) {
     return this.userModel.findOne({
       email: email.toLowerCase().trim(),
-    }).populate('studentProfile').populate('teacherProfile');
+    })
+      .populate({
+        path: 'studentProfile',
+        populate: { path: 'profile.assignedTeacher', model: 'User', select: 'name email role profilePicture' },
+      })
+      .populate('teacherProfile');
   }
 
   async findById(id: string) {
     const user = await this.userModel.findById(id)
-      .populate('studentProfile')
+      .populate({
+        path: 'studentProfile',
+        populate: { path: 'profile.assignedTeacher', model: 'User', select: 'name email role profilePicture' },
+      })
       .populate('teacherProfile');
 
     if (!user) {
@@ -168,7 +182,10 @@ export class UsersService {
 
   async findAll() {
     const users = await this.userModel.find()
-      .populate('studentProfile')
+      .populate({
+        path: 'studentProfile',
+        populate: { path: 'profile.assignedTeacher', model: 'User', select: 'name email role profilePicture' },
+      })
       .populate('teacherProfile')
       .sort({ createdAt: -1 });
 
@@ -177,7 +194,10 @@ export class UsersService {
 
   async findByRole(role: Role) {
     const users = await this.userModel.find({ role })
-      .populate('studentProfile')
+      .populate({
+        path: 'studentProfile',
+        populate: { path: 'profile.assignedTeacher', model: 'User', select: 'name email role profilePicture' },
+      })
       .populate('teacherProfile')
       .sort({ createdAt: -1 });
 
@@ -195,7 +215,7 @@ export class UsersService {
       password, dateOfBirth, dob, enrollmentDate, joiningDate,
       gender, studentStatus, trialStatus, discontinued,
       guardianName, guardianType, guardianTypeOther, guardianPhone, guardianEmail,
-      classDuration, classesPerWeek, tier, noteToTeacher,
+      classDuration, classesPerWeek, classDays, assignedTeacher, tier, noteToTeacher,
       monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
       employeeId, bio, guarantors, phone, phoneCode, cnicOrId, canEditProfile,
@@ -241,7 +261,15 @@ export class UsersService {
       if (phoneCode !== undefined) studentUpdate['profile.phoneCode'] = phoneCode;
       if (country !== undefined) studentUpdate['profile.country'] = country;
       if (classDuration !== undefined) studentUpdate['profile.classDuration'] = Number(classDuration);
-      if (classesPerWeek !== undefined) studentUpdate['profile.classesPerWeek'] = Number(classesPerWeek);
+      if (classDays !== undefined) {
+        studentUpdate['profile.classDays'] = classDays;
+        studentUpdate['profile.classesPerWeek'] = Array.isArray(classDays) ? classDays.length : (classesPerWeek ? Number(classesPerWeek) : 0);
+      } else if (classesPerWeek !== undefined) {
+        studentUpdate['profile.classesPerWeek'] = Number(classesPerWeek);
+      }
+      if (assignedTeacher !== undefined) {
+        studentUpdate['profile.assignedTeacher'] = assignedTeacher || null;
+      }
       if (tier !== undefined) studentUpdate['profile.tier'] = tier;
       if (noteToTeacher !== undefined) studentUpdate['profile.noteToTeacher'] = noteToTeacher;
       if (monthlyFee !== undefined) studentUpdate['profile.monthlyFee'] = Number(monthlyFee);

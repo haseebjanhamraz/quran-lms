@@ -25,7 +25,8 @@ import {
   BookUser,
   CreditCard,
   Briefcase,
-  PlaneTakeoff
+  PlaneTakeoff,
+  FileText
 } from 'lucide-react';
 import Image from 'next/image';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
@@ -46,6 +47,7 @@ const PRIMARY_NAV: NavItem[] = [
   { label: 'Students', icon: GraduationCap, href: '/admin/students', permission: 'students.read' },
   { label: 'Teachers', icon: BookUser, href: '/admin/teachers', permission: 'teachers.read' },
   { label: 'Courses', icon: BookOpen, href: '/admin/courses', permission: 'courses.read' },
+  { label: 'Materials (PDF)', icon: FileText, href: '/admin/materials' },
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule', permission: 'schedule.read' },
   { label: 'HR & Finance', icon: Briefcase, href: '/admin/hr', permission: 'hr.read' },
 ];

@@ -33,6 +33,9 @@ interface StudentUser {
   discontinued?: boolean;
   classDuration?: number;
   classesPerWeek?: number;
+  classDays?: Array<{ day: string; time: string }>;
+  assignedTeacher?: any;
+  teacher?: any;
   tier?: string;
   noteToTeacher?: string;
   guardianName?: string;
@@ -400,6 +403,12 @@ export default function StudentDetailModal({
                     <span className="font-mono font-bold text-brand">{student.studentId ? `STU-${student.studentId}` : '—'}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
+                    <span className="text-muted-foreground font-medium">Assigned Teacher:</span>
+                    <span className="font-bold text-foreground">
+                      {student.assignedTeacher?.name || student.teacher?.name || (typeof student.assignedTeacher === 'string' ? student.assignedTeacher : 'Unassigned')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Student Tier:</span>
                     <span className="font-bold text-brand">{student.tier || 'Beginner'}</span>
                   </div>
@@ -409,8 +418,20 @@ export default function StudentDetailModal({
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Classes per Week:</span>
-                    <span className="font-bold text-foreground">{student.classesPerWeek || 5} Days / Week</span>
+                    <span className="font-bold text-foreground">{student.classDays?.length || student.classesPerWeek || 5} Days / Week</span>
                   </div>
+                  {Array.isArray(student.classDays) && student.classDays.length > 0 && (
+                    <div className="py-1 border-b border-border/30 space-y-1">
+                      <span className="text-muted-foreground font-medium">Scheduled Days &amp; Timings:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {student.classDays.map((slot) => (
+                          <span key={slot.day} className="px-2 py-0.5 rounded bg-muted text-[11px] font-mono font-semibold">
+                            {slot.day} ({slot.time})
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Enrollment Date:</span>
                     <span className="font-semibold text-foreground">

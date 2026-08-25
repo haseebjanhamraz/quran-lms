@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, ChevronRight, ChevronLeft, User, Shield, GraduationCap, BookOpen,
   CheckCircle, Loader2, Check, BookUser, CreditCard, Clock, Calendar, VideoOff,
-  Sparkles, FileText, Globe
+  Sparkles, FileText, Globe, Eye, EyeOff, Copy, RotateCcw
 } from 'lucide-react';
 import ProfilePhotoPicker from './ProfilePhotoPicker';
 import CountrySelect from './CountrySelect';
@@ -12,14 +12,15 @@ import CountryPhoneInput from './CountryPhoneInput';
 import { apiFetch } from '@/utils/apiFetch';
 import { CountryInfo, getAllCurrencies, getAllTimezones } from '@/utils/countries';
 
-interface CourseItem {
-  id: string;
-  _id?: string;
-  title: string;
-  type: string;
-  teacherId?: string;
-  teacher?: { id?: string; name: string };
-}
+const WEEKDAYS = [
+  { key: 'Mon', label: 'Monday', short: 'Mon' },
+  { key: 'Tue', label: 'Tuesday', short: 'Tue' },
+  { key: 'Wed', label: 'Wednesday', short: 'Wed' },
+  { key: 'Thu', label: 'Thursday', short: 'Thu' },
+  { key: 'Fri', label: 'Friday', short: 'Fri' },
+  { key: 'Sat', label: 'Saturday', short: 'Sat' },
+  { key: 'Sun', label: 'Sunday', short: 'Sun' },
+];
 
 interface TeacherUser {
   id: string;
@@ -42,9 +43,12 @@ export default function AdmissionWizard({
   editingStudent = null,
 }: AdmissionWizardProps) {
   const [step, setStep] = useState(1);
-  const [loadingCourses, setLoadingCourses] = useState(false);
-  const [availableCourses, setAvailableCourses] = useState<CourseItem[]>([]);
+  const [loadingTeachers, setLoadingTeachers] = useState(false);
   const [teachers, setTeachers] = useState<TeacherUser[]>([]);
+
+  // Password view/copy states
+  const [showPassword, setShowPassword] = useState(false);
+  const [copiedPassword, setCopiedPassword] = useState(false);
 
   // Step 1: Personal Info & Profile Picture
   const [personalInfo, setPersonalInfo] = useState({
@@ -72,16 +76,35 @@ export default function AdmissionWizard({
     guardianEmail: '',
   });
 
-  // Step 3: Enrollment Status & Classification
-  const [enrollmentStatus, setEnrollmentStatus] = useState({
+  // Step 3: Enrollment Status, Weekdays & Time Slots
+  const [enrollmentStatus, setEnrollmentStatus] = useState<{
+    enrollmentDate: string;
+    status: string;
+    trialStatus: string;
+    isDiscontinued: boolean;
+    classDuration: number;
+    classesPerWeek: number;
+    classDays: Array<{ day: string; time: string }>;
+    tier: string;
+  }>({
     enrollmentDate: new Date().toISOString().split('T')[0],
     status: 'Regular',
     trialStatus: 'N/A',
     isDiscontinued: false,
     classDuration: 60, // 30, 60, 120
-    classesPerWeek: 5, // 1 to 7
-    tier: 'Beginner', // Beginner, Intermediate, Advanced
+    classesPerWeek: 5,
+    classDays: [
+      { day: 'Mon', time: '16:00' },
+      { day: 'Tue', time: '16:00' },
+      { day: 'Wed', time: '16:00' },
+      { day: 'Thu', time: '16:00' },
+      { day: 'Fri', time: '16:00' },
+    ],
+    tier: 'Beginner',
   });
+
+  // Quick time setting helper state
+  const [bulkTime, setBulkTime] = useState('16:00');
 
   // Step 4: Fees & Billing
   const [feeInfo, setFeeInfo] = useState({
@@ -92,10 +115,9 @@ export default function AdmissionWizard({
     isFeeManuallyEdited: false,
   });
 
-  // Step 5: Teacher, Courses & Instructions
+  // Step 5: Teacher Assignment & Instructions
   const [assignTeacherLater, setAssignTeacherLater] = useState(false);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('');
-  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [noteToTeacher, setNoteToTeacher] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
@@ -108,17 +130,32 @@ export default function AdmissionWizard({
   const timezonesList = useMemo(() => getAllTimezones(), []);
   const currenciesList = useMemo(() => getAllCurrencies(), []);
 
+  // Secure Password Generator
+  const generateSecurePassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+    let pass = '';
+    for (let i = 0; i < 10; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPersonalInfo((prev) => ({ ...prev, password: pass }));
+    setShowPassword(true);
+  };
+
+  const handleCopyPassword = () => {
+    if (personalInfo.password) {
+      navigator.clipboard.writeText(personalInfo.password);
+      setCopiedPassword(true);
+      setTimeout(() => setCopiedPassword(false), 2000);
+    }
+  };
+
   // Compute recommended monthly fee from duration & days per week
   const calculateDefaultFee = (duration: number, days: number, currency: string) => {
-    // Base rate per day per week for 1 month
-    // 30 min: ~ $6/day/mo (e.g. 5 days = $30/mo)
-    // 60 min: ~ $10/day/mo (e.g. 5 days = $50/mo)
-    // 120 min: ~ $18/day/mo (e.g. 5 days = $90/mo)
     let rateMultiplier = 10;
     if (duration === 30) rateMultiplier = 6;
     else if (duration === 120) rateMultiplier = 18;
 
-    let baseUSD = days * rateMultiplier;
+    let baseUSD = Math.max(days, 1) * rateMultiplier;
 
     if (currency === 'PKR') return String(baseUSD * 280);
     if (currency === 'GBP') return String(Math.round(baseUSD * 0.8));
@@ -128,17 +165,17 @@ export default function AdmissionWizard({
     return String(baseUSD);
   };
 
-  // Auto calculate fee when duration or classesPerWeek changes, unless manually overridden
+  // Auto calculate fee when duration, classDays, or currency changes, unless manually overridden
   useEffect(() => {
     if (!feeInfo.isFeeManuallyEdited && !editingStudent) {
       const calculated = calculateDefaultFee(
         enrollmentStatus.classDuration,
-        enrollmentStatus.classesPerWeek,
+        enrollmentStatus.classDays.length,
         feeInfo.currency
       );
       setFeeInfo((prev) => ({ ...prev, monthlyFee: calculated }));
     }
-  }, [enrollmentStatus.classDuration, enrollmentStatus.classesPerWeek, feeInfo.currency, feeInfo.isFeeManuallyEdited, editingStudent]);
+  }, [enrollmentStatus.classDuration, enrollmentStatus.classDays.length, feeInfo.currency, feeInfo.isFeeManuallyEdited, editingStudent]);
 
   // Handle Country selection change
   const handleCountryChange = (country: CountryInfo) => {
@@ -164,6 +201,8 @@ export default function AdmissionWizard({
       setErrorMsg(null);
       setCompletedMessage(null);
       setStep(1);
+      setShowPassword(false);
+      setCopiedPassword(false);
 
       if (editingStudent) {
         setPersonalInfo({
@@ -190,13 +229,24 @@ export default function AdmissionWizard({
           guardianEmail: editingStudent.guardianEmail || '',
         });
 
+        // Initialize classDays
+        let initialDays: Array<{ day: string; time: string }> = [];
+        if (Array.isArray(editingStudent.classDays) && editingStudent.classDays.length > 0) {
+          initialDays = editingStudent.classDays;
+        } else {
+          const count = Number(editingStudent.classesPerWeek) || 5;
+          const defaultWeek = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+          initialDays = defaultWeek.slice(0, count).map((d) => ({ day: d, time: '16:00' }));
+        }
+
         setEnrollmentStatus({
           enrollmentDate: editingStudent.enrollmentDate ? new Date(editingStudent.enrollmentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           status: editingStudent.studentStatus || editingStudent.status || 'Regular',
           trialStatus: editingStudent.trialStatus || 'N/A',
           isDiscontinued: Boolean(editingStudent.discontinued || editingStudent.isDiscontinued),
           classDuration: Number(editingStudent.classDuration) || 60,
-          classesPerWeek: Number(editingStudent.classesPerWeek) || 5,
+          classesPerWeek: initialDays.length,
+          classDays: initialDays,
           tier: editingStudent.tier || 'Beginner',
         });
 
@@ -210,8 +260,9 @@ export default function AdmissionWizard({
 
         setNoteToTeacher(editingStudent.noteToTeacher || '');
 
-        // Fetch student's existing enrollments
-        fetchStudentEnrollments(editingStudent.id || editingStudent._id);
+        const teacherId = editingStudent.assignedTeacher?._id || editingStudent.assignedTeacher?.id || editingStudent.assignedTeacher || editingStudent.teacherId || '';
+        setSelectedTeacherId(teacherId);
+        setAssignTeacherLater(!teacherId);
       } else {
         // Reset for new student
         setPersonalInfo({
@@ -243,6 +294,13 @@ export default function AdmissionWizard({
           isDiscontinued: false,
           classDuration: 60,
           classesPerWeek: 5,
+          classDays: [
+            { day: 'Mon', time: '16:00' },
+            { day: 'Tue', time: '16:00' },
+            { day: 'Wed', time: '16:00' },
+            { day: 'Thu', time: '16:00' },
+            { day: 'Fri', time: '16:00' },
+          ],
           tier: 'Beginner',
         });
         setFeeInfo({
@@ -253,47 +311,24 @@ export default function AdmissionWizard({
           isFeeManuallyEdited: false,
         });
         setNoteToTeacher('');
-        setSelectedCourseIds([]);
         setSelectedTeacherId('');
         setAssignTeacherLater(false);
       }
 
-      fetchCoursesAndTeachers();
+      fetchTeachers();
     }
   }, [isOpen, editingStudent]);
 
-  const fetchStudentEnrollments = async (studentId: string) => {
+  const fetchTeachers = async () => {
+    setLoadingTeachers(true);
     try {
-      const res = await apiFetch(`${API_URL}/enrollments/student/${studentId}`);
-      if (res.ok) {
-        const enrollments = await res.json();
-        if (Array.isArray(enrollments)) {
-          const courseIds = enrollments.map((e: any) => e.courseId || e.course?.id || e.course?._id).filter(Boolean);
-          setSelectedCourseIds(courseIds);
-        }
-      }
-    } catch (_) {}
-  };
-
-  const fetchCoursesAndTeachers = async () => {
-    setLoadingCourses(true);
-    try {
-      const [cRes, tRes] = await Promise.all([
-        apiFetch(`${API_URL}/courses`).catch(() => null),
-        apiFetch(`${API_URL}/users/role/TEACHER`).catch(() => null),
-      ]);
-
-      if (cRes && cRes.ok) {
-        const data = await cRes.json();
-        setAvailableCourses(Array.isArray(data) ? data : []);
-      }
-
-      if (tRes && tRes.ok) {
+      const tRes = await apiFetch(`${API_URL}/users/role/TEACHER`);
+      if (tRes.ok) {
         const tData = await tRes.json();
         setTeachers(Array.isArray(tData) ? tData : []);
       }
     } catch (_) {}
-    setLoadingCourses(false);
+    setLoadingTeachers(false);
   };
 
   const calculateAgeAndType = (dob: string) => {
@@ -310,14 +345,38 @@ export default function AdmissionWizard({
 
   const computedAge = useMemo(() => calculateAgeAndType(personalInfo.dob), [personalInfo.dob]);
 
-  // Filter courses by selected teacher if a teacher is selected
-  const filteredCourses = useMemo(() => {
-    if (!selectedTeacherId || assignTeacherLater) return availableCourses;
-    return availableCourses.filter((c) => {
-      const tId = c.teacherId || c.teacher?.id;
-      return tId === selectedTeacherId;
+  // Weekday selection & time helper handlers
+  const toggleDay = (dayKey: string) => {
+    setEnrollmentStatus((prev) => {
+      const exists = prev.classDays.some((d) => d.day === dayKey);
+      let updatedDays;
+      if (exists) {
+        updatedDays = prev.classDays.filter((d) => d.day !== dayKey);
+      } else {
+        updatedDays = [...prev.classDays, { day: dayKey, time: bulkTime || '16:00' }];
+      }
+      return {
+        ...prev,
+        classDays: updatedDays,
+        classesPerWeek: updatedDays.length,
+      };
     });
-  }, [availableCourses, selectedTeacherId, assignTeacherLater]);
+  };
+
+  const updateDayTime = (dayKey: string, newTime: string) => {
+    setEnrollmentStatus((prev) => ({
+      ...prev,
+      classDays: prev.classDays.map((d) => (d.day === dayKey ? { ...d, time: newTime } : d)),
+    }));
+  };
+
+  const applyBulkTimeToAll = () => {
+    if (!bulkTime) return;
+    setEnrollmentStatus((prev) => ({
+      ...prev,
+      classDays: prev.classDays.map((d) => ({ ...d, time: bulkTime })),
+    }));
+  };
 
   if (!isOpen) return null;
 
@@ -392,7 +451,8 @@ export default function AdmissionWizard({
         trialStatus: enrollmentStatus.trialStatus,
         discontinued: enrollmentStatus.isDiscontinued,
         classDuration: enrollmentStatus.classDuration,
-        classesPerWeek: enrollmentStatus.classesPerWeek,
+        classesPerWeek: enrollmentStatus.classDays.length,
+        classDays: enrollmentStatus.classDays,
         tier: enrollmentStatus.tier,
 
         // Step 4: Fees
@@ -402,7 +462,8 @@ export default function AdmissionWizard({
         feeWaiverPercent: feeInfo.feeWaiverPercent ? Number(feeInfo.feeWaiverPercent) : 0,
         customFeeNotes: feeInfo.customFeeNotes,
 
-        // Step 5: Note
+        // Step 5: Teacher & Note
+        assignedTeacher: assignTeacherLater ? null : (selectedTeacherId || undefined),
         noteToTeacher,
       };
 
@@ -440,19 +501,6 @@ export default function AdmissionWizard({
         }
 
         setCompletedMessage(`Student ${studentData.name} has been successfully admitted.`);
-      }
-
-      // Course enrollment
-      const studentId = studentData.id || studentData._id;
-      if (!assignTeacherLater && selectedCourseIds.length > 0 && studentId) {
-        for (const cId of selectedCourseIds) {
-          try {
-            await apiFetch(`${API_URL}/enrollments`, {
-              method: 'POST',
-              body: JSON.stringify({ studentId, courseId: cId }),
-            });
-          } catch (_) {}
-        }
       }
     } catch (err: any) {
       setErrorMsg(err.message || 'An error occurred during submission.');
@@ -610,17 +658,57 @@ export default function AdmissionWizard({
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">
-                      {editingStudent ? 'Change Account Password (Optional)' : 'Account Password *'}
-                    </label>
-                    <input
-                      type="password"
-                      required={!editingStudent}
-                      value={personalInfo.password}
-                      onChange={(e) => setPersonalInfo({ ...personalInfo, password: e.target.value })}
-                      placeholder="••••••••"
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-muted-foreground uppercase">
+                        {editingStudent ? 'Change Password (Optional)' : 'Account Password *'}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={generateSecurePassword}
+                        className="text-[11px] text-brand hover:text-brand/80 font-bold flex items-center gap-1 transition-colors"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        <span>Auto Generate</span>
+                      </button>
+                    </div>
+                    <div className="relative flex items-center">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required={!editingStudent}
+                        value={personalInfo.password}
+                        onChange={(e) => setPersonalInfo({ ...personalInfo, password: e.target.value })}
+                        placeholder="••••••••"
+                        className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 pr-20 text-sm outline-none font-mono"
+                      />
+                      <div className="absolute right-2 flex items-center gap-1">
+                        {personalInfo.password && (
+                          <button
+                            type="button"
+                            onClick={handleCopyPassword}
+                            title={copiedPassword ? 'Copied to Clipboard!' : 'Copy Password'}
+                            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                          >
+                            {copiedPassword ? (
+                              <Check className="h-4 w-4 text-emerald-500" />
+                            ) : (
+                              <Copy className="h-4 w-4" />
+                            )}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          title={showPassword ? 'Hide Password' : 'View Password'}
+                          className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                        >
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" />
+                          ) : (
+                            <Eye className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Country Selector (Auto-selects Timezone, Currency & Dial Code) */}
@@ -828,33 +916,94 @@ export default function AdmissionWizard({
                   </div>
                 </div>
 
-                {/* 2. Days / Week */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-brand" />
-                    <span>Classes Per Week (Days) *</span>
-                  </label>
+                {/* 2. Weekdays & Assigned Time Slots */}
+                <div className="space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-brand" />
+                      <span>Assigned Class Weekdays *</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] text-muted-foreground">Default Time:</span>
+                      <input
+                        type="time"
+                        value={bulkTime}
+                        onChange={(e) => setBulkTime(e.target.value)}
+                        className="bg-background border border-border rounded-lg px-2 py-1 text-xs font-mono font-semibold outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={applyBulkTimeToAll}
+                        className="text-[10px] bg-secondary hover:bg-secondary/80 text-secondary-foreground font-semibold px-2 py-1 rounded-md transition-colors"
+                      >
+                        Apply to All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 7-day Weekday Chips */}
                   <div className="grid grid-cols-7 gap-1.5">
-                    {[1, 2, 3, 4, 5, 6, 7].map((num) => {
-                      const isSelected = enrollmentStatus.classesPerWeek === num;
+                    {WEEKDAYS.map((w) => {
+                      const isSelected = enrollmentStatus.classDays.some((d) => d.day === w.key);
                       return (
                         <button
-                          key={num}
+                          key={w.key}
                           type="button"
-                          onClick={() => setEnrollmentStatus({ ...enrollmentStatus, classesPerWeek: num })}
-                          className={`py-2.5 rounded-xl text-xs font-bold border transition-all ${
+                          onClick={() => toggleDay(w.key)}
+                          className={`py-2 rounded-xl text-xs font-bold border transition-all text-center ${
                             isSelected
                               ? 'bg-primary text-primary-foreground border-primary shadow-sm ring-2 ring-primary/20'
                               : 'bg-card border-border hover:bg-muted text-foreground'
                           }`}
                         >
-                          {num} {num === 1 ? 'day' : 'days'}
+                          <div>{w.short}</div>
+                          {isSelected && (
+                            <div className="text-[9px] font-normal opacity-90">
+                              {enrollmentStatus.classDays.find((d) => d.day === w.key)?.time || bulkTime}
+                            </div>
+                          )}
                         </button>
                       );
                     })}
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">
-                    Selected: {enrollmentStatus.classesPerWeek} classes per week ({enrollmentStatus.classDuration} mins each)
+
+                  {/* Individual Day Time Pickers */}
+                  {enrollmentStatus.classDays.length === 0 ? (
+                    <p className="text-xs text-amber-500 font-medium">
+                      Please select at least one weekday for the student's class schedule.
+                    </p>
+                  ) : (
+                    <div className="rounded-xl border border-border/80 bg-card/40 p-3 space-y-2">
+                      <p className="text-[11px] font-semibold text-muted-foreground uppercase">
+                        Scheduled Days &amp; Timings ({enrollmentStatus.classDays.length} Days/Week):
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {enrollmentStatus.classDays.map((slot) => {
+                          const weekdayObj = WEEKDAYS.find((w) => w.key === slot.day);
+                          return (
+                            <div
+                              key={slot.day}
+                              className="flex items-center justify-between gap-2 p-2 rounded-lg bg-background border border-border/80"
+                            >
+                              <span className="text-xs font-bold text-foreground">
+                                {weekdayObj?.label || slot.day}
+                              </span>
+                              <input
+                                type="time"
+                                required
+                                value={slot.time}
+                                onChange={(e) => updateDayTime(slot.day, e.target.value)}
+                                className="bg-muted/60 border border-border focus:border-primary rounded px-2 py-1 text-xs font-mono font-bold outline-none"
+                              />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-muted-foreground">
+                    Selected: {enrollmentStatus.classDays.length} classes per week ({enrollmentStatus.classDuration} mins each)
                   </p>
                 </div>
 
@@ -924,10 +1073,10 @@ export default function AdmissionWizard({
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
                   <CreditCard className="h-5 w-5 text-brand" />
-                  <span>Step 4: Student Individual Fees & Billing Setup</span>
+                  <span>Step 4: Student Individual Fees &amp; Billing Setup</span>
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Fee is automatically suggested based on {enrollmentStatus.classDuration} mins class × {enrollmentStatus.classesPerWeek} days/week.
+                  Fee is automatically suggested based on {enrollmentStatus.classDuration} mins class × {enrollmentStatus.classDays.length} days/week.
                 </p>
 
                 <div className="space-y-4 pt-2">
@@ -988,7 +1137,7 @@ export default function AdmissionWizard({
                     <div>
                       <p className="text-xs text-muted-foreground font-semibold">Net Calculated Monthly Billing</p>
                       <p className="text-xs text-muted-foreground">
-                        {enrollmentStatus.classDuration}m class × {enrollmentStatus.classesPerWeek}d/wk • Base: {feeInfo.monthlyFee || 0} {feeInfo.currency} ({feeInfo.feeWaiverPercent || 0}% Waiver)
+                        {enrollmentStatus.classDuration}m class × {enrollmentStatus.classDays.length}d/wk • Base: {feeInfo.monthlyFee || 0} {feeInfo.currency} ({feeInfo.feeWaiverPercent || 0}% Waiver)
                       </p>
                     </div>
                     <span className="text-lg font-mono font-bold text-brand">
@@ -999,15 +1148,59 @@ export default function AdmissionWizard({
               </div>
             )}
 
-            {/* STEP 5: Teacher, Courses & Admin Note */}
+            {/* STEP 5: Teacher Assignment & Instructions */}
             {step === 5 && (
               <div className="space-y-4 animate-fadeIn">
                 <h3 className="text-base font-bold font-display text-foreground mb-1 flex items-center gap-2">
-                  <BookOpen className="h-5 w-5 text-brand" />
-                  <span>Step 5: Teacher, Courses & Note</span>
+                  <BookUser className="h-5 w-5 text-brand" />
+                  <span>Step 5: Teacher Assignment &amp; Instructions</span>
                 </h3>
 
-                {/* 1. Note to Teacher */}
+                {/* 1. Teacher Assignment */}
+                <div className="rounded-xl bg-card border border-border p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-foreground uppercase flex items-center gap-1.5">
+                      <User className="h-4 w-4 text-brand" />
+                      <span>Assigned Teacher *</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-muted-foreground hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={assignTeacherLater}
+                        onChange={(e) => setAssignTeacherLater(e.target.checked)}
+                        className="rounded border-border text-primary focus:ring-primary h-4 w-4"
+                      />
+                      <span>Assign teacher later</span>
+                    </label>
+                  </div>
+
+                  {!assignTeacherLater && (
+                    <div className="space-y-1">
+                      {loadingTeachers ? (
+                        <div className="py-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          <span>Loading active teachers...</span>
+                        </div>
+                      ) : (
+                        <select
+                          required={!assignTeacherLater}
+                          value={selectedTeacherId}
+                          onChange={(e) => setSelectedTeacherId(e.target.value)}
+                          className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-3 text-sm outline-none font-medium"
+                        >
+                          <option value="">-- Select Teacher --</option>
+                          {teachers.map((t) => (
+                            <option key={t.id || t._id} value={t.id || t._id}>
+                              {t.name} ({t.email})
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. Note to Teacher */}
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1.5">
                     <FileText className="h-3.5 w-3.5 text-brand" />
@@ -1022,7 +1215,7 @@ export default function AdmissionWizard({
                   />
                 </div>
 
-                {/* 2. Admin Camera Restriction Toggle */}
+                {/* 3. Admin Camera Restriction Toggle */}
                 <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <VideoOff className="h-5 w-5 text-amber-500 shrink-0" />
@@ -1041,89 +1234,6 @@ export default function AdmissionWizard({
                     <div className="w-10 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
                   </label>
                 </div>
-
-                {/* 3. Teacher & Course Assignment */}
-                <div className="p-3.5 rounded-xl bg-card border border-border flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <BookUser className="h-5 w-5 text-brand" />
-                    <div>
-                      <p className="text-xs font-bold text-foreground">Teacher Assignment</p>
-                      <p className="text-[10px] text-muted-foreground">Assign a specific teacher or assign later</p>
-                    </div>
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold">
-                    <input
-                      type="checkbox"
-                      checked={assignTeacherLater}
-                      onChange={(e) => setAssignTeacherLater(e.target.checked)}
-                      className="rounded border-border text-primary focus:ring-primary h-4 w-4"
-                    />
-                    <span>Assign teacher later</span>
-                  </label>
-                </div>
-
-                {!assignTeacherLater && (
-                  <div className="space-y-1">
-                    <label className="text-xs font-semibold text-muted-foreground uppercase">Filter Courses by Teacher</label>
-                    <select
-                      value={selectedTeacherId}
-                      onChange={(e) => setSelectedTeacherId(e.target.value)}
-                      className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none"
-                    >
-                      <option value="">All Teachers / All Courses</option>
-                      {teachers.map((t) => (
-                        <option key={t.id || t._id} value={t.id || t._id}>
-                          {t.name} ({t.email})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                <p className="text-xs text-muted-foreground">Select one or more courses to assign the student:</p>
-
-                {loadingCourses ? (
-                  <div className="py-6 flex justify-center">
-                    <Loader2 className="animate-spin text-primary" size={24} />
-                  </div>
-                ) : filteredCourses.length === 0 ? (
-                  <div className="p-4 rounded-xl bg-card border border-border text-center text-xs text-muted-foreground">
-                    No active courses found. You can complete admission now and assign courses later.
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[200px] overflow-y-auto pr-1">
-                    {filteredCourses.map((course) => {
-                      const cId = course.id || course._id || '';
-                      const isSelected = selectedCourseIds.includes(cId);
-                      return (
-                        <div
-                          key={cId}
-                          onClick={() => toggleCourseSelection(cId)}
-                          className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start justify-between gap-3 ${
-                            isSelected
-                              ? 'bg-primary/10 border-primary shadow-sm'
-                              : 'bg-card/40 border-border/60 hover:bg-card/80'
-                          }`}
-                        >
-                          <div>
-                            <p className="text-sm font-bold text-foreground">{course.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">{course.type}</p>
-                            {course.teacher && (
-                              <p className="text-[10px] text-brand font-semibold mt-1">Instructor: {course.teacher.name}</p>
-                            )}
-                          </div>
-                          <div
-                            className={`h-5 w-5 rounded-md flex items-center justify-center border shrink-0 ${
-                              isSelected ? 'bg-primary text-primary-foreground border-primary' : 'border-border bg-background'
-                            }`}
-                          >
-                            {isSelected && <Check className="h-3.5 w-3.5" />}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
             )}
 

@@ -30,6 +30,12 @@ interface StudentUser {
   trialStatus?: string;
   isDiscontinued?: boolean;
   discontinued?: boolean;
+  classDuration?: number;
+  classesPerWeek?: number;
+  classDays?: Array<{ day: string; time: string }>;
+  assignedTeacher?: any;
+  teacher?: any;
+  tier?: string;
   guardianName?: string;
   guardianPhone?: string;
   guardianEmail?: string;
@@ -247,25 +253,34 @@ export default function StudentsManagementPage() {
       },
     },
     {
-      key: 'enrolledCourses',
-      label: 'Assigned Course(s)',
+      key: 'assignedTeacher',
+      label: 'Assigned Teacher',
       render: (s) => {
-        const sId = s.id || s._id || '';
-        const sCourses = studentEnrollmentMap[sId] || [];
-        return sCourses.length > 0 ? (
-          <div className="flex flex-wrap gap-1">
-            {sCourses.map((c, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-brand/10 text-brand border border-brand/20"
-              >
-                <BookOpen className="h-3 w-3" />
-                {c.courseTitle}
-              </span>
-            ))}
+        const teacherName = s.assignedTeacher?.name || s.teacher?.name || (typeof s.assignedTeacher === 'string' ? s.assignedTeacher : null);
+        return teacherName ? (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <BookUser className="h-3.5 w-3.5" />
+              <span>{teacherName}</span>
+            </span>
           </div>
         ) : (
-          <span className="text-muted-foreground/40 italic text-xs">Unassigned</span>
+          <span className="text-muted-foreground/50 italic text-xs">Unassigned</span>
+        );
+      },
+    },
+    {
+      key: 'schedule',
+      label: 'Schedule & Timing',
+      render: (s) => {
+        const days = Array.isArray(s.classDays) && s.classDays.length > 0
+          ? s.classDays.map((d) => d.day).join(', ')
+          : (s.classesPerWeek ? `${s.classesPerWeek} days/wk` : '5 days/wk');
+        return (
+          <div className="text-xs space-y-0.5">
+            <p className="font-semibold text-foreground">{days}</p>
+            <p className="text-[10px] text-muted-foreground">{s.classDuration || 60} mins/class</p>
+          </div>
         );
       },
     },

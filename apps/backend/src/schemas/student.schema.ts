@@ -53,6 +53,12 @@ export class StudentProfile {
   @Prop({ type: Number, default: 5 })
   classesPerWeek?: number; // 1 - 7 days
 
+  @Prop({ type: [{ day: String, time: String }], default: [] })
+  classDays?: Array<{ day: string; time: string }>;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  assignedTeacher?: MongooseSchema.Types.ObjectId | string;
+
   @Prop({ default: 'Beginner' })
   tier?: string; // 'Beginner' | 'Intermediate' | 'Advanced'
 
@@ -104,6 +110,13 @@ StudentSchema.virtual('id').get(function (this: Document) {
 StudentSchema.virtual('user', {
   ref: 'User',
   localField: 'userId',
+  foreignField: '_id',
+  justOne: true,
+});
+
+StudentSchema.virtual('teacher', {
+  ref: 'User',
+  localField: 'profile.assignedTeacher',
   foreignField: '_id',
   justOne: true,
 });

@@ -256,6 +256,8 @@ export class ClassSessionsService {
   async findTeacherCalendar(teacherId: string) {
     return this.classSessionModel.find({ teacherId })
       .populate('course', 'title type')
+      .populate('student', 'id name preferredName email timezone studentId profilePicture')
+      .populate('attendances')
       .populate('recording')
       .sort({ scheduledAt: 1 });
   }
@@ -278,11 +280,25 @@ export class ClassSessionsService {
   }
 
   async findSupervisorCalendar(supervisorId: string) {
-    const assignments = await this.supervisorAssignmentModel.find({ supervisorId, isActive: true }, 'courseId');
-    const courseIds = assignments.map((a) => a.courseId);
+    const assignments = await this.supervisorAssignmentModel.find({ supervisorId, isActive: true });
+    const teacherIds = assignments.map((a) => a.teacherId).filter(Boolean);
+    const courseIds = assignments.map((a) => a.courseId).filter(Boolean);
 
-    return this.classSessionModel.find({ courseId: { $in: courseIds } })
+    const query: any = {};
+    if (teacherIds.length > 0 && courseIds.length > 0) {
+      query.$or = [{ teacherId: { $in: teacherIds } }, { courseId: { $in: courseIds } }];
+    } else if (teacherIds.length > 0) {
+      query.teacherId = { $in: teacherIds };
+    } else if (courseIds.length > 0) {
+      query.courseId = { $in: courseIds };
+    } else {
+      return [];
+    }
+
+    return this.classSessionModel.find(query)
       .populate('course', 'title type')
+      .populate('teacher', 'id name email profilePicture')
+      .populate('student', 'id name preferredName email timezone studentId profilePicture')
       .populate('recording')
       .sort({ scheduledAt: 1 });
   }

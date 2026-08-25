@@ -1,9 +1,14 @@
-import { IsMongoId } from 'class-validator';
+import { IsMongoId, IsOptional } from 'class-validator';
 
 export class CreateSupervisorAssignmentDto {
   @IsMongoId()
   supervisorId: string;
 
+  @IsOptional()
   @IsMongoId()
-  courseId: string;
+  teacherId?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  courseId?: string;
 }

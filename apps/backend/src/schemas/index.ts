@@ -32,3 +32,4 @@ export * from './subject-category.schema';
 export * from './reschedule-request.schema';
 export * from './leave-request.schema';
 export * from './leave-balance.schema';
+export * from './material.schema';

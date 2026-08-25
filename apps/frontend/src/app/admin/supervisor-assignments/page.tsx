@@ -17,7 +17,12 @@ interface AssignmentItem {
     name: string;
     email: string;
   };
-  course: {
+  teacher?: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  course?: {
     id: string;
     title: string;
   };
@@ -31,23 +36,24 @@ interface SupervisorItem {
   role: string;
 }
 
-interface CourseItem {
+interface TeacherItem {
   id: string;
-  title: string;
+  name: string;
+  email: string;
 }
 
 export default function SupervisorAssignmentManagement() {
   const { logout } = useAuth();
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [supervisors, setSupervisors] = useState<SupervisorItem[]>([]);
-  const [courses, setCourses] = useState<CourseItem[]>([]);
+  const [teachers, setTeachers] = useState<TeacherItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Assign Supervisor Modal State
   const [showAddModal, setShowAddModal] = useState(false);
   const [supervisorId, setSupervisorId] = useState('');
-  const [courseId, setCourseId] = useState('');
+  const [teacherId, setTeacherId] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -64,29 +70,25 @@ export default function SupervisorAssignmentManagement() {
       const assignData = await assignRes.json();
       setAssignments(Array.isArray(assignData) ? assignData : []);
 
-      // Fetch users to filter supervisors
+      // Fetch users to filter supervisors & teachers
       const usersRes = await fetch(`${API_URL}/users`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
       const usersData = await usersRes.json();
-      const supervisorsOnly = Array.isArray(usersData) ? usersData.filter((u: any) => u.role === 'SUPERVISOR' || u.role === 'REVIEWER') : [];
+      const allUsers = Array.isArray(usersData) ? usersData : [];
+      const supervisorsOnly = allUsers.filter((u: any) => u.role === 'SUPERVISOR' || u.role === 'REVIEWER');
+      const teachersOnly = allUsers.filter((u: any) => u.role === 'TEACHER');
+
       setSupervisors(supervisorsOnly);
+      setTeachers(teachersOnly);
+
       if (supervisorsOnly.length > 0) {
         setSupervisorId(supervisorsOnly[0].id);
       }
-
-      // Fetch courses
-      const courseRes = await fetch(`${API_URL}/courses`, {
-        method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-      });
-      const coursesData = await courseRes.json();
-      setCourses(Array.isArray(coursesData) ? coursesData : []);
-      if (Array.isArray(coursesData) && coursesData.length > 0) {
-        setCourseId(coursesData[0].id);
+      if (teachersOnly.length > 0) {
+        setTeacherId(teachersOnly[0].id);
       }
     } catch (err) {
       console.error('Error loading supervisor assignments data:', err);
@@ -108,7 +110,7 @@ export default function SupervisorAssignmentManagement() {
       const res = await fetch(`${API_URL}/supervisor-assignments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ supervisorId, courseId }),
+        body: JSON.stringify({ supervisorId, teacherId }),
         credentials: 'include',
       });
       const data = await res.json();
@@ -150,7 +152,8 @@ export default function SupervisorAssignmentManagement() {
   const filteredAssignments = assignments.filter((a) => {
     const query = searchQuery.toLowerCase().trim();
     const supName = a.supervisor?.name || a.reviewer?.name || '';
-    return supName.toLowerCase().includes(query) || a.course?.title.toLowerCase().includes(query);
+    const teacherName = a.teacher?.name || a.course?.title || '';
+    return supName.toLowerCase().includes(query) || teacherName.toLowerCase().includes(query);
   });
 
   return (
@@ -158,14 +161,14 @@ export default function SupervisorAssignmentManagement() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
           <h1 className="text-3xl font-display font-bold">Supervisor Assignments</h1>
-          <p className="text-muted-foreground mt-1">Assign quality supervisors to specific courses for monitoring and evaluations.</p>
+          <p className="text-muted-foreground mt-1">Assign quality supervisors to specific teachers for live monitoring, feedback, and class reviews.</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
           className="flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2.5 px-5 rounded-lg shadow-lg hover:shadow-primary/10 transition-all duration-300 outline-none hover-lift self-start"
         >
           <Eye className="h-5 w-5" />
-          <span>Assign Supervisor</span>
+          <span>Assign Supervisor to Teacher</span>
         </button>
       </div>
 
@@ -174,7 +177,7 @@ export default function SupervisorAssignmentManagement() {
         <Search className="h-5 w-5 text-muted-foreground/60" />
         <input
           type="text"
-          placeholder="Search assignments by supervisor name or course title..."
+          placeholder="Search assignments by supervisor name or teacher name..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
@@ -190,7 +193,7 @@ export default function SupervisorAssignmentManagement() {
           </div>
         ) : filteredAssignments.length === 0 ? (
           <div className="py-20 text-center text-muted-foreground text-sm">
-            No supervisor assignments found. Click "Assign Supervisor" to configure one.
+            No supervisor assignments found. Click "Assign Supervisor to Teacher" to configure one.
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -198,7 +201,7 @@ export default function SupervisorAssignmentManagement() {
               <thead>
                 <tr className="border-b border-border bg-card/30">
                   <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Supervisor</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Assigned Course</th>
+                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Assigned Teacher</th>
                   <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Date Configured</th>
                   <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
                 </tr>
@@ -206,6 +209,7 @@ export default function SupervisorAssignmentManagement() {
               <tbody className="divide-y divide-border/40">
                 {filteredAssignments.map((a) => {
                   const supervisorUser = a.supervisor || a.reviewer;
+                  const teacherUser = a.teacher;
                   return (
                     <tr key={a.id} className="hover:bg-card/20 transition-colors">
                       <td className="py-4 px-6">
@@ -213,7 +217,16 @@ export default function SupervisorAssignmentManagement() {
                         <p className="text-xs text-muted-foreground">{supervisorUser?.email || 'N/A'}</p>
                       </td>
                       <td className="py-4 px-6">
-                        <p className="font-semibold text-foreground">{a.course?.title || 'N/A'}</p>
+                        {teacherUser ? (
+                          <div>
+                            <p className="font-semibold text-foreground">{teacherUser.name}</p>
+                            <p className="text-xs text-muted-foreground">{teacherUser.email}</p>
+                          </div>
+                        ) : a.course ? (
+                          <p className="font-semibold text-foreground">{a.course.title}</p>
+                        ) : (
+                          <span className="text-muted-foreground italic">All Teachers</span>
+                        )}
                       </td>
                       <td className="py-4 px-6 text-muted-foreground text-xs">
                         {new Date(a.assignedAt).toLocaleDateString(undefined, {
@@ -244,7 +257,7 @@ export default function SupervisorAssignmentManagement() {
       {showAddModal && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fadeIn">
           <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative">
-            <h2 className="text-2xl font-display font-bold mb-4">Assign Supervisor</h2>
+            <h2 className="text-2xl font-display font-bold mb-4">Assign Supervisor to Teacher</h2>
 
             <form onSubmit={handleAssign} className="space-y-4">
               {submitError && (
@@ -273,18 +286,18 @@ export default function SupervisorAssignmentManagement() {
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Course</label>
-                {courses.length === 0 ? (
-                  <p className="text-xs text-destructive">No active courses registered! Please create a Course first.</p>
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Select Teacher to Supervise</label>
+                {teachers.length === 0 ? (
+                  <p className="text-xs text-destructive">No active teachers found! Please create a Teacher account first.</p>
                 ) : (
                   <select
-                    value={courseId}
-                    onChange={(e) => setCourseId(e.target.value)}
+                    value={teacherId}
+                    onChange={(e) => setTeacherId(e.target.value)}
                     className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none transition-all duration-300"
                   >
-                    {courses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.title}
+                    {teachers.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name} ({t.email})
                       </option>
                     ))}
                   </select>
@@ -301,11 +314,11 @@ export default function SupervisorAssignmentManagement() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || supervisors.length === 0 || courses.length === 0}
+                  disabled={submitting || supervisors.length === 0 || teachers.length === 0}
                   className="bg-primary hover:bg-primary/90 text-primary-foreground py-2 px-4 rounded-lg text-sm font-semibold transition-all duration-300 shadow-md hover:shadow-primary/10 flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  <span>Assign</span>
+                  <span>Assign Teacher</span>
                 </button>
               </div>
             </form>
