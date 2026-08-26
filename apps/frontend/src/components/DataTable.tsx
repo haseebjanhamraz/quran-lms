@@ -1,7 +1,15 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ArrowUpDown } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Loader2, ArrowUpDown, Filter, ChevronDown, Check } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 export interface Column<T> {
   key: string;
@@ -23,6 +31,7 @@ interface DataTableProps<T> {
   searchKeys?: string[];
   searchPlaceholder?: string;
   filters?: FilterOption[];
+  filterVariant?: 'buttons' | 'dropdown';
   initialItemsPerPage?: number;
   itemsPerPageOptions?: number[];
   loading?: boolean;
@@ -36,6 +45,7 @@ export default function DataTable<T extends Record<string, any>>({
   searchKeys = ['name', 'email'],
   searchPlaceholder = 'Search records...',
   filters = [],
+  filterVariant = 'buttons',
   initialItemsPerPage = 10,
   itemsPerPageOptions = [5, 10, 20, 50, 100],
   loading = false,
@@ -150,26 +160,62 @@ export default function DataTable<T extends Record<string, any>>({
           />
         </div>
 
-        {/* Filter Badges */}
+        {/* Filters (Dropdown or Badges) */}
         {filters.length > 0 && (
-          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
-            {filters.map((filter) => (
-              <button
-                key={filter.key}
-                type="button"
-                onClick={() => {
-                  setActiveFilterKey(filter.key);
-                  setCurrentPage(1);
-                }}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-                  activeFilterKey === filter.key
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'bg-card hover:bg-muted text-muted-foreground border border-border/40'
-                }`}
-              >
-                {filter.label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 self-start md:self-auto">
+            {filterVariant === 'dropdown' ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-background border border-border text-foreground hover:bg-muted/80 shadow-sm transition-all">
+                  <Filter className="h-3.5 w-3.5 text-brand" />
+                  <span>
+                    {filters.find((f) => f.key === activeFilterKey)?.label || 'All Filters'}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground ml-1" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>Filter Records</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {filters.map((filter) => {
+                    const isSelected = activeFilterKey === filter.key;
+                    return (
+                      <DropdownMenuItem
+                        key={filter.key}
+                        onClick={() => {
+                          setActiveFilterKey(filter.key);
+                          setCurrentPage(1);
+                        }}
+                        className="flex items-center justify-between"
+                      >
+                        <span className={isSelected ? 'font-bold text-foreground' : ''}>
+                          {filter.label}
+                        </span>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-brand ml-2 shrink-0" />}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0">
+                {filters.map((filter) => (
+                  <button
+                    key={filter.key}
+                    type="button"
+                    onClick={() => {
+                      setActiveFilterKey(filter.key);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
+                      activeFilterKey === filter.key
+                        ? 'bg-primary text-primary-foreground shadow-sm'
+                        : 'bg-card hover:bg-muted text-muted-foreground border border-border/40'
+                    }`}
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

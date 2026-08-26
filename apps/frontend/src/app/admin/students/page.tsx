@@ -2,13 +2,21 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Edit, Trash2, GraduationCap, Users, CheckCircle, AlertCircle, User as UserIcon, Eye, BookOpen, BookUser, Filter
+  Plus, Edit, Trash2, GraduationCap, Users, CheckCircle, AlertCircle, User as UserIcon, Eye, BookOpen, BookUser, Filter, MoreHorizontal
 } from 'lucide-react';
 import AdmissionWizard from '@/components/AdmissionWizard';
 import StudentDetailModal from '@/components/StudentDetailModal';
 import QuickAssignModal from '@/components/QuickAssignModal';
 import DataTable, { Column, FilterOption } from '@/components/DataTable';
 import { apiFetch } from '@/utils/apiFetch';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 interface StudentUser {
   id: string;
@@ -269,21 +277,21 @@ export default function StudentsManagementPage() {
         );
       },
     },
-    {
-      key: 'schedule',
-      label: 'Schedule & Timing',
-      render: (s) => {
-        const days = Array.isArray(s.classDays) && s.classDays.length > 0
-          ? s.classDays.map((d) => d.day).join(', ')
-          : (s.classesPerWeek ? `${s.classesPerWeek} days/wk` : '5 days/wk');
-        return (
-          <div className="text-xs space-y-0.5">
-            <p className="font-semibold text-foreground">{days}</p>
-            <p className="text-[10px] text-muted-foreground">{s.classDuration || 60} mins/class</p>
-          </div>
-        );
-      },
-    },
+    // {
+    //   key: 'schedule',
+    //   label: 'Schedule & Timing',
+    //   render: (s) => {
+    //     const days = Array.isArray(s.classDays) && s.classDays.length > 0
+    //       ? s.classDays.map((d) => d.day).join(', ')
+    //       : (s.classesPerWeek ? `${s.classesPerWeek} days/wk` : '5 days/wk');
+    //     return (
+    //       <div className="text-xs space-y-0.5">
+    //         <p className="font-semibold text-foreground">{days}</p>
+    //         <p className="text-[10px] text-muted-foreground">{s.classDuration || 60} mins/class</p>
+    //       </div>
+    //     );
+    //   },
+    // },
     {
       key: 'dob',
       label: 'Age / Type',
@@ -303,23 +311,23 @@ export default function StudentsManagementPage() {
         );
       },
     },
-    {
-      key: 'guardianName',
-      label: 'Guardian Contact',
-      sortable: true,
-      render: (s) => (
-        <div className="text-xs">
-          {s.guardianName ? (
-            <div>
-              <p className="font-semibold text-foreground">{s.guardianName}</p>
-              <p className="text-[10px] text-muted-foreground">{s.guardianPhone || s.guardianEmail || 'No contact'}</p>
-            </div>
-          ) : (
-            <span className="text-muted-foreground italic">Self / N/A</span>
-          )}
-        </div>
-      ),
-    },
+    // {
+    //   key: 'guardianName',
+    //   label: 'Guardian Contact',
+    //   sortable: true,
+    //   render: (s) => (
+    //     <div className="text-xs">
+    //       {s.guardianName ? (
+    //         <div>
+    //           <p className="font-semibold text-foreground">{s.guardianName}</p>
+    //           <p className="text-[10px] text-muted-foreground">{s.guardianPhone || s.guardianEmail || 'No contact'}</p>
+    //         </div>
+    //       ) : (
+    //         <span className="text-muted-foreground italic">Self / N/A</span>
+    //       )}
+    //     </div>
+    //   ),
+    // },
     {
       key: 'isActive',
       label: 'Status',
@@ -349,50 +357,50 @@ export default function StudentsManagementPage() {
       label: 'Actions',
       align: 'right',
       render: (s) => (
-        <div className="flex justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => setViewingStudent(s)}
-            className="text-muted-foreground hover:text-primary transition-colors p-2 hover:bg-primary/10 rounded-lg"
-            title="View Full Student Details & Classes"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickAssignState({ isOpen: true, mode: 'course', student: s })}
-            className="text-muted-foreground hover:text-brand transition-colors p-2 hover:bg-brand/10 rounded-lg"
-            title="Quick Assign Course"
-          >
-            <BookOpen className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickAssignState({ isOpen: true, mode: 'teacher', student: s })}
-            className="text-muted-foreground hover:text-blue-500 transition-colors p-2 hover:bg-blue-500/10 rounded-lg"
-            title="Quick Assign Teacher"
-          >
-            <BookUser className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingStudent(s);
-              setShowWizard(true);
-            }}
-            className="text-muted-foreground hover:text-amber-500 transition-colors p-2 hover:bg-amber-500/10 rounded-lg"
-            title="Edit Student Profile (Reuses Admission Wizard)"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteStudent(s.id || s._id || '')}
-            className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
-            title="Delete Account"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="h-8 w-8 rounded-lg p-0 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-transparent hover:border-border transition-colors">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Open student actions</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>Student Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setViewingStudent(s)}>
+                <Eye className="mr-2 h-4 w-4 text-blue-500" />
+                <span>View Full Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickAssignState({ isOpen: true, mode: 'course', student: s })}
+              >
+                <BookOpen className="mr-2 h-4 w-4 text-brand" />
+                <span>Assign Course</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setQuickAssignState({ isOpen: true, mode: 'teacher', student: s })}
+              >
+                <BookUser className="mr-2 h-4 w-4 text-emerald-500" />
+                <span>Assign Teacher</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingStudent(s);
+                  setShowWizard(true);
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4 text-amber-500" />
+                <span>Edit Student</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => handleDeleteStudent(s.id || s._id || '')}
+              >
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                <span>Delete Account</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },
@@ -516,6 +524,7 @@ export default function StudentsManagementPage() {
         searchKeys={['name', 'email', 'studentId', 'guardianName']}
         searchPlaceholder="Search students by name, email, guardian, or ID..."
         filters={filterOptions}
+        filterVariant="dropdown"
         initialItemsPerPage={10}
         itemsPerPageOptions={[5, 10, 20, 50, 100]}
         loading={loading}

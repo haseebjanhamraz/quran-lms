@@ -9,42 +9,52 @@
 
 @layer base {
   :root {
-    --background: 217 60% 98%;
-    --foreground: 222 47% 11%;
+    /* Main Background & Deep Black Typography */
+    --background: 215 100% 98%;          /* Crisp clean slate-blue canvas #F5F8FC */
+    --foreground: 222 47% 11%;            /* Rich solid black-slate text #0F172A */
 
-    --card: 0 0% 100%;
+    /* Cards & Popovers */
+    --card: 0 0% 100%;                   /* Pure white card */
     --card-foreground: 222 47% 11%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 220 40% 12%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 250 100% 50%;
-    --primary-foreground: 355 0% 100%;
+    /* Primary Accent: Electric Royal Blue */
+    --primary: 221 83% 53%;              /* #2563EB Vibrant Royal Blue */
+    --primary-foreground: 0 0% 100%;      /* #FFFFFF */
 
-    --secondary: 40 25% 90%;
-    --secondary-foreground: 156 72% 22%;
+    /* Secondary */
+    --secondary: 214 32% 91%;            /* #E2E8F0 */
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 15% 92%;
-    --muted-foreground: 220 15% 45%;
+    /* Muted Slate */
+    --muted: 214 32% 93%;                /* #EEF2F6 */
+    --muted-foreground: 215 16% 47%;     /* #64748B */
 
-    --accent: 38 92% 50%;
-    --accent-foreground: 220 40% 12%;
+    /* Accent: Bright Cyan/Blue */
+    --accent: 217 91% 60%;               /* #3B82F6 */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84% 60%;
+    /* Destructive */
+    --destructive: 0 84% 60%;            /* #EF4444 */
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 15% 85%;
-    --input: 220 15% 90%;
-    --ring: 156 72% 22%;
+    /* Borders & Inputs */
+    --border: 214 32% 88%;               /* #CBD5E1 */
+    --input: 214 32% 88%;
+    --ring: 221 83% 53%;                 /* #2563EB Focus ring */
 
-    --sidebar-bg: 210 95% 22%;
-    --sidebar-foreground: 40 25% 95%;
-    --sidebar-border: 168 30% 18%;
+    /* Dark Black Navigation / Sidebar in Light Mode */
+    --sidebar-bg: 222 47% 8%;            /* #0B101B Premium Black Header / Sidebar */
+    --sidebar-foreground: 210 40% 98%;    /* Crisp white text */
+    --sidebar-border: 222 47% 14%;       /* #131D2E */
 
-    --brand-gold: 40 75% 42%;
+    /* Brand Blue */
+    --brand-gold: 217 91% 60%;           /* #3B82F6 Vibrant Brand Blue */
     --brand-gold-foreground: 0 0% 100%;
 
-    --surface: 220 15% 94%;
+    --surface: 214 32% 95%;
     --header-bg: 0 0% 100%;
 
     --radius: 0.75rem;
@@ -52,43 +62,53 @@
   }
 
   .dark {
-    --background: 220 25% 8%;
-    --foreground: 210 20% 96%;
+    /* True Deep Obsidian Black & Electric Blue Glow */
+    --background: 224 71% 4%;            /* #030712 True deep obsidian black */
+    --foreground: 210 40% 98%;            /* #F8FAFC Crisp bright white */
 
-    --card: 220 25% 12%;
-    --card-foreground: 210 20% 96%;
+    /* Dark elevated cards with subtle blue-black tint */
+    --card: 222 47% 7%;                  /* #090D18 Deep Black Card */
+    --card-foreground: 210 40% 98%;
 
-    --popover: 220 25% 12%;
-    --popover-foreground: 210 20% 96%;
+    --popover: 222 47% 7%;
+    --popover-foreground: 210 40% 98%;
 
-    --primary: 158 64% 52%;
-    --primary-foreground: 220 25% 8%;
+    /* Primary Electric Blue */
+    --primary: 217 91% 60%;              /* #3B82F6 Glowing Royal Blue */
+    --primary-foreground: 0 0% 100%;      /* Pure white text */
 
-    --secondary: 220 20% 18%;
-    --secondary-foreground: 158 64% 52%;
+    /* Secondary */
+    --secondary: 222 47% 13%;            /* #121929 */
+    --secondary-foreground: 210 40% 98%;
 
-    --muted: 220 20% 18%;
-    --muted-foreground: 220 10% 65%;
+    /* Muted */
+    --muted: 222 47% 11%;                /* #0E1524 */
+    --muted-foreground: 215 20% 65%;     /* #94A3B8 Soft legible slate */
 
-    --accent: 43 96% 60%;
-    --accent-foreground: 220 25% 8%;
+    /* Accent */
+    --accent: 217 91% 60%;               /* #3B82F6 */
+    --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 210 20% 96%;
+    /* Destructive */
+    --destructive: 0 72% 51%;            /* #DC2626 */
+    --destructive-foreground: 210 40% 98%;
 
-    --border: 220 20% 18%;
-    --input: 220 20% 18%;
-    --ring: 158 64% 52%;
+    /* Borders & Inputs */
+    --border: 222 47% 13%;               /* #121A29 Deep contrast border */
+    --input: 222 47% 13%;
+    --ring: 217 91% 60%;                 /* #3B82F6 Glowing blue ring */
 
-    --sidebar-bg: 172 63% 11%;
-    --sidebar-foreground: 210 20% 96%;
-    --sidebar-border: 220 20% 18%;
+    /* Sidebar / Header in Dark Mode */
+    --sidebar-bg: 224 71% 3%;            /* #02050E Absolute Obsidian Black */
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-border: 222 47% 10%;       /* #0C1220 */
 
-    --brand-gold: 43 80% 54%;
-    --brand-gold-foreground: 220 25% 8%;
+    /* Brand Blue */
+    --brand-gold: 217 91% 60%;           /* #3B82F6 */
+    --brand-gold-foreground: 0 0% 100%;
 
-    --surface: 220 25% 14%;
-    --header-bg: 220 25% 10%;
+    --surface: 222 47% 8%;
+    --header-bg: 224 71% 4%;
 
     color-scheme: dark;
   }
@@ -100,18 +120,18 @@
   }
 
   body {
-    @apply bg-background text-foreground antialiased selection:bg-primary/20 transition-colors duration-300;
+    @apply bg-background text-foreground antialiased selection:bg-primary/25 selection:text-white transition-colors duration-300;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
   }
 }
 
 /* Glassmorphism Classes */
 .glass-panel {
-  @apply bg-white/70 dark:bg-card/70 backdrop-blur-md border border-white/20 dark:border-white/5;
+  @apply bg-white/80 dark:bg-card/85 backdrop-blur-xl border border-border/80 dark:border-white/10 shadow-sm dark:shadow-2xl;
 }
 
 .glass-card {
-  @apply bg-white/40 dark:bg-card/40 backdrop-blur-lg border border-white/10 dark:border-white/5 shadow-xl;
+  @apply bg-white/50 dark:bg-card/50 backdrop-blur-xl border border-border/60 dark:border-white/10 shadow-xl;
 }
 
 /* Custom Micro-animations */
@@ -134,5 +154,5 @@
 }
 
 .hover-lift {
-  @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/5;
+  @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-lg hover:shadow-primary/10;
 }

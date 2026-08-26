@@ -7,6 +7,7 @@ import {
   Activity, ShieldAlert, Award, VideoOff, FileText
 } from 'lucide-react';
 import { getCountryByCode } from '@/utils/countries';
+import StudentTimetableGrid from '@/components/StudentTimetableGrid';
 
 interface StudentUser {
   id: string;
@@ -81,7 +82,7 @@ export default function StudentDetailModal({
   onAssignCourse,
   onAssignTeacher,
 }: StudentDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'guardian' | 'notes'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'timetable' | 'courses' | 'guardian' | 'notes'>('overview');
   const [enrollments, setEnrollments] = useState<EnrollmentDetail[]>([]);
   const [loadingEnrollments, setLoadingEnrollments] = useState(false);
 
@@ -156,13 +157,12 @@ export default function StudentDetailModal({
                   {student.studentId ? `STU-${student.studentId}` : 'STU-NEW'}
                 </span>
                 {student.tier && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                    student.tier === 'Beginner'
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${student.tier === 'Beginner'
                       ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
                       : student.tier === 'Intermediate'
-                      ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                      : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                  }`}>
+                        ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                        : 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                    }`}>
                     {student.tier} Tier
                   </span>
                 )}
@@ -253,8 +253,8 @@ export default function StudentDetailModal({
               </p>
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${student.isActive && !student.discontinued && !student.isDiscontinued
-                    ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                    : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
                   }`}>
                   {student.isActive && !student.discontinued && !student.isDiscontinued ? 'Active Student' : 'Inactive'}
                 </span>
@@ -278,29 +278,41 @@ export default function StudentDetailModal({
 
           {/* Quick Metrics */}
           <div className="flex items-center gap-4 w-full sm:w-auto justify-around sm:justify-end border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6">
-            <div className="text-center">
+            <button
+              type="button"
+              onClick={() => setActiveTab('timetable')}
+              className="text-center hover:scale-105 transition-transform"
+            >
               <p className="text-xl font-bold font-mono text-brand">{student.classDuration || 60}m</p>
               <p className="text-[10px] text-muted-foreground font-semibold uppercase">Class Duration</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold font-mono text-blue-500">{student.classesPerWeek || 5} d/wk</p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('timetable')}
+              className="text-center hover:scale-105 transition-transform"
+            >
+              <p className="text-xl font-bold font-mono text-blue-500">{student.classDays?.length || student.classesPerWeek || 5} d/wk</p>
               <p className="text-[10px] text-muted-foreground font-semibold uppercase">Schedule</p>
-            </div>
-            <div className="text-center">
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('courses')}
+              className="text-center hover:scale-105 transition-transform"
+            >
               <p className="text-xl font-bold font-mono text-emerald-500">{enrollments.length}</p>
               <p className="text-[10px] text-muted-foreground font-semibold uppercase">Courses</p>
-            </div>
+            </button>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-border/60 pb-3 mb-5 z-10 shrink-0">
+        <div className="flex items-center gap-2 border-b border-border/60 pb-3 mb-5 z-10 shrink-0 overflow-x-auto">
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'overview'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'overview'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
           >
             <User className="h-4 w-4" />
@@ -309,10 +321,22 @@ export default function StudentDetailModal({
 
           <button
             type="button"
+            onClick={() => setActiveTab('timetable')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'timetable'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Weekly Timetable ({student.classDays?.length || student.classesPerWeek || 0}d/wk)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('courses')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'courses'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'courses'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
           >
             <BookOpen className="h-4 w-4" />
@@ -322,9 +346,9 @@ export default function StudentDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('guardian')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'guardian'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'guardian'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
           >
             <Shield className="h-4 w-4" />
@@ -334,9 +358,9 @@ export default function StudentDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('notes')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === 'notes'
-                ? 'bg-primary text-primary-foreground shadow-md'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${activeTab === 'notes'
+              ? 'bg-primary text-primary-foreground shadow-md'
+              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               }`}
           >
             <FileText className="h-4 w-4" />
@@ -346,6 +370,19 @@ export default function StudentDetailModal({
 
         {/* Tab Content Body (Scrollable) */}
         <div className="flex-1 overflow-y-auto pr-1 z-10 space-y-6">
+          {/* TAB: TIMETABLE */}
+          {activeTab === 'timetable' && (
+            <StudentTimetableGrid
+              studentId={student.id || student._id || ''}
+              studentName={student.name}
+              classDays={student.classDays || []}
+              classDuration={student.classDuration || 60}
+              assignedTeacher={student.assignedTeacher || student.teacher}
+              timezone={student.timezone || 'UTC'}
+              tier={student.tier || 'Beginner'}
+            />
+          )}
+
           {/* TAB 1: OVERVIEW & DEMOGRAPHICS */}
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 animate-fadeIn">
@@ -421,11 +458,21 @@ export default function StudentDetailModal({
                     <span className="font-bold text-foreground">{student.classDays?.length || student.classesPerWeek || 5} Days / Week</span>
                   </div>
                   {Array.isArray(student.classDays) && student.classDays.length > 0 && (
-                    <div className="py-1 border-b border-border/30 space-y-1">
-                      <span className="text-muted-foreground font-medium">Scheduled Days &amp; Timings:</span>
+                    <div className="py-1 border-b border-border/30 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground font-medium">Scheduled Days &amp; Timings:</span>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('timetable')}
+                          className="text-[11px] font-bold text-brand hover:underline flex items-center gap-1"
+                        >
+                          <Clock className="h-3 w-3" />
+                          <span>View Timetable</span>
+                        </button>
+                      </div>
                       <div className="flex flex-wrap gap-1 mt-1">
                         {student.classDays.map((slot) => (
-                          <span key={slot.day} className="px-2 py-0.5 rounded bg-muted text-[11px] font-mono font-semibold">
+                          <span key={slot.day} className="px-2 py-0.5 rounded-lg bg-brand/10 text-brand border border-brand/20 text-[11px] font-mono font-bold">
                             {slot.day} ({slot.time})
                           </span>
                         ))}

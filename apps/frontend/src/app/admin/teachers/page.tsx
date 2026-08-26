@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, Edit, Eye, XCircle, User as UserIcon,
-  BookUser, DollarSign, CheckCircle, AlertCircle, ShieldCheck, BookOpen
+  BookUser, DollarSign, CheckCircle, AlertCircle, ShieldCheck, BookOpen, MoreHorizontal
 } from 'lucide-react';
 import TeacherWizard from '@/components/TeacherWizard';
 import TeacherDetailModal from '@/components/TeacherDetailModal';
@@ -11,6 +11,14 @@ import TeacherCourseAssignmentModal from '@/components/TeacherCourseAssignmentMo
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
 import DataTable, { Column, FilterOption } from '@/components/DataTable';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
 
 interface GuarantorItem {
   name: string;
@@ -232,42 +240,42 @@ export default function TeachersManagementPage() {
       label: 'Actions',
       align: 'right',
       render: (t) => (
-        <div className="flex justify-end gap-1">
-          <button
-            type="button"
-            onClick={() => setAssigningTeacher(t)}
-            className="text-brand hover:text-brand-foreground transition-colors p-2 hover:bg-brand/10 rounded-lg"
-            title="Assign Multiple Courses"
-          >
-            <BookOpen className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewingTeacher(t)}
-            className="text-muted-foreground hover:text-primary transition-colors p-2 hover:bg-primary/10 rounded-lg"
-            title="View Full Teacher Details & Classes"
-          >
-            <Eye className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setEditingTeacher(t);
-              setIsWizardOpen(true);
-            }}
-            className="text-muted-foreground hover:text-foreground transition-colors p-2 hover:bg-muted rounded-lg"
-            title="Edit Teacher Profile"
-          >
-            <Edit className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDeleteTeacher(t.id || t._id || '')}
-            className="text-muted-foreground hover:text-destructive transition-colors p-2 hover:bg-destructive/10 rounded-lg"
-            title="Delete Teacher Account"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+        <div className="flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger className="h-8 w-8 rounded-lg p-0 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-transparent hover:border-border transition-colors">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">Open teacher actions</span>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuLabel>Teacher Actions</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setViewingTeacher(t)}>
+                <Eye className="mr-2 h-4 w-4 text-blue-500" />
+                <span>View Full Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setAssigningTeacher(t)}>
+                <BookOpen className="mr-2 h-4 w-4 text-brand" />
+                <span>Assign Courses</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setEditingTeacher(t);
+                  setIsWizardOpen(true);
+                }}
+              >
+                <Edit className="mr-2 h-4 w-4 text-amber-500" />
+                <span>Edit Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => handleDeleteTeacher(t.id || t._id || '')}
+              >
+                <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                <span>Delete Account</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       ),
     },
@@ -349,6 +357,7 @@ export default function TeachersManagementPage() {
         searchKeys={['name', 'email', 'employeeId', 'specialization', 'qualification']}
         searchPlaceholder="Search teachers by name, email, employee ID, specialization, or qualification..."
         filters={filterOptions}
+        filterVariant="dropdown"
         initialItemsPerPage={10}
         itemsPerPageOptions={[5, 10, 20, 50, 100]}
         loading={loading}
@@ -429,7 +438,7 @@ export default function TeachersManagementPage() {
         isOpen={Boolean(assigningTeacher)}
         teacher={assigningTeacher}
         onClose={() => setAssigningTeacher(null)}
-        onSuccess={() => fetchData()}
+        onSuccess={() => fetchTeachers()}
       />
     </div>
   );

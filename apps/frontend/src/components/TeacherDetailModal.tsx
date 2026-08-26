@@ -72,7 +72,7 @@ export default function TeacherDetailModal({
   onClose,
   onEdit,
 }: TeacherDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'overview' | 'students' | 'courses' | 'guarantors'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'timetable' | 'students' | 'courses' | 'guarantors'>('overview');
   const [courses, setCourses] = useState<AssignedCourse[]>([]);
   const [assignedStudents, setAssignedStudents] = useState<any[]>([]);
   const [assignedSlotsCount, setAssignedSlotsCount] = useState<number>(0);
@@ -326,24 +326,58 @@ export default function TeacherDetailModal({
 
           {/* Quick Metrics */}
           <div className="flex items-center gap-4 w-full sm:w-auto justify-around sm:justify-end border-t sm:border-t-0 sm:border-l border-border pt-4 sm:pt-0 sm:pl-6">
-            <div className="text-center">
-              <p className="text-xl font-bold font-mono text-brand">{assignedSlotsCount || courses.length}</p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Assigned Classes</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold font-mono text-blue-500">{uniqueStudents.length}</p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Assigned Students</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold font-mono text-emerald-500">
+            <button
+              type="button"
+              onClick={() => setActiveTab('timetable')}
+              className="text-center p-2 rounded-xl hover:bg-muted/60 transition-all cursor-pointer group"
+              title="Click to view weekly timetable"
+            >
+              <p className="text-xl font-bold font-mono text-brand group-hover:scale-110 transition-transform">
+                {assignedSlotsCount || courses.length}
+              </p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase group-hover:text-brand transition-colors">
+                Timetable Slots
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('students')}
+              className="text-center p-2 rounded-xl hover:bg-muted/60 transition-all cursor-pointer group"
+              title="Click to view assigned students"
+            >
+              <p className="text-xl font-bold font-mono text-blue-500 group-hover:scale-110 transition-transform">
+                {uniqueStudents.length}
+              </p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase group-hover:text-blue-500 transition-colors">
+                Assigned Students
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('overview')}
+              className="text-center p-2 rounded-xl hover:bg-muted/60 transition-all cursor-pointer group"
+              title="Click to view payroll"
+            >
+              <p className="text-xl font-bold font-mono text-emerald-500 group-hover:scale-110 transition-transform">
                 {teacher.salary ? `${teacher.currency || 'PKR'} ${teacher.salary.toLocaleString()}` : '—'}
               </p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Monthly Pay</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold font-mono text-foreground">{teacher.guarantors?.length || 0}</p>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase">Guarantors</p>
-            </div>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase group-hover:text-emerald-500 transition-colors">
+                Monthly Pay
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('guarantors')}
+              className="text-center p-2 rounded-xl hover:bg-muted/60 transition-all cursor-pointer group"
+              title="Click to view guarantors"
+            >
+              <p className="text-xl font-bold font-mono text-foreground group-hover:scale-110 transition-transform">
+                {teacher.guarantors?.length || 0}
+              </p>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase group-hover:text-foreground transition-colors">
+                Guarantors
+              </p>
+            </button>
           </div>
         </div>
 
@@ -352,10 +386,11 @@ export default function TeacherDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('overview')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'overview'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+              activeTab === 'overview'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
           >
             <User className="h-4 w-4" />
             <span>Personal & Professional</span>
@@ -363,11 +398,25 @@ export default function TeacherDetailModal({
 
           <button
             type="button"
+            onClick={() => setActiveTab('timetable')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+              activeTab === 'timetable'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
+          >
+            <Calendar className="h-4 w-4" />
+            <span>Weekly Timetable ({assignedSlotsCount} Slots)</span>
+          </button>
+
+          <button
+            type="button"
             onClick={() => setActiveTab('students')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'students'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+              activeTab === 'students'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
           >
             <GraduationCap className="h-4 w-4" />
             <span>Assigned Students ({uniqueStudents.length})</span>
@@ -376,10 +425,11 @@ export default function TeacherDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('courses')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'courses'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+              activeTab === 'courses'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
           >
             <BookOpen className="h-4 w-4" />
             <span>Assigned Courses ({courses.length})</span>
@@ -388,10 +438,11 @@ export default function TeacherDetailModal({
           <button
             type="button"
             onClick={() => setActiveTab('guarantors')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${activeTab === 'guarantors'
-              ? 'bg-primary text-primary-foreground shadow-md'
-              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-              }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all shrink-0 ${
+              activeTab === 'guarantors'
+                ? 'bg-primary text-primary-foreground shadow-md'
+                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+            }`}
           >
             <ShieldCheck className="h-4 w-4" />
             <span>Guarantors & Verification ({teacher.guarantors?.length || 0})</span>
@@ -472,11 +523,22 @@ export default function TeacherDetailModal({
                       {teacher.canEditProfile !== false ? 'Allowed' : 'Disabled'}
                     </span>
                   </div>
-                  <div className="flex justify-between py-1">
+                  <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Account Status:</span>
                     <span className={`font-bold ${teacher.isActive ? 'text-emerald-500' : 'text-rose-500'}`}>
                       {teacher.isActive ? 'Active Account' : 'Suspended / Inactive'}
                     </span>
+                  </div>
+                  <div className="pt-2 flex items-center justify-between">
+                    <span className="text-muted-foreground font-medium">Weekly Schedule:</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('timetable')}
+                      className="text-xs font-bold text-brand hover:underline flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Calendar className="h-3.5 w-3.5" />
+                      <span>View Timetable ({assignedSlotsCount} Slots)</span>
+                    </button>
                   </div>
                 </div>
               </div>
@@ -494,7 +556,21 @@ export default function TeacherDetailModal({
             </div>
           )}
 
-          {/* TAB 2: ASSIGNED STUDENTS */}
+          {/* TAB 2: WEEKLY TIMETABLE SCHEDULE */}
+          {activeTab === 'timetable' && (
+            <div className="space-y-6 animate-fadeIn">
+              <TeacherTimetableGrid
+                teacherId={teacher.id || teacher._id || ''}
+                teacherName={teacher.name}
+                timezone={teacher.timezone || 'UTC'}
+                specialization={teacher.specialization || 'Tajweed & Quranic Studies'}
+                coursesCount={courses.length}
+                studentsCount={uniqueStudents.length}
+              />
+            </div>
+          )}
+
+          {/* TAB 3: ASSIGNED STUDENTS */}
           {activeTab === 'students' && (
             <div className="space-y-4 animate-fadeIn">
               <div className="flex items-center justify-between">
@@ -636,22 +712,10 @@ export default function TeacherDetailModal({
                   ))}
                 </div>
               )}
-
-              {/* Reusable Weekly Timetable Grid */}
-              <div className="pt-4 border-t border-border/60">
-                <h4 className="text-sm font-bold text-foreground mb-3 flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-brand" />
-                  <span>Teacher Weekly Timetable Schedule</span>
-                </h4>
-                <TeacherTimetableGrid
-                  teacherId={teacher.id || teacher._id || ''}
-                  teacherName={teacher.name}
-                />
-              </div>
             </div>
           )}
 
-          {/* TAB 4: GUARANTORS & VERIFICATION */}
+          {/* TAB 5: GUARANTORS & VERIFICATION */}
           {activeTab === 'guarantors' && (
             <div className="space-y-4 animate-fadeIn">
               <h4 className="text-sm font-bold text-foreground flex items-center gap-2 border-b border-border/40 pb-2">
