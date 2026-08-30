@@ -26,7 +26,16 @@ async function bootstrap() {
   // Serve static uploads directory for profile photos & media
   const express = require('express');
   const path = require('path');
+  const fs = require('fs');
   const uploadsPath = process.env.UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+  const materialsPath = path.join(uploadsPath, 'materials');
+  const avatarsPath = path.join(uploadsPath, 'avatars');
+  if (!fs.existsSync(materialsPath)) {
+    fs.mkdirSync(materialsPath, { recursive: true });
+  }
+  if (!fs.existsSync(avatarsPath)) {
+    fs.mkdirSync(avatarsPath, { recursive: true });
+  }
   app.use('/uploads', express.static(uploadsPath));
   app.use('/api/v1/uploads', express.static(uploadsPath));
 

@@ -12,6 +12,13 @@ export enum Role {
   HR = 'HR',
 }
 
+export enum AccountStatus {
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  TERMINATED = 'TERMINATED',
+  ON_LEAVE = 'ON_LEAVE',
+}
+
 @Schema({ timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } })
 export class User {
   @Prop({ required: true })
@@ -31,6 +38,15 @@ export class User {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  @Prop({ default: AccountStatus.ACTIVE, enum: AccountStatus })
+  accountStatus: AccountStatus;
+
+  @Prop()
+  accountStatusReason?: string;
+
+  @Prop()
+  statusUpdatedAt?: Date;
 
   @Prop({ default: false })
   cameraRestricted: boolean;

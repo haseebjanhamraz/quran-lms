@@ -11,6 +11,7 @@ import {
   Activity,
   Sparkles,
 } from 'lucide-react';
+import VersionBadge from '@/components/VersionBadge';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -449,6 +450,9 @@ export default function AdminDashboardPage() {
           </section>
         </div>
       </div>
+
+      {/* Version & System Information Footer Badge */}
+      <VersionBadge className="mt-8" />
     </div>
   );
 }

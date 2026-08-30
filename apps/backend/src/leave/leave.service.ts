@@ -4,7 +4,7 @@ import { Model } from 'mongoose';
 import {
   LeaveRequest, LeaveRequestDocument, LeaveStatus, LeaveType,
   LeaveBalance, LeaveBalanceDocument,
-  User, UserDocument, Role,
+  User, UserDocument, Role, AccountStatus,
   NotificationType,
 } from '../schemas';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
@@ -252,6 +252,17 @@ export class LeaveService {
 
     balance.used[typeKey] = (balance.used[typeKey] || 0) + leave.totalDays;
     await balance.save();
+
+    // Auto-update teacher accountStatus to ON_LEAVE
+    try {
+      await this.userModel.findByIdAndUpdate(teacherIdStr, {
+        $set: {
+          accountStatus: AccountStatus.ON_LEAVE,
+          accountStatusReason: `Approved ${leave.leaveType} leave from ${new Date(leave.startDate).toLocaleDateString()} to ${new Date(leave.endDate).toLocaleDateString()}`,
+          statusUpdatedAt: new Date(),
+        },
+      });
+    } catch (_) {}
 
     // Send in-app notification to teacher
     await this.notificationsService.createNotification(

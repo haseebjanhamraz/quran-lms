@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Clock, Calendar, Search, Trash2, Move,
   CheckCircle2, PlayCircle, Video, User, BookOpen, AlertCircle, RefreshCw,
-  Sparkles, LayoutGrid, List
+  Sparkles, LayoutGrid, List, Zap
 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
@@ -624,6 +624,11 @@ export default function DailyScheduleView({
                             <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                             Live Now
                           </span>
+                        ) : session?.status === 'ACTIVATED' ? (
+                          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-bold shadow-md animate-pulse">
+                            <Zap className="w-3.5 h-3.5" />
+                            Activated
+                          </span>
                         ) : isCompleted ? (
                           <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted border border-border text-muted-foreground text-[10px] font-bold uppercase">
                             <CheckCircle2 className="w-3 h-3 text-emerald-500" /> Completed
@@ -847,6 +852,10 @@ export default function DailyScheduleView({
                           {isLive ? (
                             <span className="inline-flex items-center gap-1.5 bg-emerald-500 text-white text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider shadow-sm animate-pulse">
                               <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" /> Live Now
+                            </span>
+                          ) : session?.status === 'ACTIVATED' ? (
+                            <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse">
+                              <Zap className="w-3 h-3" /> Activated
                             </span>
                           ) : assignment || session ? (
                             <span className="inline-flex items-center gap-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-extrabold px-2.5 py-1 rounded-full uppercase tracking-wider">

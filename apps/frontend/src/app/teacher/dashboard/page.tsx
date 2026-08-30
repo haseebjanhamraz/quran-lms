@@ -16,6 +16,9 @@ import StudentsTab from './components/StudentsTab';
 import RecordingsTab from './components/RecordingsTab';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import InstantClassModal from './components/InstantClassModal';
+import VersionBadge from '@/components/VersionBadge';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import ThemeToggle from '@/components/ThemeToggle';
 import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 import { apiFetch } from '@/utils/apiFetch';
@@ -271,6 +274,27 @@ export default function TeacherDashboard() {
     },
   });
 
+  // Activate class session action
+  const handleActivateClass = async (id: string) => {
+    try {
+      const res = await apiFetch(`${API_URL}/class-sessions/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'ACTIVATED' }),
+      });
+
+      if (res.ok) {
+        toast.success('Class session is now Active & Ready to Start!');
+        fetchSessions();
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to activate class');
+      }
+    } catch (err) {
+      console.error('Error activating class:', err);
+      toast.error('Error activating class');
+    }
+  };
+
   // Start class session action
   const handleStartClass = async (id: string) => {
     setStartingId(id);
@@ -283,7 +307,7 @@ export default function TeacherDashboard() {
       if (res.ok) {
         router.push(`/classroom/${id}`);
       } else {
-        alert('Failed to start class. Please verify schedule timing.');
+        toast.error('Failed to start class. Please verify schedule timing.');
       }
     } catch (err) {
       console.error('Error starting class:', err);
@@ -443,6 +467,7 @@ export default function TeacherDashboard() {
             leaves={leaves}
             leaveBalance={leaveBalance}
             handleStartClass={handleStartClass}
+            handleActivateClass={handleActivateClass}
             onOpenInstantModal={handleOpenInstantModal}
             onNavigateTab={(tab) => setActiveTab(tab)}
             router={router}
@@ -461,6 +486,7 @@ export default function TeacherDashboard() {
               recentReviews={recentReviews}
               reviewsLoading={reviewsLoading}
               handleStartClass={handleStartClass}
+              handleActivateClass={handleActivateClass}
               router={router}
               teacherId={user?.id}
             />
@@ -500,6 +526,9 @@ export default function TeacherDashboard() {
             />
           </>
         )}
+
+        {/* Version & System Information Footer Badge */}
+        <VersionBadge className="mt-10" />
       </main>
 
       <InstantClassModal

@@ -1,5 +1,5 @@
 import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength, IsNumber, IsDateString } from 'class-validator';
-import { Role } from '../../schemas';
+import { Role, AccountStatus } from '../../schemas';
 
 export class UpdateUserDto {
   @IsEmail()
@@ -22,6 +22,14 @@ export class UpdateUserDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsEnum(AccountStatus)
+  @IsOptional()
+  accountStatus?: AccountStatus;
+
+  @IsString()
+  @IsOptional()
+  accountStatusReason?: string;
 
   @IsString()
   @IsOptional()

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   XCircle, User, Shield, BookOpen, Calendar, Clock,
   Mail, Phone, Globe, CheckCircle2, AlertCircle, Sparkles, BookUser,
-  Activity, ShieldCheck, DollarSign, Award, Edit, FileText, GraduationCap, Users, VideoOff
+  Activity, ShieldCheck, DollarSign, Award, Edit, FileText, GraduationCap, Users, VideoOff, KeyRound
 } from 'lucide-react';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
@@ -64,6 +64,7 @@ interface TeacherDetailModalProps {
   teacher: TeacherUser | null;
   onClose: () => void;
   onEdit?: (teacher: TeacherUser) => void;
+  onEditCredentials?: (teacher: TeacherUser) => void;
 }
 
 export default function TeacherDetailModal({
@@ -71,6 +72,7 @@ export default function TeacherDetailModal({
   teacher,
   onClose,
   onEdit,
+  onEditCredentials,
 }: TeacherDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'overview' | 'timetable' | 'students' | 'courses' | 'guarantors'>('overview');
   const [courses, setCourses] = useState<AssignedCourse[]>([]);
@@ -240,6 +242,20 @@ export default function TeacherDetailModal({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            {onEditCredentials && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEditCredentials(teacher);
+                }}
+                className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 text-xs font-bold py-2.5 px-3.5 rounded-xl transition-all"
+                title="Change login email or reset password"
+              >
+                <KeyRound className="h-4 w-4" />
+                <span className="hidden sm:inline">Credentials</span>
+              </button>
+            )}
             {onEdit && (
               <button
                 type="button"

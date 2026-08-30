@@ -82,71 +82,75 @@ export default function Step1PersonalInfo({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted-foreground uppercase">Email Address *</label>
-          <input
-            type="email"
-            required
-            value={personalInfo.email}
-            onChange={(e) => setPersonalInfo((prev) => ({ ...prev, email: e.target.value }))}
-            placeholder="ali@example.com"
-            className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-3 text-sm outline-none font-medium"
-          />
-        </div>
+        {!editingStudent && (
+          <>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-muted-foreground uppercase">Email Address *</label>
+              <input
+                type="email"
+                required
+                value={personalInfo.email}
+                onChange={(e) => setPersonalInfo((prev) => ({ ...prev, email: e.target.value }))}
+                placeholder="ali@example.com"
+                className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-3 text-sm outline-none font-medium"
+              />
+            </div>
 
-        <div className="space-y-1">
-          <div className="flex items-center justify-between">
-            <label className="text-xs font-semibold text-muted-foreground uppercase">
-              {editingStudent ? 'Change Password (Optional)' : 'Account Password *'}
-            </label>
-            <button
-              type="button"
-              onClick={onGeneratePassword}
-              className="text-[11px] text-brand hover:text-brand/80 font-bold flex items-center gap-1 transition-colors"
-            >
-              <Sparkles className="h-3 w-3" />
-              <span>Auto Generate</span>
-            </button>
-          </div>
-          <div className="relative flex items-center">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              required={!editingStudent}
-              value={personalInfo.password}
-              onChange={(e) => setPersonalInfo((prev) => ({ ...prev, password: e.target.value }))}
-              placeholder="••••••••"
-              className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-3 pr-20 text-sm outline-none font-mono font-medium"
-            />
-            <div className="absolute right-2 flex items-center gap-1">
-              {personalInfo.password && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-muted-foreground uppercase">
+                  Account Password *
+                </label>
                 <button
                   type="button"
-                  onClick={onCopyPassword}
-                  title={copiedPassword ? 'Copied to Clipboard!' : 'Copy Password'}
-                  className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                  onClick={onGeneratePassword}
+                  className="text-[11px] text-brand hover:text-brand/80 font-bold flex items-center gap-1 transition-colors"
                 >
-                  {copiedPassword ? (
-                    <Check className="h-4 w-4 text-emerald-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
+                  <Sparkles className="h-3 w-3" />
+                  <span>Auto Generate</span>
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                title={showPassword ? 'Hide Password' : 'View Password'}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
-              </button>
+              </div>
+              <div className="relative flex items-center">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={personalInfo.password}
+                  onChange={(e) => setPersonalInfo((prev) => ({ ...prev, password: e.target.value }))}
+                  placeholder="••••••••"
+                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-3 pr-20 text-sm outline-none font-mono font-medium"
+                />
+                <div className="absolute right-2 flex items-center gap-1">
+                  {personalInfo.password && (
+                    <button
+                      type="button"
+                      onClick={onCopyPassword}
+                      title={copiedPassword ? 'Copied to Clipboard!' : 'Copy Password'}
+                      className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                    >
+                      {copiedPassword ? (
+                        <Check className="h-4 w-4 text-emerald-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    title={showPassword ? 'Hide Password' : 'View Password'}
+                    className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </>
+        )}
 
         {/* Country Selector */}
         <div className="space-y-1">

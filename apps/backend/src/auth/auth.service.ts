@@ -24,7 +24,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    if (!user.isActive) {
+    if (user.isActive === false && user.accountStatus !== 'TERMINATED' && user.accountStatus !== 'SUSPENDED' && user.accountStatus !== 'ON_LEAVE') {
       throw new UnauthorizedException('Your account has been deactivated. Please contact an administrator.');
     }
 
@@ -41,7 +41,7 @@ export class AuthService {
   async login(user: any) {
     const permissions = await this.permissionsService.getUserPermissions(user.role);
     const userWithPerms = { ...user, permissions };
-    const payload = { email: user.email, sub: user.id, role: user.role };
+    const payload = { email: user.email, sub: user.id, role: user.role, accountStatus: user.accountStatus || 'ACTIVE' };
     
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_SECRET'),
@@ -72,14 +72,14 @@ export class AuthService {
       });
 
       const user = await this.usersService.findById(payload.sub);
-      if (!user || !user.isActive) {
+      if (!user) {
         throw new UnauthorizedException('Invalid user session');
       }
 
       const permissions = await this.permissionsService.getUserPermissions(user.role);
       const userWithPerms = { ...user, permissions };
 
-      const newPayload = { email: user.email, sub: user.id, role: user.role };
+      const newPayload = { email: user.email, sub: user.id, role: user.role, accountStatus: user.accountStatus || 'ACTIVE' };
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
         expiresIn: this.configService.getOrThrow<string>('JWT_EXPIRY') as any,

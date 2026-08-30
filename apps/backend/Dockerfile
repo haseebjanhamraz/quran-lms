@@ -1,14 +1,18 @@
-FROM node:24-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --legacy-peer-deps
+RUN npm config set registry https://registry.npmjs.org/ \
+ && npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm install --legacy-peer-deps
 
 COPY . .
 RUN npm run build
 
-FROM node:24-alpine AS runner
+FROM node:22-alpine AS runner
 
 # Install runtime dependencies: ffmpeg for audio extraction
 RUN apk add --no-cache ffmpeg
@@ -31,7 +35,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 
 # Create recordings, temp-transcripts, and uploads directories and set ownership
-RUN mkdir -p /app/recordings /app/temp-transcripts /app/uploads/avatars \
+RUN mkdir -p /app/recordings /app/temp-transcripts /app/uploads/avatars /app/uploads/materials \
   && chown -R nestjs:nodejs /app
 
 USER nestjs

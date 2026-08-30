@@ -5,6 +5,7 @@ export type ClassSessionDocument = ClassSession & Document;
 
 export enum ClassStatus {
   SCHEDULED = 'SCHEDULED',
+  ACTIVATED = 'ACTIVATED',
   LIVE = 'LIVE',
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',

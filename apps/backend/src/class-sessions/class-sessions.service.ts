@@ -180,7 +180,10 @@ export class ClassSessionsService {
     let actualStartTime = session.actualStartTime;
     let actualEndTime = session.actualEndTime;
 
-    if (updateClassSessionDto.status === ClassStatus.LIVE && session.status === ClassStatus.SCHEDULED) {
+    if (
+      updateClassSessionDto.status === ClassStatus.LIVE &&
+      (session.status === ClassStatus.SCHEDULED || session.status === ClassStatus.ACTIVATED)
+    ) {
       startedAt = new Date();
       actualStartTime = new Date();
     }
@@ -469,7 +472,11 @@ export class ClassSessionsService {
 
     token.addGrant(grants);
 
-    if (user.role === Role.TEACHER && session.status === ClassStatus.SCHEDULED) {
+    if (user.accountStatus === 'SUSPENDED') {
+      throw new ForbiddenException('Your account is currently suspended and you cannot participate in classes.');
+    }
+
+    if (user.role === Role.TEACHER && (session.status === ClassStatus.SCHEDULED || session.status === ClassStatus.ACTIVATED)) {
       const now = new Date();
       await this.classSessionModel.findByIdAndUpdate(sessionId, {
         $set: {

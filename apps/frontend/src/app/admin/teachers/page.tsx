@@ -3,11 +3,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash2, Edit, Eye, XCircle, User as UserIcon,
-  BookUser, DollarSign, CheckCircle, AlertCircle, ShieldCheck, BookOpen, MoreHorizontal
+  BookUser, DollarSign, CheckCircle, AlertCircle, ShieldCheck, BookOpen, MoreHorizontal,
+  Calendar, Ban, UserX, CheckCircle2, KeyRound
 } from 'lucide-react';
 import TeacherWizard from '@/components/TeacherWizard';
 import TeacherDetailModal from '@/components/TeacherDetailModal';
 import TeacherCourseAssignmentModal from '@/components/TeacherCourseAssignmentModal';
+import ScheduleEditorModal from '@/components/ScheduleEditorModal';
+import AccountStatusModal from '@/components/AccountStatusModal';
+import AccountCredentialsModal from '@/components/AccountCredentialsModal';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
 import DataTable, { Column, FilterOption } from '@/components/DataTable';
@@ -50,6 +54,8 @@ interface TeacherUser {
   guarantors?: GuarantorItem[];
   canEditProfile?: boolean;
   isActive: boolean;
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED' | 'ON_LEAVE';
+  accountStatusReason?: string;
   createdAt: string;
 }
 
@@ -61,6 +67,17 @@ export default function TeachersManagementPage() {
   const [isWizardOpen, setIsWizardOpen] = useState(false);
   const [editingTeacher, setEditingTeacher] = useState<TeacherUser | null>(null);
   const [viewingTeacher, setViewingTeacher] = useState<TeacherUser | null>(null);
+  const [credentialsTeacher, setCredentialsTeacher] = useState<TeacherUser | null>(null);
+  const [scheduleEditorTeacher, setScheduleEditorTeacher] = useState<TeacherUser | null>(null);
+  const [accountStatusState, setAccountStatusState] = useState<{
+    isOpen: boolean;
+    user: any;
+    initialAction: 'SUSPEND' | 'TERMINATE' | 'REACTIVATE' | 'DELETE';
+  }>({
+    isOpen: false,
+    user: null,
+    initialAction: 'SUSPEND',
+  });
 
   // View Guarantors Modal
   const [viewingGuarantors, setViewingGuarantors] = useState<GuarantorItem[] | null>(null);
@@ -209,16 +226,24 @@ export default function TeachersManagementPage() {
       key: 'isActive',
       label: 'Status',
       sortable: true,
-      render: (t) => (
-        <span
-          className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${t.isActive
-            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-            : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+      render: (t) => {
+        const status = t.accountStatus || (t.isActive ? 'ACTIVE' : 'SUSPENDED');
+        return (
+          <span
+            className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+              status === 'ACTIVE'
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                : status === 'SUSPENDED'
+                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                : status === 'TERMINATED'
+                ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
             }`}
-        >
-          {t.isActive ? 'Active' : 'Inactive'}
-        </span>
-      ),
+          >
+            {status === 'ACTIVE' ? 'Active' : status === 'SUSPENDED' ? 'Suspended' : status === 'TERMINATED' ? 'Terminated' : 'On Leave'}
+          </span>
+        );
+      },
     },
     {
       key: 'canEditProfile',
@@ -246,12 +271,16 @@ export default function TeachersManagementPage() {
               <MoreHorizontal className="h-4 w-4" />
               <span className="sr-only">Open teacher actions</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Teacher Actions</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setViewingTeacher(t)}>
                 <Eye className="mr-2 h-4 w-4 text-blue-500" />
                 <span>View Full Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setScheduleEditorTeacher(t)}>
+                <Calendar className="mr-2 h-4 w-4 text-purple-500" />
+                <span>Edit Schedule & Slots</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setAssigningTeacher(t)}>
                 <BookOpen className="mr-2 h-4 w-4 text-brand" />
@@ -266,10 +295,59 @@ export default function TeachersManagementPage() {
                 <Edit className="mr-2 h-4 w-4 text-amber-500" />
                 <span>Edit Profile</span>
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setCredentialsTeacher(t)}
+              >
+                <KeyRound className="mr-2 h-4 w-4 text-amber-500" />
+                <span>Change Credentials</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+
+              {/* Account Status Actions */}
+              {t.accountStatus === 'SUSPENDED' || t.accountStatus === 'TERMINATED' || !t.isActive ? (
+                <DropdownMenuItem
+                  onClick={() => setAccountStatusState({
+                    isOpen: true,
+                    user: t,
+                    initialAction: 'REACTIVATE',
+                  })}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-500" />
+                  <span>Reactivate Account</span>
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => setAccountStatusState({
+                      isOpen: true,
+                      user: t,
+                      initialAction: 'SUSPEND',
+                    })}
+                  >
+                    <Ban className="mr-2 h-4 w-4 text-amber-500" />
+                    <span>Suspend Account</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setAccountStatusState({
+                      isOpen: true,
+                      user: t,
+                      initialAction: 'TERMINATE',
+                    })}
+                  >
+                    <UserX className="mr-2 h-4 w-4 text-rose-500" />
+                    <span>Terminate Account</span>
+                  </DropdownMenuItem>
+                </>
+              )}
+
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onClick={() => handleDeleteTeacher(t.id || t._id || '')}
+                onClick={() => setAccountStatusState({
+                  isOpen: true,
+                  user: t,
+                  initialAction: 'DELETE',
+                })}
               >
                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
                 <span>Delete Account</span>
@@ -383,6 +461,18 @@ export default function TeachersManagementPage() {
           setEditingTeacher(teacherToEdit);
           setIsWizardOpen(true);
         }}
+        onEditCredentials={(teacherToEditCreds) => {
+          setViewingTeacher(null);
+          setCredentialsTeacher(teacherToEditCreds);
+        }}
+      />
+
+      {/* ACCOUNT CREDENTIALS / EMAIL & PASSWORD CHANGE MODAL */}
+      <AccountCredentialsModal
+        isOpen={Boolean(credentialsTeacher)}
+        user={credentialsTeacher}
+        onClose={() => setCredentialsTeacher(null)}
+        onCredentialsUpdated={fetchTeachers}
       />
 
       {/* VIEW GUARANTORS MODAL */}
@@ -439,6 +529,24 @@ export default function TeachersManagementPage() {
         teacher={assigningTeacher}
         onClose={() => setAssigningTeacher(null)}
         onSuccess={() => fetchTeachers()}
+      />
+
+      {/* DIRECT TEACHER SCHEDULE EDITOR MODAL */}
+      <ScheduleEditorModal
+        isOpen={Boolean(scheduleEditorTeacher)}
+        mode="teacher"
+        entity={scheduleEditorTeacher}
+        onClose={() => setScheduleEditorTeacher(null)}
+        onScheduleUpdated={fetchTeachers}
+      />
+
+      {/* ACCOUNT STATUS / SUSPEND / TERMINATE / DELETE MODAL */}
+      <AccountStatusModal
+        isOpen={accountStatusState.isOpen}
+        user={accountStatusState.user}
+        initialAction={accountStatusState.initialAction}
+        onClose={() => setAccountStatusState({ isOpen: false, user: null, initialAction: 'SUSPEND' })}
+        onStatusUpdated={fetchTeachers}
       />
     </div>
   );

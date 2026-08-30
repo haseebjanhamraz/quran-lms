@@ -71,31 +71,35 @@ export default function Step1PersonalDetails({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Email Address *</label>
-            <input
-              type="email"
-              required
-              placeholder="muneeb@lms.com"
-              value={personalInfo.email}
-              onChange={(e) => setPersonalInfo((prev) => ({ ...prev, email: e.target.value }))}
-              className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
-            />
-          </div>
+          {!editingTeacher && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground uppercase tracking-wider">Email Address *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="muneeb@lms.com"
+                  value={personalInfo.email}
+                  onChange={(e) => setPersonalInfo((prev) => ({ ...prev, email: e.target.value }))}
+                  className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
+                />
+              </div>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">
-              {editingTeacher ? 'Change Password (Optional)' : 'Account Password *'}
-            </label>
-            <input
-              type="password"
-              required={!editingTeacher}
-              placeholder="••••••••"
-              value={personalInfo.password || ''}
-              onChange={(e) => setPersonalInfo((prev) => ({ ...prev, password: e.target.value }))}
-              className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
-            />
-          </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-foreground uppercase tracking-wider">
+                  Account Password *
+                </label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={personalInfo.password || ''}
+                  onChange={(e) => setPersonalInfo((prev) => ({ ...prev, password: e.target.value }))}
+                  className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
+                />
+              </div>
+            </>
+          )}
 
           {/* Country Selector */}
           <div className="space-y-1.5">

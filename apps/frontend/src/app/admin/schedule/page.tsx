@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Calendar as CalendarIcon, Clock, Filter, UserCheck, Move, CheckCircle2,
   AlertCircle, RefreshCw, Repeat, Trash2, Info, Settings, Plus, X,
-  ChevronUp, ChevronDown, RotateCcw, Save
+  ChevronUp, ChevronDown, RotateCcw, Save, User
 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import DailyScheduleView from '@/components/DailyScheduleView';
@@ -26,12 +26,18 @@ interface TeacherItem {
 
 interface SlotAssignment {
   id?: string;
+  _id?: string;
   dayOfWeek: string;
   timeSlotIndex: number;
   startTime: string;
   endTime: string;
   teacherId: string;
   teacher?: { id: string; name: string; email?: string };
+  studentId?: string;
+  student?: { id: string; name: string; email?: string; preferredName?: string };
+  courseId?: string;
+  course?: { id: string; title: string; type?: string };
+  enrolledStudents?: any[];
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -538,9 +544,38 @@ export default function ScheduleManagement() {
                           >
                             {slotData && isVisible ? (
                               <div
-                                className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm ${getTeacherColor(teacherIndex >= 0 ? teacherIndex : 0)}`}
+                                className={`flex flex-col items-center justify-center p-2 rounded-xl text-xs font-bold border shadow-xs transition-all gap-1 ${getTeacherColor(teacherIndex >= 0 ? teacherIndex : 0)}`}
                               >
-                                <span>{slotData.teacher?.name || 'Assigned'}</span>
+                                <div className="flex items-center gap-1 leading-tight">
+                                  <User className="h-3 w-3 opacity-70 shrink-0" />
+                                  <span className="font-bold truncate max-w-[120px]">{slotData.teacher?.name || 'Instructor'}</span>
+                                </div>
+
+                                {slotData.student?.name ? (
+                                  <div className="w-full pt-1 border-t border-current/15 flex flex-col items-center">
+                                    <span className="text-[11px] font-semibold opacity-95 truncate max-w-[120px]">
+                                      {slotData.student.name}
+                                    </span>
+                                    {slotData.course?.title && (
+                                      <span className="text-[9px] font-normal opacity-75 truncate max-w-[110px]">
+                                        {slotData.course.title}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : slotData.enrolledStudents && slotData.enrolledStudents.length > 0 ? (
+                                  <div className="w-full pt-1 border-t border-current/15 flex flex-col items-center">
+                                    <span className="text-[11px] font-semibold opacity-95 truncate max-w-[120px]">
+                                      {slotData.enrolledStudents[0]?.name || 'Student'}
+                                    </span>
+                                    {slotData.enrolledStudents.length > 1 && (
+                                      <span className="text-[9px] opacity-75">
+                                        +{slotData.enrolledStudents.length - 1} more
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-[9px] font-normal opacity-60 italic">Open Roster</span>
+                                )}
                               </div>
                             ) : isWeekend ? (
                               <span className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-wider">

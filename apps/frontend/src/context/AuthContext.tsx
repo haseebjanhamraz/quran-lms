@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/utils/apiFetch';
+import TerminatedScreen from '@/components/TerminatedScreen';
 
 interface User {
   id: string;
@@ -23,6 +24,8 @@ interface User {
   trialStatus?: string;
   isDiscontinued?: boolean;
   discontinued?: boolean;
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED' | 'ON_LEAVE';
+  accountStatusReason?: string;
   avatar?: string;
   profilePicture?: string;
   guardianName?: string;
@@ -143,6 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider value={{ user, loading, login, logout, hasPermission, error }}>
+      {user && user.accountStatus === 'TERMINATED' && <TerminatedScreen user={user} />}
       {children}
     </AuthContext.Provider>
   );

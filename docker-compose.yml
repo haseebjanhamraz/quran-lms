@@ -35,6 +35,7 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
+      network: host
     container_name: quran-lms-nestjs
     restart: always
     ports:
@@ -71,14 +72,15 @@ services:
       - uploads_data:/app/uploads
     depends_on:
       - redis
-      - vosk
+      # - vosk
 
-  vosk:
-    image: alphacep/kaldi-en:latest
-    container_name: quran-lms-vosk
-    restart: always
-    ports:
-      - "${VOSK_PORT_BINDING:-2700:2700}"
+  # Alphacep / Vosk speech-to-text service is currently disabled (skipped while AI features are unused)
+  # vosk:
+  #   image: alphacep/kaldi-en:latest
+  #   container_name: quran-lms-vosk
+  #   restart: always
+  #   ports:
+  #     - "${VOSK_PORT_BINDING:-2700:2700}"
 
   nextjs:
     env_file:
@@ -86,6 +88,7 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
+      network: host
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
         NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}

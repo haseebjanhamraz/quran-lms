@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check } from 'lucide-react';
+import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check, Zap } from 'lucide-react';
 import Link from 'next/link';
 import DailyScheduleView from '@/components/DailyScheduleView';
 import TeacherTimetableGrid from '@/components/TeacherTimetableGrid';
@@ -9,7 +9,7 @@ interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
+  status: 'SCHEDULED' | 'ACTIVATED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   livekitRoomId?: string;
 }
 
@@ -20,6 +20,7 @@ interface ScheduleTabProps {
   recentReviews: any[];
   reviewsLoading: boolean;
   handleStartClass: (id: string) => void;
+  handleActivateClass?: (id: string) => void;
   router: any;
   teacherId?: string;
 }
@@ -199,8 +200,35 @@ export default function ScheduleTab({
                           Edit
                         </button>
                         <button
+                          onClick={() => {
+                            if (handleActivateClass) {
+                              handleActivateClass(session.id);
+                            } else {
+                              handleStartClass(session.id);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-200"
+                        >
+                          <Zap size={14} />
+                          Activate
+                        </button>
+                      </>
+                    )}
+                    {session.status === 'ACTIVATED' && (
+                      <>
+                        <button
+                          onClick={() => handleCopyLink(session.id)}
+                          className={`flex items-center gap-1 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${copiedSessionId === session.id
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+                            : 'border-border bg-muted/40 text-foreground/80 hover:border-brand/40 hover:text-foreground'
+                            }`}
+                        >
+                          {copiedSessionId === session.id ? <Check size={13} /> : <Copy size={13} />}
+                          <span>{copiedSessionId === session.id ? 'Copied!' : 'Copy Link'}</span>
+                        </button>
+                        <button
                           onClick={() => handleStartClass(session.id)}
-                          className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-md transition-all duration-200 hover:bg-primary/90"
+                          className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-200 animate-pulse"
                         >
                           <PlayCircle size={14} />
                           Start Class

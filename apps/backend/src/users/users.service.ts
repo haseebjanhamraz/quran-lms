@@ -2,10 +2,12 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
-  User, UserDocument, Role,
+  User, UserDocument, Role, AccountStatus,
   Teacher, TeacherDocument,
   Student, StudentDocument,
   Counter, CounterDocument,
+  Notification, NotificationDocument, NotificationType,
+  ClassSession, ClassSessionDocument, ClassStatus,
 } from '../schemas';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -20,6 +22,8 @@ export class UsersService {
     @InjectModel(Teacher.name) private readonly teacherModel: Model<TeacherDocument>,
     @InjectModel(Student.name) private readonly studentModel: Model<StudentDocument>,
     @InjectModel(Counter.name) private readonly counterModel: Model<CounterDocument>,
+    @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
+    @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
   ) {}
 
   private async getNextStudentId(): Promise<number> {
@@ -402,5 +406,108 @@ export class UsersService {
     await this.userModel.findByIdAndUpdate(id, { $set: { passwordHash: newPasswordHash } });
 
     return { message: 'Password updated successfully' };
+  }
+
+  async updateAccountStatus(id: string, accountStatus: AccountStatus, reason?: string) {
+    const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isActive = accountStatus === AccountStatus.ACTIVE;
+    const now = new Date();
+
+    await this.userModel.findByIdAndUpdate(
+      id,
+      {
+        $set: {
+          accountStatus,
+          accountStatusReason: reason || '',
+          statusUpdatedAt: now,
+          isActive,
+        },
+      },
+      { new: true },
+    );
+
+    // If suspended or terminated, cancel upcoming scheduled sessions
+    if (accountStatus === AccountStatus.SUSPENDED || accountStatus === AccountStatus.TERMINATED) {
+      if (user.role === Role.TEACHER) {
+        await this.classSessionModel.updateMany(
+          { teacherId: id, status: { $in: [ClassStatus.SCHEDULED, ClassStatus.ACTIVATED] } },
+          { $set: { status: ClassStatus.CANCELLED } },
+        );
+      } else if (user.role === Role.STUDENT) {
+        await this.classSessionModel.updateMany(
+          { studentId: id, status: { $in: [ClassStatus.SCHEDULED, ClassStatus.ACTIVATED] } },
+          { $set: { status: ClassStatus.CANCELLED } },
+        );
+      }
+    }
+
+    // Create a notification for the user
+    try {
+      await this.notificationModel.create({
+        userId: id,
+        title: `Account Status Updated: ${accountStatus}`,
+        message: reason
+          ? `Your account status has been changed to ${accountStatus}. Reason: ${reason}`
+          : `Your account status has been changed to ${accountStatus}.`,
+        type: NotificationType.SYSTEM,
+        isRead: false,
+      });
+    } catch (_) {}
+
+    return this.findById(id);
+  }
+
+  async submitAppeal(userId: string, data: { subject?: string; reason: string }) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Find admin users to notify
+    const admins = await this.userModel.find({ role: { $in: [Role.ADMIN, Role.SUPER_ADMIN] } });
+    for (const admin of admins) {
+      try {
+        await this.notificationModel.create({
+          userId: admin._id,
+          title: `Account Appeal: ${user.name}`,
+          message: `Subject: ${data.subject || 'Termination Appeal'}\nReason: ${data.reason}`,
+          type: NotificationType.SYSTEM,
+          isRead: false,
+          metadata: {
+            appealingUserId: user._id,
+            appealingUserName: user.name,
+            appealingUserEmail: user.email,
+            subject: data.subject,
+            reason: data.reason,
+          },
+        });
+      } catch (_) {}
+    }
+
+    return {
+      success: true,
+      message: 'Your appeal has been submitted successfully to administration.',
+    };
+  }
+
+  async hardDelete(id: string) {
+    const user = await this.userModel.findById(id);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.role === Role.TEACHER) {
+      await this.teacherModel.deleteMany({ userId: id });
+    } else if (user.role === Role.STUDENT) {
+      await this.studentModel.deleteMany({ userId: id });
+    }
+
+    await this.userModel.findByIdAndDelete(id);
+
+    return { success: true, message: 'User account permanently deleted' };
   }
 }

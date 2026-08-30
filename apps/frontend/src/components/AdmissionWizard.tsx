@@ -439,13 +439,18 @@ export default function AdmissionWizard({
         noteToTeacher,
       };
 
-      if (personalInfo.password) {
+      if (!editingStudent && personalInfo.password) {
         userPayload.password = personalInfo.password;
       }
 
       let studentData: any = null;
 
       if (editingStudent) {
+        // When editing an existing student, email and password are intentionally not updated here
+        // as they are handled via the separate Account Credentials dialog.
+        delete userPayload.password;
+        delete userPayload.email;
+
         const targetId = editingStudent.id || editingStudent._id;
         const res = await apiFetch(`${API_URL}/users/${targetId}`, {
           method: 'PUT',
@@ -501,144 +506,146 @@ export default function AdmissionWizard({
   ];
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background text-foreground animate-fadeIn overflow-hidden">
-      {/* 1. Sticky Full Screen Header */}
-      <AdmissionHeader
-        step={step}
-        totalSteps={5}
-        editingStudent={editingStudent}
-        onClose={onClose}
-      />
-
-      {/* 2. Top Stepper Progression Bar */}
-      {!completedMessage && (
-        <AdmissionStepper
-          steps={STEPS}
-          currentStep={step}
-          onStepClick={(sNum) => setStep(sNum)}
-        />
-      )}
-
-      {/* 3. Main Independent Scrollable Body with generous bottom spacing */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-12 py-6 sm:py-8">
-        <div className="max-w-5xl mx-auto w-full pb-12">
-          {/* Error Alert */}
-          {errorMsg && (
-            <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold flex items-center gap-2 shadow-sm">
-              <XCircle className="h-4 w-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {/* SUCCESS VIEW */}
-          {completedMessage ? (
-            <div className="py-16 flex flex-col items-center justify-center text-center space-y-4 max-w-lg mx-auto">
-              <div className="h-20 w-20 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20 shadow-xl">
-                <CheckCircle className="h-12 w-12" />
-              </div>
-              <h3 className="text-2xl sm:text-3xl font-bold font-display text-foreground">
-                {editingStudent ? 'Student Profile Updated!' : 'Admission Completed!'}
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{completedMessage}</p>
-
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSuccess();
-                    onClose();
-                  }}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-2xl text-sm font-bold shadow-xl hover:scale-105 transition-all"
-                >
-                  Return to Students List
-                </button>
-              </div>
-            </div>
-          ) : (
-            <form id="admission-wizard-form" onSubmit={handleSubmit} className="space-y-6">
-              {step === 1 && (
-                <Step1PersonalInfo
-                  personalInfo={personalInfo}
-                  setPersonalInfo={setPersonalInfo}
-                  editingStudent={editingStudent}
-                  timezonesList={timezonesList}
-                  computedAge={computedAge}
-                  showPassword={showPassword}
-                  setShowPassword={setShowPassword}
-                  copiedPassword={copiedPassword}
-                  onGeneratePassword={generateSecurePassword}
-                  onCopyPassword={handleCopyPassword}
-                  onCountryChange={handleCountryChange}
-                />
-              )}
-
-              {step === 2 && (
-                <Step2GuardianInfo
-                  guardianInfo={guardianInfo}
-                  setGuardianInfo={setGuardianInfo}
-                  countryCode={personalInfo.country}
-                />
-              )}
-
-              {step === 3 && (
-                <Step3ScheduleTier
-                  enrollmentStatus={enrollmentStatus}
-                  setEnrollmentStatus={setEnrollmentStatus}
-                  bulkTime={bulkTime}
-                  setBulkTime={setBulkTime}
-                  onToggleDay={toggleDay}
-                  onUpdateDayTime={updateDayTime}
-                  onApplyBulkTime={applyBulkTimeToAll}
-                />
-              )}
-
-              {step === 4 && (
-                <Step4FeesBilling
-                  feeInfo={feeInfo}
-                  setFeeInfo={setFeeInfo}
-                  currenciesList={currenciesList}
-                  classDuration={enrollmentStatus.classDuration}
-                  classesPerWeek={enrollmentStatus.classDays.length}
-                />
-              )}
-
-              {step === 5 && (
-                <Step5TeacherAssignment
-                  teachers={teachers}
-                  loadingTeachers={loadingTeachers}
-                  selectedTeacherId={selectedTeacherId}
-                  setSelectedTeacherId={setSelectedTeacherId}
-                  assignTeacherLater={assignTeacherLater}
-                  setAssignTeacherLater={setAssignTeacherLater}
-                  enrollmentStatus={enrollmentStatus}
-                  onToggleDay={toggleDay}
-                  onUpdateDayTime={updateDayTime}
-                  bulkTime={bulkTime}
-                  setBulkTime={setBulkTime}
-                  onApplyBulkTime={applyBulkTimeToAll}
-                  noteToTeacher={noteToTeacher}
-                  setNoteToTeacher={setNoteToTeacher}
-                  cameraRestricted={personalInfo.cameraRestricted}
-                  setCameraRestricted={(val) => setPersonalInfo((prev) => ({ ...prev, cameraRestricted: val }))}
-                />
-              )}
-            </form>
-          )}
-        </div>
-      </div>
-
-      {/* 4. Pinned Independent Bottom Footer Navigation Bar */}
-      {!completedMessage && (
-        <AdmissionFooter
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 bg-background/80 backdrop-blur-md animate-fadeIn overflow-hidden">
+      <div className="w-full max-w-5xl h-[92vh] max-h-[920px] rounded-3xl border border-border shadow-2xl bg-card text-foreground flex flex-col overflow-hidden relative">
+        {/* 1. Header */}
+        <AdmissionHeader
           step={step}
           totalSteps={5}
-          currentStepItem={STEPS[step - 1]}
-          submitting={submitting}
           editingStudent={editingStudent}
-          onBack={handleBack}
-          onNext={handleFooterNext}
+          onClose={onClose}
         />
-      )}
+
+        {/* 2. Top Stepper Progression Bar */}
+        {!completedMessage && (
+          <AdmissionStepper
+            steps={STEPS}
+            currentStep={step}
+            onStepClick={(sNum) => setStep(sNum)}
+          />
+        )}
+
+        {/* 3. Main Independent Scrollable Body with generous bottom spacing */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-10 py-6 sm:py-7">
+          <div className="max-w-4xl mx-auto w-full pb-12">
+            {/* Error Alert */}
+            {errorMsg && (
+              <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold flex items-center gap-2 shadow-sm">
+                <XCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* SUCCESS VIEW */}
+            {completedMessage ? (
+              <div className="py-16 flex flex-col items-center justify-center text-center space-y-4 max-w-lg mx-auto">
+                <div className="h-20 w-20 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20 shadow-xl">
+                  <CheckCircle className="h-12 w-12" />
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-bold font-display text-foreground">
+                  {editingStudent ? 'Student Profile Updated!' : 'Admission Completed!'}
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{completedMessage}</p>
+
+                <div className="pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSuccess();
+                      onClose();
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-2xl text-sm font-bold shadow-xl hover:scale-105 transition-all"
+                  >
+                    Return to Students List
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form id="admission-wizard-form" onSubmit={handleSubmit} className="space-y-6">
+                {step === 1 && (
+                  <Step1PersonalInfo
+                    personalInfo={personalInfo}
+                    setPersonalInfo={setPersonalInfo}
+                    editingStudent={editingStudent}
+                    timezonesList={timezonesList}
+                    computedAge={computedAge}
+                    showPassword={showPassword}
+                    setShowPassword={setShowPassword}
+                    copiedPassword={copiedPassword}
+                    onGeneratePassword={generateSecurePassword}
+                    onCopyPassword={handleCopyPassword}
+                    onCountryChange={handleCountryChange}
+                  />
+                )}
+
+                {step === 2 && (
+                  <Step2GuardianInfo
+                    guardianInfo={guardianInfo}
+                    setGuardianInfo={setGuardianInfo}
+                    countryCode={personalInfo.country}
+                  />
+                )}
+
+                {step === 3 && (
+                  <Step3ScheduleTier
+                    enrollmentStatus={enrollmentStatus}
+                    setEnrollmentStatus={setEnrollmentStatus}
+                    bulkTime={bulkTime}
+                    setBulkTime={setBulkTime}
+                    onToggleDay={toggleDay}
+                    onUpdateDayTime={updateDayTime}
+                    onApplyBulkTime={applyBulkTimeToAll}
+                  />
+                )}
+
+                {step === 4 && (
+                  <Step4FeesBilling
+                    feeInfo={feeInfo}
+                    setFeeInfo={setFeeInfo}
+                    currenciesList={currenciesList}
+                    classDuration={enrollmentStatus.classDuration}
+                    classesPerWeek={enrollmentStatus.classDays.length}
+                  />
+                )}
+
+                {step === 5 && (
+                  <Step5TeacherAssignment
+                    teachers={teachers}
+                    loadingTeachers={loadingTeachers}
+                    selectedTeacherId={selectedTeacherId}
+                    setSelectedTeacherId={setSelectedTeacherId}
+                    assignTeacherLater={assignTeacherLater}
+                    setAssignTeacherLater={setAssignTeacherLater}
+                    enrollmentStatus={enrollmentStatus}
+                    onToggleDay={toggleDay}
+                    onUpdateDayTime={updateDayTime}
+                    bulkTime={bulkTime}
+                    setBulkTime={setBulkTime}
+                    onApplyBulkTime={applyBulkTimeToAll}
+                    noteToTeacher={noteToTeacher}
+                    setNoteToTeacher={setNoteToTeacher}
+                    cameraRestricted={personalInfo.cameraRestricted}
+                    setCameraRestricted={(val) => setPersonalInfo((prev) => ({ ...prev, cameraRestricted: val }))}
+                  />
+                )}
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* 4. Pinned Bottom Footer Navigation Bar */}
+        {!completedMessage && (
+          <AdmissionFooter
+            step={step}
+            totalSteps={5}
+            currentStepItem={STEPS[step - 1]}
+            submitting={submitting}
+            editingStudent={editingStudent}
+            onBack={handleBack}
+            onNext={handleFooterNext}
+          />
+        )}
+      </div>
     </div>
   );
 }

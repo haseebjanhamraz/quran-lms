@@ -36,4 +36,15 @@ export class AppController {
       });
     }
   }
+
+  @Get('version')
+  getVersion() {
+    return {
+      version: '1.6.0',
+      name: 'Quran-LMS-Server',
+      buildTimestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'production',
+      nodeVersion: process.version,
+    };
+  }
 }

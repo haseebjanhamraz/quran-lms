@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   Calendar, Clock, PlayCircle, PlaneTakeoff,
-  History, Sparkles, X, Loader2, CheckCircle2
+  History, Sparkles, X, Loader2, CheckCircle2, Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { apiFetch } from '@/utils/apiFetch';
@@ -18,6 +18,7 @@ interface DashboardTabProps {
   leaves: any[];
   leaveBalance: any;
   handleStartClass: (id: string) => void;
+  handleActivateClass?: (id: string) => void;
   onOpenInstantModal: () => void;
   onNavigateTab: (tab: any) => void;
   router: any;
@@ -52,6 +53,7 @@ export default function DashboardTab({
   user,
   sessions,
   handleStartClass,
+  handleActivateClass,
   onOpenInstantModal,
   canStartInstantClass = true,
 }: DashboardTabProps) {
@@ -362,6 +364,8 @@ export default function DashboardTab({
                           className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
                             session.status === 'LIVE'
                               ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 animate-pulse'
+                              : session.status === 'ACTIVATED'
+                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse'
                               : session.status === 'COMPLETED'
                               ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
                               : session.status === 'CANCELLED'
@@ -373,6 +377,8 @@ export default function DashboardTab({
                         >
                           {session.status === 'LIVE'
                             ? '● Live Now'
+                            : session.status === 'ACTIVATED'
+                            ? '⚡ Activated'
                             : session.status === 'COMPLETED'
                             ? 'Completed'
                             : session.status === 'CANCELLED'
@@ -395,17 +401,49 @@ export default function DashboardTab({
                         </button>
                       </td>
 
-                      {/* Advance Button (Green) */}
+                      {/* Action Button: Activate (Amber) vs Start Class (Green) */}
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleStartClass(session.id)}
-                          className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
-                          title="Join / Advance to Live Class"
-                        >
-                          <PlayCircle className="h-3.5 w-3.5" />
-                          <span>Advance</span>
-                        </button>
+                        {session.status === 'SCHEDULED' ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (handleActivateClass) {
+                                handleActivateClass(session.id);
+                              } else {
+                                handleStartClass(session.id);
+                              }
+                            }}
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
+                            title="Activate session to prepare for class"
+                          >
+                            <Zap className="h-3.5 w-3.5" />
+                            <span>Activate</span>
+                          </button>
+                        ) : session.status === 'ACTIVATED' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleStartClass(session.id)}
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md flex items-center justify-center gap-1 mx-auto animate-pulse"
+                            title="Start Live Class Now"
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" />
+                            <span>Start Class</span>
+                          </button>
+                        ) : session.status === 'LIVE' ? (
+                          <button
+                            type="button"
+                            onClick={() => handleStartClass(session.id)}
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
+                            title="Enter Ongoing Live Class"
+                          >
+                            <PlayCircle className="h-3.5 w-3.5" />
+                            <span>Enter Class</span>
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground uppercase font-semibold">
+                            {session.status}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   );

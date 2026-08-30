@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   XCircle, User, Shield, GraduationCap, BookOpen, Calendar, Clock,
   Mail, Phone, Globe, CheckCircle2, AlertCircle, Sparkles, BookUser,
-  Activity, ShieldAlert, Award, VideoOff, FileText
+  Activity, ShieldAlert, Award, VideoOff, FileText, KeyRound
 } from 'lucide-react';
 import { getCountryByCode } from '@/utils/countries';
 import StudentTimetableGrid from '@/components/StudentTimetableGrid';
@@ -70,6 +70,7 @@ interface StudentDetailModalProps {
   student: StudentUser | null;
   onClose: () => void;
   onEdit?: (student: StudentUser) => void;
+  onEditCredentials?: (student: StudentUser) => void;
   onAssignCourse?: (student: StudentUser) => void;
   onAssignTeacher?: (student: StudentUser) => void;
 }
@@ -79,6 +80,7 @@ export default function StudentDetailModal({
   student,
   onClose,
   onEdit,
+  onEditCredentials,
   onAssignCourse,
   onAssignTeacher,
 }: StudentDetailModalProps) {
@@ -192,6 +194,20 @@ export default function StudentDetailModal({
               >
                 <BookUser className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Assign Teacher</span>
+              </button>
+            )}
+            {onEditCredentials && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEditCredentials(student);
+                }}
+                className="flex items-center gap-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border border-amber-500/30 text-xs font-bold py-2 px-3 sm:px-3.5 rounded-xl transition-all"
+                title="Change login email or reset password"
+              >
+                <KeyRound className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Credentials</span>
               </button>
             )}
             {onEdit && (

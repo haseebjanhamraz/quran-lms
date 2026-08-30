@@ -8,7 +8,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { Role } from '../schemas';
+import { Role, AccountStatus } from '../schemas';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
@@ -193,5 +193,34 @@ export class UsersController {
 
     const filePath = `/uploads/avatars/${filename}`;
     return this.usersService.updateProfilePicture(id, filePath);
+  }
+
+  @Patch(':id/status')
+  @Roles(Role.ADMIN)
+  async updateStatus(
+    @Param('id') id: string,
+    @Body() body: { accountStatus: AccountStatus; reason?: string },
+  ) {
+    if (!body.accountStatus) {
+      throw new BadRequestException('accountStatus is required');
+    }
+    return this.usersService.updateAccountStatus(id, body.accountStatus, body.reason);
+  }
+
+  @Post('appeal')
+  async submitAppeal(
+    @CurrentUser() user: any,
+    @Body() body: { subject?: string; reason: string },
+  ) {
+    if (!body.reason) {
+      throw new BadRequestException('Reason for appeal is required');
+    }
+    return this.usersService.submitAppeal(user.id, body);
+  }
+
+  @Delete(':id/permanent')
+  @Roles(Role.ADMIN)
+  async hardDelete(@Param('id') id: string) {
+    return this.usersService.hardDelete(id);
   }
 }

@@ -419,29 +419,18 @@ export default function AdminMaterialsPage() {
 
                 {/* Footer Action Buttons */}
                 <div className="flex items-center justify-between gap-2 pt-2">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => setPreviewMaterial(mat)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors border border-border"
-                      title="Preview PDF Document"
-                    >
-                      <Eye className="h-3.5 w-3.5 text-primary" />
-                      <span>Preview</span>
-                    </button>
-
-                    <button
-                      onClick={() => handleDownload(mat)}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-sm hover:bg-primary/90 transition-all"
-                      title="Download PDF"
-                    >
-                      <Download className="h-3.5 w-3.5" />
-                      <span>Download</span>
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setPreviewMaterial(mat)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-sm hover:bg-primary/90 transition-all"
+                    title="View PDF Document"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    <span>View &amp; Read PDF</span>
+                  </button>
 
                   <button
                     onClick={() => handleDelete(matId!)}
-                    className="p-1.5 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                    className="p-2 rounded-xl text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
                     title="Delete PDF"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -624,10 +613,10 @@ export default function AdminMaterialsPage() {
         </div>
       )}
 
-      {/* PDF Preview Modal */}
+      {/* PDF Preview Modal (View-Only Protected Mode) */}
       {previewMaterial && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn">
-          <div className="glass-panel w-full max-w-5xl h-[85vh] rounded-3xl p-6 shadow-2xl relative border border-border bg-card flex flex-col">
+          <div className="glass-panel w-full max-w-5xl h-[88vh] rounded-3xl p-6 shadow-2xl relative border border-border bg-card flex flex-col">
             <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-4 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
@@ -635,30 +624,31 @@ export default function AdminMaterialsPage() {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-foreground truncate max-w-md">{previewMaterial.title}</h3>
-                  <p className="text-xs text-muted-foreground font-mono">{previewMaterial.fileName}</p>
+                  <p className="text-xs text-muted-foreground font-mono">
+                    {previewMaterial.fileName} &bull; <span className="text-emerald-500 font-semibold">Protected View-Only Mode</span>
+                  </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleDownload(previewMaterial)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all"
-                >
-                  <Download className="h-3.5 w-3.5" />
-                  <span>Download</span>
-                </button>
+                <span className="text-[11px] font-semibold bg-muted px-2.5 py-1 rounded-lg text-muted-foreground">
+                  Read-Only Viewer
+                </span>
                 <button
                   onClick={() => setPreviewMaterial(null)}
-                  className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                  className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-xl hover:bg-muted"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
 
-            <div className="flex-1 bg-muted/30 rounded-2xl overflow-hidden border border-border/60 relative">
+            <div
+              className="flex-1 bg-muted/30 rounded-2xl overflow-hidden border border-border/60 relative select-none"
+              onContextMenu={(e) => e.preventDefault()}
+            >
               <iframe
-                src={`${API_URL.replace('/api/v1', '')}${previewMaterial.fileUrl}#toolbar=1`}
+                src={`${API_URL.replace('/api/v1', '')}${previewMaterial.fileUrl}#toolbar=0&navpanes=0&scrollbar=1`}
                 className="w-full h-full border-none"
                 title={previewMaterial.title}
               />

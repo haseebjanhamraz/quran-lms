@@ -2,7 +2,10 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { Shield, Key, MessageSquare, Clock, Info } from 'lucide-react';
+import { Shield, Key, MessageSquare, Clock, Info, Loader2, CheckCircle2 } from 'lucide-react';
+import { apiFetch } from '@/utils/apiFetch';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function StudentAccount() {
   const { user } = useAuth();
@@ -10,29 +13,64 @@ export default function StudentAccount() {
   const studentData = {
     studentId: user?.studentId || 'STU-10293',
     name: user?.name || 'Student Name',
-    dob: user?.dateOfBirth || '2012-05-14',
+    dob: user?.dateOfBirth || user?.dob || '2012-05-14',
     age: 12,
     studentType: 'Child',
     timezone: user?.timezone || 'EST (New York)',
-    enrollmentDate: user?.enrollmentDate || '2023-01-10'
+    enrollmentDate: user?.enrollmentDate ? new Date(user.enrollmentDate).toLocaleDateString() : '2023-01-10'
   };
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
   
   const [feedbackCategory, setFeedbackCategory] = useState('Technical Issue');
   const [feedbackSubject, setFeedbackSubject] = useState('');
   const [feedbackMessage, setFeedbackMessage] = useState('');
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
 
   const [feedbackHistory, setFeedbackHistory] = useState([
     { id: 'FB-001', date: '2023-10-25', category: 'Technical Issue', subject: 'Audio not working', status: 'Resolved', adminResponse: 'We have tested the portal and found a mic permissions issue. Please allow mic in your browser.' }
   ]);
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert('Password updated successfully (simulation)');
-    setCurrentPassword('');
-    setNewPassword('');
+    if (newPassword.length < 6) {
+      toast.error('New password must be at least 6 characters long.');
+      return;
+    }
+    if (confirmPassword && newPassword !== confirmPassword) {
+      toast.error('New password and confirmation do not match.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      const res = await apiFetch(`${API_URL}/users/change-password`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          oldPassword: currentPassword,
+          newPassword: newPassword,
+        }),
+      });
+
+      if (res.ok) {
+        toast.success('Password updated successfully!');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        const err = await res.json();
+        toast.error(err.message || 'Failed to update password');
+      }
+    } catch (err: any) {
+      toast.error(err.message || 'Network error updating password');
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
   const handleSubmitFeedback = (e: React.FormEvent) => {
@@ -48,7 +86,7 @@ export default function StudentAccount() {
     setFeedbackHistory([newFb, ...feedbackHistory]);
     setFeedbackSubject('');
     setFeedbackMessage('');
-    alert('Feedback submitted successfully!');
+    toast.success('Feedback submitted successfully!');
   };
 
   return (
@@ -124,12 +162,29 @@ export default function StudentAccount() {
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">New Password</label>
                 <input 
                   type="password" required 
+                  minLength={6}
                   value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
                   className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none" 
+                  placeholder="At least 6 characters"
                 />
               </div>
-              <button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-4 py-2 rounded-lg text-sm shadow-md transition-all">
-                Update Password
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Confirm New Password</label>
+                <input 
+                  type="password" required 
+                  minLength={6}
+                  value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-lg p-2.5 text-sm outline-none" 
+                  placeholder="Re-type new password"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={passwordLoading}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold px-5 py-2.5 rounded-xl text-xs shadow-md transition-all flex items-center gap-2"
+              >
+                {passwordLoading && <Loader2 className="h-4 w-4 animate-spin" />}
+                <span>{passwordLoading ? 'Updating Password...' : 'Save & Update Password'}</span>
               </button>
             </form>
           </div>

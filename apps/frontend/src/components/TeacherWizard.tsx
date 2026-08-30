@@ -331,13 +331,18 @@ export default function TeacherWizard({
         })(),
       };
 
-      if (personalInfo.password) {
+      if (!editingTeacher && personalInfo.password) {
         teacherPayload.password = personalInfo.password;
       }
 
       let teacherData: any = null;
 
       if (editingTeacher) {
+        // When editing an existing teacher, email and password are intentionally not updated here
+        // as they are handled via the separate Account Credentials dialog.
+        delete teacherPayload.password;
+        delete teacherPayload.email;
+
         const targetId = editingTeacher.id || editingTeacher._id;
         const res = await apiFetch(`${API_URL}/users/${targetId}`, {
           method: 'PUT',
@@ -374,124 +379,126 @@ export default function TeacherWizard({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-background text-foreground animate-fadeIn overflow-hidden">
-      {/* 1. Sticky Full Screen Header */}
-      <TeacherHeader
-        step={step}
-        totalSteps={5}
-        editingTeacher={editingTeacher}
-        onClose={onClose}
-      />
-
-      {/* 2. Top Stepper Progression Bar */}
-      {!completedMessage && (
-        <TeacherStepper
-          steps={STEPS}
-          currentStep={step}
-          onStepClick={(sNum) => setStep(sNum)}
-        />
-      )}
-
-      {/* 3. Main Independent Scrollable Body */}
-      <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-12 py-6 sm:py-8">
-        <div className="max-w-5xl mx-auto w-full pb-12">
-          {/* Error Alert */}
-          {errorMsg && (
-            <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold flex items-center gap-2 shadow-sm animate-fadeIn">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <span>{errorMsg}</span>
-            </div>
-          )}
-
-          {/* SUCCESS VIEW */}
-          {completedMessage ? (
-            <div className="py-16 flex flex-col items-center justify-center text-center space-y-4 max-w-lg mx-auto animate-fadeIn">
-              <div className="h-20 w-20 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20 shadow-xl">
-                <CheckCircle className="h-12 w-12" />
-              </div>
-              <h3 className="text-2xl sm:text-3xl font-bold font-display text-foreground">
-                {editingTeacher ? 'Teacher Profile Updated!' : 'Teacher Registration Completed!'}
-              </h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">{completedMessage}</p>
-
-              <div className="pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSuccess();
-                    onClose();
-                  }}
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-2xl text-sm font-bold shadow-xl hover:scale-105 transition-all"
-                >
-                  Return to Teachers List
-                </button>
-              </div>
-            </div>
-          ) : (
-            <form id="teacher-wizard-form" onSubmit={handleSubmit} className="space-y-6">
-              {step === 1 && (
-                <Step1PersonalDetails
-                  personalInfo={personalInfo}
-                  setPersonalInfo={setPersonalInfo}
-                  editingTeacher={editingTeacher}
-                  timezonesList={timezonesList}
-                  onCountryChange={handleCountryChange}
-                />
-              )}
-
-              {step === 2 && (
-                <Step2Qualifications
-                  qualificationsInfo={qualificationsInfo}
-                  setQualificationsInfo={setQualificationsInfo}
-                />
-              )}
-
-              {step === 3 && (
-                <Step3SalarySetup
-                  salaryInfo={salaryInfo}
-                  setSalaryInfo={setSalaryInfo}
-                  currenciesList={currenciesList}
-                />
-              )}
-
-              {step === 4 && (
-                <Step4Guarantors
-                  guarantorInfo={guarantorInfo}
-                  setGuarantorInfo={setGuarantorInfo}
-                  countryCode={personalInfo.country}
-                  phoneCode={personalInfo.phoneCode}
-                />
-              )}
-
-              {step === 5 && (
-                <Step5Permissions
-                  cameraRestricted={cameraRestricted}
-                  setCameraRestricted={setCameraRestricted}
-                  canEditProfile={canEditProfile}
-                  setCanEditProfile={setCanEditProfile}
-                  personalInfo={personalInfo}
-                  qualificationsInfo={qualificationsInfo}
-                  salaryInfo={salaryInfo}
-                />
-              )}
-            </form>
-          )}
-        </div>
-      </div>
-
-      {/* 4. Pinned Bottom Footer Navigation */}
-      {!completedMessage && (
-        <TeacherFooter
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 md:p-6 lg:p-8 bg-background/80 backdrop-blur-md animate-fadeIn overflow-hidden">
+      <div className="w-full max-w-5xl h-[92vh] max-h-[920px] rounded-3xl border border-border shadow-2xl bg-card text-foreground flex flex-col overflow-hidden relative">
+        {/* 1. Header */}
+        <TeacherHeader
           step={step}
           totalSteps={5}
-          steps={STEPS}
-          submitting={submitting}
           editingTeacher={editingTeacher}
-          onBack={handleBack}
-          onNext={handleNext}
           onClose={onClose}
         />
-      )}
+
+        {/* 2. Top Stepper Progression Bar */}
+        {!completedMessage && (
+          <TeacherStepper
+            steps={STEPS}
+            currentStep={step}
+            onStepClick={(sNum) => setStep(sNum)}
+          />
+        )}
+
+        {/* 3. Main Independent Scrollable Body */}
+        <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-10 py-6 sm:py-7">
+          <div className="max-w-4xl mx-auto w-full pb-12">
+            {/* Error Alert */}
+            {errorMsg && (
+              <div className="mb-6 p-4 rounded-2xl bg-destructive/10 border border-destructive/20 text-destructive text-xs font-semibold flex items-center gap-2 shadow-sm animate-fadeIn">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {/* SUCCESS VIEW */}
+            {completedMessage ? (
+              <div className="py-16 flex flex-col items-center justify-center text-center space-y-4 max-w-lg mx-auto animate-fadeIn">
+                <div className="h-20 w-20 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center border border-emerald-500/20 shadow-xl">
+                  <CheckCircle className="h-12 w-12" />
+                </div>
+                <h3 className="text-2xl sm:text-3xl font-bold font-display text-foreground">
+                  {editingTeacher ? 'Teacher Profile Updated!' : 'Teacher Registration Completed!'}
+                </h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{completedMessage}</p>
+
+                <div className="pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onSuccess();
+                      onClose();
+                    }}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-2xl text-sm font-bold shadow-xl hover:scale-105 transition-all"
+                  >
+                    Return to Teachers List
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form id="teacher-wizard-form" onSubmit={handleSubmit} className="space-y-6">
+                {step === 1 && (
+                  <Step1PersonalDetails
+                    personalInfo={personalInfo}
+                    setPersonalInfo={setPersonalInfo}
+                    editingTeacher={editingTeacher}
+                    timezonesList={timezonesList}
+                    onCountryChange={handleCountryChange}
+                  />
+                )}
+
+                {step === 2 && (
+                  <Step2Qualifications
+                    qualificationsInfo={qualificationsInfo}
+                    setQualificationsInfo={setQualificationsInfo}
+                  />
+                )}
+
+                {step === 3 && (
+                  <Step3SalarySetup
+                    salaryInfo={salaryInfo}
+                    setSalaryInfo={setSalaryInfo}
+                    currenciesList={currenciesList}
+                  />
+                )}
+
+                {step === 4 && (
+                  <Step4Guarantors
+                    guarantorInfo={guarantorInfo}
+                    setGuarantorInfo={setGuarantorInfo}
+                    countryCode={personalInfo.country}
+                    phoneCode={personalInfo.phoneCode}
+                  />
+                )}
+
+                {step === 5 && (
+                  <Step5Permissions
+                    cameraRestricted={cameraRestricted}
+                    setCameraRestricted={setCameraRestricted}
+                    canEditProfile={canEditProfile}
+                    setCanEditProfile={setCanEditProfile}
+                    personalInfo={personalInfo}
+                    qualificationsInfo={qualificationsInfo}
+                    salaryInfo={salaryInfo}
+                  />
+                )}
+              </form>
+            )}
+          </div>
+        </div>
+
+        {/* 4. Pinned Bottom Footer Navigation */}
+        {!completedMessage && (
+          <TeacherFooter
+            step={step}
+            totalSteps={5}
+            steps={STEPS}
+            submitting={submitting}
+            editingTeacher={editingTeacher}
+            onBack={handleBack}
+            onNext={handleNext}
+            onClose={onClose}
+          />
+        )}
+      </div>
     </div>
   );
 }

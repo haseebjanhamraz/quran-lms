@@ -2,11 +2,15 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Edit, Trash2, GraduationCap, Users, CheckCircle, AlertCircle, User as UserIcon, Eye, BookOpen, BookUser, Filter, MoreHorizontal
+  Plus, Edit, Trash2, GraduationCap, Users, CheckCircle, AlertCircle, User as UserIcon,
+  Eye, BookOpen, BookUser, Filter, MoreHorizontal, Calendar, Ban, UserX, CheckCircle2, KeyRound
 } from 'lucide-react';
 import AdmissionWizard from '@/components/AdmissionWizard';
 import StudentDetailModal from '@/components/StudentDetailModal';
 import QuickAssignModal from '@/components/QuickAssignModal';
+import ScheduleEditorModal from '@/components/ScheduleEditorModal';
+import AccountStatusModal from '@/components/AccountStatusModal';
+import AccountCredentialsModal from '@/components/AccountCredentialsModal';
 import DataTable, { Column, FilterOption } from '@/components/DataTable';
 import { apiFetch } from '@/utils/apiFetch';
 import {
@@ -48,6 +52,8 @@ interface StudentUser {
   guardianPhone?: string;
   guardianEmail?: string;
   isActive: boolean;
+  accountStatus?: 'ACTIVE' | 'SUSPENDED' | 'TERMINATED' | 'ON_LEAVE';
+  accountStatusReason?: string;
   createdAt: string;
 }
 
@@ -70,6 +76,17 @@ export default function StudentsManagementPage() {
   const [showWizard, setShowWizard] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentUser | null>(null);
   const [viewingStudent, setViewingStudent] = useState<StudentUser | null>(null);
+  const [credentialsStudent, setCredentialsStudent] = useState<StudentUser | null>(null);
+  const [scheduleEditorStudent, setScheduleEditorStudent] = useState<StudentUser | null>(null);
+  const [accountStatusState, setAccountStatusState] = useState<{
+    isOpen: boolean;
+    user: any;
+    initialAction: 'SUSPEND' | 'TERMINATE' | 'REACTIVATE' | 'DELETE';
+  }>({
+    isOpen: false,
+    user: null,
+    initialAction: 'SUSPEND',
+  });
   const [quickAssignState, setQuickAssignState] = useState<{
     isOpen: boolean;
     mode: 'course' | 'teacher';
@@ -332,19 +349,27 @@ export default function StudentsManagementPage() {
       key: 'isActive',
       label: 'Status',
       sortable: true,
-      render: (s) => (
-        <div className="flex items-center gap-1.5">
-          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${s.isActive && !s.discontinued && !s.isDiscontinued
-            ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-            : 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+      render: (s) => {
+        const status = s.accountStatus || (s.isActive && !s.discontinued && !s.isDiscontinued ? 'ACTIVE' : 'SUSPENDED');
+        return (
+          <div className="flex items-center gap-1.5">
+            <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${
+              status === 'ACTIVE'
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                : status === 'SUSPENDED'
+                ? 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+                : status === 'TERMINATED'
+                ? 'bg-rose-500/10 text-rose-500 border-rose-500/20'
+                : 'bg-sky-500/10 text-sky-500 border-sky-500/20'
             }`}>
-            {s.isActive && !s.discontinued && !s.isDiscontinued ? 'Active' : 'Inactive'}
-          </span>
-          {s.trialStatus === 'Active' && (
-            <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded">Trial</span>
-          )}
-        </div>
-      ),
+              {status === 'ACTIVE' ? 'Active' : status === 'SUSPENDED' ? 'Suspended' : status === 'TERMINATED' ? 'Terminated' : 'On Leave'}
+            </span>
+            {s.trialStatus === 'Active' && (
+              <span className="bg-amber-500/10 text-amber-500 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded">Trial</span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'timezone',
@@ -363,12 +388,16 @@ export default function StudentsManagementPage() {
               <MoreHorizontal className="h-4 w-4" />
               <span className="sr-only">Open student actions</span>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52">
+            <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuLabel>Student Actions</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => setViewingStudent(s)}>
                 <Eye className="mr-2 h-4 w-4 text-blue-500" />
                 <span>View Full Profile</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setScheduleEditorStudent(s)}>
+                <Calendar className="mr-2 h-4 w-4 text-purple-500" />
+                <span>Edit Schedule & Timings</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => setQuickAssignState({ isOpen: true, mode: 'course', student: s })}
@@ -389,12 +418,61 @@ export default function StudentsManagementPage() {
                 }}
               >
                 <Edit className="mr-2 h-4 w-4 text-amber-500" />
-                <span>Edit Student</span>
+                <span>Edit Profile</span>
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => setCredentialsStudent(s)}
+              >
+                <KeyRound className="mr-2 h-4 w-4 text-amber-500" />
+                <span>Change Credentials</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              
+              {/* Account Status Actions */}
+              {s.accountStatus === 'SUSPENDED' || s.accountStatus === 'TERMINATED' || !s.isActive ? (
+                <DropdownMenuItem
+                  onClick={() => setAccountStatusState({
+                    isOpen: true,
+                    user: s,
+                    initialAction: 'REACTIVATE',
+                  })}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-500" />
+                  <span>Reactivate Account</span>
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem
+                    onClick={() => setAccountStatusState({
+                      isOpen: true,
+                      user: s,
+                      initialAction: 'SUSPEND',
+                    })}
+                  >
+                    <Ban className="mr-2 h-4 w-4 text-amber-500" />
+                    <span>Suspend Account</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setAccountStatusState({
+                      isOpen: true,
+                      user: s,
+                      initialAction: 'TERMINATE',
+                    })}
+                  >
+                    <UserX className="mr-2 h-4 w-4 text-rose-500" />
+                    <span>Terminate Account</span>
+                  </DropdownMenuItem>
+                </>
+              )}
+
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 variant="destructive"
-                onClick={() => handleDeleteStudent(s.id || s._id || '')}
+                onClick={() => setAccountStatusState({
+                  isOpen: true,
+                  user: s,
+                  initialAction: 'DELETE',
+                })}
               >
                 <Trash2 className="mr-2 h-4 w-4 text-destructive" />
                 <span>Delete Account</span>
@@ -553,6 +631,10 @@ export default function StudentsManagementPage() {
           setEditingStudent(studentToEdit);
           setShowWizard(true);
         }}
+        onEditCredentials={(studentToEditCreds) => {
+          setViewingStudent(null);
+          setCredentialsStudent(studentToEditCreds);
+        }}
         onAssignCourse={(studentToAssign) => {
           setViewingStudent(null);
           setQuickAssignState({ isOpen: true, mode: 'course', student: studentToAssign });
@@ -570,6 +652,32 @@ export default function StudentsManagementPage() {
         student={quickAssignState.student}
         onClose={() => setQuickAssignState({ isOpen: false, mode: 'course', student: null })}
         onSuccess={fetchStudentsData}
+      />
+
+      {/* Direct Schedule Editor Modal */}
+      <ScheduleEditorModal
+        isOpen={Boolean(scheduleEditorStudent)}
+        mode="student"
+        entity={scheduleEditorStudent}
+        onClose={() => setScheduleEditorStudent(null)}
+        onScheduleUpdated={fetchStudentsData}
+      />
+
+      {/* Account Credentials / Email & Password Change Modal */}
+      <AccountCredentialsModal
+        isOpen={Boolean(credentialsStudent)}
+        user={credentialsStudent}
+        onClose={() => setCredentialsStudent(null)}
+        onCredentialsUpdated={fetchStudentsData}
+      />
+
+      {/* Account Status / Suspend / Terminate / Delete Modal */}
+      <AccountStatusModal
+        isOpen={accountStatusState.isOpen}
+        user={accountStatusState.user}
+        initialAction={accountStatusState.initialAction}
+        onClose={() => setAccountStatusState({ isOpen: false, user: null, initialAction: 'SUSPEND' })}
+        onStatusUpdated={fetchStudentsData}
       />
     </div>
   );
