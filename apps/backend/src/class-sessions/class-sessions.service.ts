@@ -138,6 +138,8 @@ export class ClassSessionsService {
         path: 'course',
         populate: { path: 'teacher', select: 'id name email' },
       })
+      .populate('student', 'id name email profilePicture')
+      .populate('teacher', 'id name email profilePicture')
       .populate({
         path: 'attendances',
         populate: { path: 'user', select: 'id name role' },
@@ -381,6 +383,18 @@ export class ClassSessionsService {
         $set: { status: ClassStatus.EXPIRED, endedAt: new Date(finishMs) },
       });
       throw new ForbiddenException('This class session has expired and can no longer be joined.');
+    }
+
+    // Block early joins: only allow joining at or after the scheduled time (admins/reviewers exempt)
+    const isAdminOrSuperAdmin = user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN;
+    if (!isAdminOrSuperAdmin && session.status === ClassStatus.SCHEDULED) {
+      const startMs = new Date(session.scheduledAt).getTime();
+      if (nowMs < startMs) {
+        const diffMinutes = Math.ceil((startMs - nowMs) / 60000);
+        throw new ForbiddenException(
+          `This class has not started yet. It is scheduled to begin in ${diffMinutes} minute${diffMinutes === 1 ? '' : 's'}.`
+        );
+      }
     }
 
     const course: any = session.get ? session.get('course') : (session as any).course;

@@ -7,12 +7,13 @@ import {
   LiveKitRoom,
   RoomAudioRenderer,
   ParticipantTile,
+  VideoTrack,
   useTracks,
   useLocalParticipant,
   useRoomContext,
 } from '@livekit/components-react';
 import { Track, MediaDeviceFailure } from 'livekit-client';
-import { Loader2, AlertCircle, Mic, MicOff, Video, VideoOff, ScreenShare, LogOut, ShieldAlert, Maximize2, Minimize2 } from 'lucide-react';
+import { Loader2, AlertCircle, Mic, MicOff, Video, VideoOff, ScreenShare, LogOut, ShieldAlert } from 'lucide-react';
 import '@livekit/components-styles';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getImageUrl } from '@/utils/image';
@@ -173,12 +174,16 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
     router.push('/');
   };
 
+  const displayTitle = sessionInfo?.course?.title
+    ? `${sessionInfo.course.title}${sessionInfo.student?.name ? ` • ${sessionInfo.student.name}` : ''}`
+    : roomName.startsWith('room-') ? roomName.substring(5) : roomName;
+
   return (
     <header className="h-16 border-b border-border bg-card/60 backdrop-blur-md flex items-center justify-between px-6 z-10">
       <div className="flex items-center gap-3">
         <div className="h-2 w-2 rounded-full bg-red-500 animate-pulse"></div>
         <span className="font-semibold tracking-wide font-display text-sm md:text-base">
-          Classroom: <span className="text-primary">{roomName.startsWith('room-') ? roomName.substring(5) : roomName}</span>
+          Classroom: <span className="text-primary">{displayTitle}</span>
         </span>
 
         {/* Realtime Timers */}
@@ -227,8 +232,6 @@ function VideoGrid() {
     { onlySubscribed: false },
   );
 
-  const [isFullScreenShare, setIsFullScreenShare] = useState(false);
-
   const handleMuteParticipant = async (participant: any) => {
     const audioPub = participant.getTrackPublication(Track.Source.Microphone);
     const trackSid = audioPub?.trackSid;
@@ -270,77 +273,85 @@ function VideoGrid() {
     );
   }
 
-  const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare);
+  const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare && t.publication);
   const cameraTracks = tracks.filter((t) => t.source === Track.Source.Camera);
 
+  // ─── Screen Share Active: Full-screen share + small avatar bubbles ───
   if (screenShareTrack) {
-    if (isFullScreenShare) {
-      return (
-        <div className="relative flex-1 w-full h-full bg-slate-950 rounded-2xl overflow-hidden border border-border/40">
-          <div className="w-full h-full">
-            <ParticipantTile
-              trackRef={screenShareTrack}
-              className="w-full h-full bg-black flex items-center justify-center"
-            />
-          </div>
+    return (
+      <div className="relative flex-1 w-full h-full bg-slate-950 rounded-2xl overflow-hidden border border-border/40">
+        {/* Screen share occupies the entire area */}
+        <VideoTrack
+          trackRef={screenShareTrack as any}
+          className="w-full h-full bg-black object-contain"
+        />
 
-          <button
-            onClick={() => setIsFullScreenShare(false)}
-            className="absolute top-4 left-4 z-20 bg-slate-900/80 hover:bg-slate-800 text-white p-2.5 rounded-xl border border-slate-700/60 shadow-lg transition-all"
-            title="Exit Full Screen Share"
-          >
-            <Minimize2 className="h-4 w-4" />
-          </button>
+        {/* "Screen Shared" badge */}
+        <div className="absolute top-4 left-4 z-20 bg-blue-500/80 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-md flex items-center gap-1.5">
+          <ScreenShare className="h-3 w-3" />
+          Screen Shared
+        </div>
 
-          <div className="absolute top-4 right-4 z-20 flex flex-col gap-3 items-end max-h-[80%] overflow-y-auto pr-1">
-            {cameraTracks.map((track) => (
+        {/* Small circular avatar bubbles — pinned bottom-right */}
+        <div className="absolute bottom-4 right-4 z-20 flex flex-row-reverse gap-2 items-end">
+          {cameraTracks.map((track) => {
+            const participant = track.participant;
+            const isCameraOff = ('isPlaceholder' in track && track.isPlaceholder) || !track.publication?.track || track.publication?.isMuted;
+
+            let profilePicture = '';
+            let role = '';
+            try {
+              const meta = JSON.parse(participant?.metadata || '{}');
+              profilePicture = meta.profilePicture || '';
+              role = meta.role || '';
+            } catch (_) {}
+
+            const displayName = participant?.name || participant?.identity || 'User';
+
+            return (
               <div
-                key={`${track.participant.identity}-${track.source}`}
-                className="group relative transition-all duration-300 ease-in-out w-16 h-16 rounded-full overflow-hidden border border-slate-750 bg-slate-900/90 shadow-xl hover:w-48 hover:h-32 hover:rounded-xl"
+                key={`${participant.identity}-${track.source}`}
+                className="group relative flex flex-col items-center"
               >
-                <CustomParticipantTile track={track} className="w-full h-full object-cover" />
+                {/* Avatar circle */}
+                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-slate-600/80 bg-slate-900 shadow-2xl ring-2 ring-black/30">
+                  {isCameraOff ? (
+                    profilePicture ? (
+                      <img
+                        src={getImageUrl(profilePicture)}
+                        alt={displayName}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-brand/20 text-brand font-bold text-lg">
+                        {displayName[0]?.toUpperCase() || 'U'}
+                      </div>
+                    )
+                  ) : (
+                    <ParticipantTile trackRef={track} className="w-full h-full object-cover [&_.lk-participant-metadata]:hidden [&_.lk-participant-name]:hidden" />
+                  )}
+                </div>
+                {/* Name label below the bubble */}
+                <span className="mt-1 text-[10px] font-semibold text-white/80 bg-black/60 px-2 py-0.5 rounded-full whitespace-nowrap max-w-[80px] truncate text-center">
+                  {displayName.split(' ')[0]}
+                </span>
+                {/* Role badge */}
+                {role && (
+                  <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full mt-0.5 ${
+                    role === 'TEACHER' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-400'
+                  }`}>
+                    {role}
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
-      );
-    } else {
-      return (
-        <div className="flex-1 w-full h-full flex flex-col md:flex-row gap-4 overflow-hidden">
-          <div className="flex-1 relative bg-slate-950 rounded-2xl overflow-hidden border border-border/40 flex items-center justify-center aspect-video md:aspect-auto">
-            <ParticipantTile
-              trackRef={screenShareTrack}
-              className="w-full h-full"
-            />
-            <button
-              onClick={() => setIsFullScreenShare(true)}
-              className="absolute top-4 left-4 z-20 bg-slate-900/80 hover:bg-slate-800 text-white p-2.5 rounded-xl border border-slate-700/60 shadow-lg transition-all"
-              title="Full Screen Share"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
-            <div className="absolute top-4 right-4 bg-blue-500/80 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-md">
-              Screen Shared
-            </div>
-          </div>
-
-          <div className="w-full md:w-64 lg:w-80 shrink-0 flex md:flex-col gap-3 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto max-h-[140px] md:max-h-none py-1">
-            {cameraTracks.map((track) => (
-              <div key={`${track.participant.identity}-${track.source}`} className="relative group shrink-0 w-40 md:w-full aspect-video">
-                <CustomParticipantTile
-                  track={track}
-                  className="w-full h-full"
-                  showMuteButton={user?.role === 'TEACHER' && track.participant.identity !== user.id}
-                  onMute={() => handleMuteParticipant(track.participant)}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      );
-    }
+      </div>
+    );
   }
 
+  // ─── No Screen Share: Simple camera grid ───
   return (
     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-y-auto pr-1">
       {cameraTracks.map((track) => (
@@ -368,7 +379,7 @@ function CustomParticipantTile({
   showMuteButton?: boolean;
   onMute?: () => void;
 }) {
-  const isCameraOff = track.isPlaceholder || !track.publication?.track || track.publication?.isMuted;
+  const isCameraOff = ('isPlaceholder' in track && track.isPlaceholder) || !track.publication?.track || track.publication?.isMuted;
   const participant = track.participant;
 
   let profilePicture = '';

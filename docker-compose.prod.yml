@@ -11,8 +11,25 @@ services:
       timeout: 5s
       retries: 5
 
+  livekit:
+    image: livekit/livekit-server:v1.9.0
+    container_name: quran-lms-livekit
+    restart: always
+    command: --config /etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+    volumes:
+      - ./livekit-prod.yaml:/etc/livekit.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+
   egress:
-    # Uses internal host gateway to talk to LiveKit running on the host
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -21,6 +38,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      livekit:
+        condition: service_started
 
   nestjs:
     env_file:
@@ -56,6 +75,8 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      livekit:
+        condition: service_started
 
   nextjs:
     env_file:
@@ -76,11 +97,10 @@ services:
       NODE_ENV: production
     depends_on:
       nestjs:
-        condition: service_healthy
+        condition: service_started
 
 volumes:
   redis_data:
-  # Persistent volume for recording files shared between NestJS and Egress
   recordings_data:
-  # Persistent volume for user profile photos and uploaded media
   uploads_data:
+

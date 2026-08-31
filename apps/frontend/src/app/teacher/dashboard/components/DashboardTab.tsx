@@ -391,14 +391,31 @@ export default function DashboardTab({
 
                       {/* Leave Button (Blue) */}
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenLeaveModal(session)}
-                          className="px-3 py-1 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm"
-                          title="Request Leave for this Class"
-                        >
-                          Leave
-                        </button>
+                        {(() => {
+                          const isEndedOrCompleted =
+                            session.status === 'COMPLETED' ||
+                            session.status === 'ENDED' ||
+                            session.status === 'CANCELLED';
+                          return (
+                            <button
+                              type="button"
+                              disabled={isEndedOrCompleted}
+                              onClick={() => handleOpenLeaveModal(session)}
+                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                                isEndedOrCompleted
+                                  ? 'bg-muted text-muted-foreground border border-border opacity-50 cursor-not-allowed'
+                                  : 'bg-sky-500 hover:bg-sky-600 text-white'
+                              }`}
+                              title={
+                                isEndedOrCompleted
+                                  ? 'Leave request disabled for completed or ended classes'
+                                  : 'Request Leave for this Class'
+                              }
+                            >
+                              Leave
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* Action Button: Activate (Amber) vs Start Class (Green) */}

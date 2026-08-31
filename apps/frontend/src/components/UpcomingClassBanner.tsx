@@ -106,6 +106,10 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
   const courseTitle = upcomingSession.course?.title || 'Quranic Studies';
   const courseType = upcomingSession.course?.type || 'STANDARD';
 
+  // Only allow joining when the session is LIVE or current time has reached scheduledAt
+  const scheduledMs = new Date(upcomingSession.scheduledAt).getTime();
+  const canJoin = isLive || Date.now() >= scheduledMs;
+
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 shadow-xl transition-all ${
       isLive
@@ -170,18 +174,27 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
         </div>
 
         {/* Action Button */}
-        <div className="self-end sm:self-center shrink-0">
+        <div className="self-end sm:self-center shrink-0 flex flex-col items-center gap-1">
           <button
-            onClick={() => router.push(`/classroom/${sessionId}`)}
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all transform hover:scale-105 active:scale-95 ${
-              isLive
-                ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/30 animate-bounce'
-                : 'bg-brand hover:bg-brand/90 text-brand-foreground shadow-brand/20'
+            onClick={() => canJoin && router.push(`/classroom/${sessionId}`)}
+            disabled={!canJoin}
+            title={canJoin ? undefined : `Class opens at ${new Date(upcomingSession.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`}
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs shadow-lg transition-all transform ${
+              canJoin
+                ? isLive
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/30 animate-bounce hover:scale-105 active:scale-95 cursor-pointer'
+                  : 'bg-brand hover:bg-brand/90 text-brand-foreground shadow-brand/20 hover:scale-105 active:scale-95 cursor-pointer'
+                : 'bg-muted/60 text-muted-foreground border border-border cursor-not-allowed opacity-60'
             }`}
           >
             {isLive ? <MonitorPlay size={16} /> : <PlayCircle size={16} />}
-            <span>{isLive ? 'Enter Live Classroom' : 'Join Session'}</span>
+            <span>{isLive ? 'Enter Live Classroom' : canJoin ? 'Join Session' : 'Not Yet Open'}</span>
           </button>
+          {!canJoin && (
+            <span className="text-[10px] text-muted-foreground font-mono text-center">
+              Opens in {timeRemaining}
+            </span>
+          )}
         </div>
       </div>
     </div>

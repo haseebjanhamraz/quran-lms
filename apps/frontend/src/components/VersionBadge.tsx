@@ -21,7 +21,7 @@ export default function VersionBadge({ className = '' }: { className?: string })
   const fetchBackendVersion = async () => {
     try {
       setLoading(true);
-      const res = await apiFetch(`${API_URL.replace('/api/v1', '')}/version`);
+      const res = await apiFetch(`${API_URL}/version`);
       if (res.ok) {
         const data = await res.json();
         setBackendVersion(data);

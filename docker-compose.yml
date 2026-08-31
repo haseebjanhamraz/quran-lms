@@ -8,6 +8,32 @@ services:
     volumes:
       - redis_data:/data
 
+  mongo:
+    image: mongo:7-jammy
+    container_name: quran-lms-mongo
+    restart: always
+    ports:
+      - "${MONGO_PORT_BINDING:-27017:27017}"
+    volumes:
+      - mongo_data:/data/db
+
+  livekit:
+    image: livekit/livekit-server:v1.9.0
+    container_name: quran-lms-livekit
+    restart: always
+    command: --config /etc/livekit.yaml
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+      - "3478:3478/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+
   egress:
     image: livekit/egress:latest
     container_name: quran-lms-egress
@@ -17,7 +43,7 @@ services:
       - EGRESS_CONFIG_FILE=/etc/egress/config.yaml
       - EGRESS_API_KEY=${LIVEKIT_API_KEY:-devkey}
       - EGRESS_API_SECRET=${LIVEKIT_API_SECRET:-secret}
-      - EGRESS_WS_URL=${LIVEKIT_WS_URL:-${LIVEKIT_PUBLIC_URL:-wss://livekit.kpcybers.com}}
+      - EGRESS_WS_URL=${LIVEKIT_WS_URL:-ws://livekit:7880}
       - EGRESS_INSECURE=true
     volumes:
       - ./egress.yaml:/etc/egress/config.yaml
@@ -28,6 +54,7 @@ services:
       - "host.docker.internal:host-gateway"
     depends_on:
       - redis
+      - livekit
 
   nestjs:
     env_file:
@@ -42,7 +69,7 @@ services:
       - "${NESTJS_PORT_BINDING:-4000:4000}"
       - "${WS_PORT_BINDING:-5001:5001}"
     environment:
-      MONGODB_URI: ${MONGODB_URI:-mongodb://host.docker.internal:27017/quran_lms}
+      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/quran_lms}
       PORT: ${NESTJS_PORT:-${PORT:-4000}}
       WS_PORT: ${WS_PORT:-5001}
       NODE_ENV: ${NODE_ENV:-development}
@@ -52,7 +79,7 @@ services:
       REDIS_PORT: ${REDIS_PORT:-6379}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-secret}
-      LIVEKIT_HOST: ${LIVEKIT_HOST:-http://host.docker.internal:7880}
+      LIVEKIT_HOST: ${LIVEKIT_HOST:-http://livekit:7880}
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}
       JWT_EXPIRY: ${JWT_EXPIRY:-15m}
       JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
@@ -72,7 +99,8 @@ services:
       - uploads_data:/app/uploads
     depends_on:
       - redis
-      # - vosk
+      - mongo
+      - livekit
 
   # Alphacep / Vosk speech-to-text service is currently disabled (skipped while AI features are unused)
   # vosk:
@@ -107,4 +135,6 @@ services:
 
 volumes:
   redis_data:
+  mongo_data:
   uploads_data:
+

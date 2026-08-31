@@ -1,8 +1,8 @@
 keys:
-  0cfbf337dbd87d8527cf47e57d1ecf693d03bef8fdd5b0d93c03dc66d0ff71b8: 86ce40cd70d1653a91c3cedaf5c52e12e935ce4b7549657116ee9e0f2f073470
+  devkey: secret
 
-# redis:
-#   address: localhost:6379
+redis:
+  address: redis:6379
 
 rtc:
   tcp_port: 7881
@@ -17,8 +17,10 @@ turn:
   udp_port: 3478
 
 webhook:
-  api_key: 0cfbf337dbd87d8527cf47e57d1ecf693d03bef8fdd5b0d93c03dc66d0ff71b8
+  api_key: devkey
   urls:
-    - http://localhost:5000/api/v1/livekit/webhook
+    - http://nestjs:4000/api/v1/livekit/webhook
+    - http://quran-lms-nestjs:4000/api/v1/livekit/webhook
+
 
 
