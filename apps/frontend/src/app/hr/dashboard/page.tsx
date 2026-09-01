@@ -8,6 +8,7 @@ import {
   Clock, AlertTriangle, TrendingUp, Users, RefreshCw, Loader2, Plus, ArrowRight
 } from 'lucide-react';
 import PermissionGate from '@/components/PermissionGate';
+import IslamabadClock from '@/components/IslamabadClock';
 
 export default function HRDashboardPage() {
   const { user } = useAuth();
@@ -60,7 +61,8 @@ export default function HRDashboardPage() {
             </p>
           </div>
 
-          <div className="flex gap-3">
+          <div className="flex items-center gap-3">
+            <IslamabadClock variant="badge" />
             <button
               onClick={fetchDashboardData}
               disabled={loading}

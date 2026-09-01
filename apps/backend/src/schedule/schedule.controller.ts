@@ -60,8 +60,9 @@ export class ScheduleController {
     @Query('dayOfWeek') dayOfWeek: DayOfWeek,
     @Query('timeSlotIndex') timeSlotIndex: number,
     @Query('clientId') clientId?: string,
+    @Query('teacherId') teacherId?: string,
   ) {
-    return this.scheduleService.removeSlot(dayOfWeek, Number(timeSlotIndex), clientId);
+    return this.scheduleService.removeSlot(dayOfWeek, Number(timeSlotIndex), clientId, teacherId);
   }
 
   @Post('generate-weekly')

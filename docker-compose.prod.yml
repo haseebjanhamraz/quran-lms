@@ -1,7 +1,7 @@
 # ==============================================================================
 # Ain Ul Quran Production Docker Compose Override File
 # ==============================================================================
-# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 services:
   redis:
@@ -44,10 +44,16 @@ services:
   nestjs:
     env_file:
       - .env
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+      target: runner
+    restart: always
+    command: ["node", "dist/main"]
     environment:
       MONGODB_URI: ${MONGODB_URI}
-      PORT: ${NESTJS_PORT:-${PORT}}
-      WS_PORT: ${WS_PORT}
+      PORT: ${NESTJS_PORT:-${PORT:-5000}}
+      WS_PORT: ${WS_PORT:-5001}
       NODE_ENV: production
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
@@ -84,17 +90,20 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
-      network: host
+      target: runner
       args:
         NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
         NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
         NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
+    restart: always
+    command: ["node", "server.js"]
     environment:
       PORT: ${NEXTJS_PORT:-3030}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL}
       NODE_ENV: production
+    volumes: []
     depends_on:
       nestjs:
         condition: service_started

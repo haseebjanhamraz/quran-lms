@@ -8,6 +8,11 @@ import {
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTimeSlots, DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
+import {
+  formatPKTTime,
+  formatPKTDate,
+  formatSlotRangePKT,
+} from '@/utils/islamabadTime';
 
 interface SlotAssignment {
   id?: string;
@@ -178,8 +183,8 @@ export default function TeacherTimetableGrid({
             <Globe className="h-5 w-5" />
           </div>
           <div className="truncate">
-            <p className="text-xs font-bold font-mono text-foreground truncate">{timezone}</p>
-            <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Timezone Region</p>
+            <p className="text-xs font-bold font-mono text-foreground truncate">Islamabad (PKT)</p>
+            <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Academy Standard Time</p>
           </div>
         </div>
       </div>
@@ -396,9 +401,9 @@ export default function TeacherTimetableGrid({
                           </span>
                         </div>
                         <p className="text-[11px] text-muted-foreground mt-0.5">
-                          {scheduledDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })} at{' '}
+                          {formatPKTDate(session.scheduledAt)} at{' '}
                           <span className="font-mono text-foreground font-semibold">
-                            {scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {formatPKTTime(session.scheduledAt)} PKT
                           </span>{' '}
                           ({session.durationMinutes || 60} mins)
                           {session.student?.name && ` • Student: ${session.student.name}`}

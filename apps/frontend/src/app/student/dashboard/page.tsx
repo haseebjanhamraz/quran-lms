@@ -19,10 +19,15 @@ import {
   X,
 } from 'lucide-react';
 import RescheduleModal from '@/components/RescheduleModal';
-import ThemeToggle from '@/components/ThemeToggle';
 import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
 import DailyScheduleView from '@/components/DailyScheduleView';
+import { useUrlState } from '@/hooks/useUrlState';
+import Navbar from '@/components/Navbar';
+import {
+  formatPKTTime,
+  formatPKTDate,
+} from '@/utils/islamabadTime';
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
 interface SessionItem {
@@ -58,17 +63,11 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatPKTDate(iso);
 }
 
 function formatTime(iso: string): string {
-  const d = new Date(iso);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+  return `${formatPKTTime(iso)} PKT`;
 }
 
 function getCountdown(iso: string): string {
@@ -111,7 +110,7 @@ export default function StudentDashboard() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'learning' | 'schedule' | 'attendance'>('learning');
+  const [activeTab, setActiveTab] = useUrlState<'learning' | 'schedule' | 'attendance'>('tab', 'learning');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [selectedRescheduleSession, setSelectedRescheduleSession] = useState<SessionItem | null>(null);
 
@@ -189,68 +188,17 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* ═══════════════ NAVBAR ═══════════════ */}
-      <nav className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-          {/* Brand */}
-          <div className="flex items-center gap-2.5">
-            <div className="bg-brand rounded-xl p-2 flex items-center justify-center text-brand-foreground shadow-sm">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-            <span className="font-display font-bold text-lg text-foreground tracking-tight">
-              Student Portal
-            </span>
-          </div>
-
-          {/* Navigation Tabs */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setActiveTab('learning')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${activeTab === 'learning'
-                ? 'bg-brand/15 text-brand border border-brand/30'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-            >
-              Learning Portal
-            </button>
-            <button
-              onClick={() => setActiveTab('schedule')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${activeTab === 'schedule'
-                ? 'bg-brand/15 text-brand border border-brand/30'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-            >
-              Daily Schedule
-            </button>
-            <button
-              onClick={() => setActiveTab('attendance')}
-              className={`rounded-xl px-3.5 py-1.5 text-xs font-semibold transition-all ${activeTab === 'attendance'
-                ? 'bg-brand/15 text-brand border border-brand/30'
-                : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                }`}
-            >
-              Attendance Logs
-            </button>
-          </div>
-
-          {/* User area */}
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            {user && (
-              <div className="hidden sm:block text-right leading-tight">
-                <p className="text-sm font-semibold text-foreground">{user.name}</p>
-                <p className="text-xs text-muted-foreground">{user.email}</p>
-              </div>
-            )}
-            <button
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-all"
-              onClick={logout}
-            >
-              <LogOut className="w-4 h-4" />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      {/* Reusable Dynamic Navbar */}
+      <Navbar
+        role="STUDENT"
+        activeTab={activeTab}
+        onTabChange={(tabKey) => setActiveTab(tabKey as any)}
+        customTabs={[
+          { key: 'learning', label: 'Learning Portal', icon: BookOpen },
+          { key: 'schedule', label: 'Daily Schedule', icon: Calendar },
+          { key: 'attendance', label: 'Attendance Logs', icon: Clock },
+        ]}
+      />
 
       {/* ═══════════════ MAIN ═══════════════ */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">

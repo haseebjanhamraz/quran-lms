@@ -8,15 +8,6 @@ services:
     volumes:
       - redis_data:/data
 
-  mongo:
-    image: mongo:7-jammy
-    container_name: quran-lms-mongo
-    restart: always
-    ports:
-      - "${MONGO_PORT_BINDING:-27017:27017}"
-    volumes:
-      - mongo_data:/data/db
-
   livekit:
     image: livekit/livekit-server:v1.9.0
     container_name: quran-lms-livekit
@@ -47,7 +38,6 @@ services:
       - EGRESS_INSECURE=true
     volumes:
       - ./egress.yaml:/etc/egress/config.yaml
-      - ./apps/backend/recordings:/recordings
     cap_add:
       - SYS_ADMIN
     extra_hosts:
@@ -62,15 +52,14 @@ services:
     build:
       context: ./apps/backend
       dockerfile: Dockerfile
-      network: host
     container_name: quran-lms-nestjs
-    restart: always
+    restart: unless-stopped
     ports:
-      - "${NESTJS_PORT_BINDING:-4000:4000}"
+      - "${NESTJS_PORT_BINDING:-5000:5000}"
       - "${WS_PORT_BINDING:-5001:5001}"
     environment:
-      MONGODB_URI: ${MONGODB_URI:-mongodb://mongo:27017/quran_lms}
-      PORT: ${NESTJS_PORT:-${PORT:-4000}}
+      MONGODB_URI: ${MONGODB_URI}
+      PORT: ${NESTJS_PORT:-${PORT:-5000}}
       WS_PORT: ${WS_PORT:-5001}
       NODE_ENV: ${NODE_ENV:-development}
       JWT_SECRET: ${JWT_SECRET:-your-secret-jwt-key-change-in-prod}
@@ -83,7 +72,7 @@ services:
       LIVEKIT_PUBLIC_URL: ${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}
       JWT_EXPIRY: ${JWT_EXPIRY:-15m}
       JWT_REFRESH_EXPIRY: ${JWT_REFRESH_EXPIRY:-7d}
-      RECORDINGS_DIR: ${RECORDINGS_DIR:-/recordings}
+      RECORDINGS_DIR: ${RECORDINGS_DIR:-/app/recordings}
       VOSK_SERVER_URL: ${VOSK_SERVER_URL:-ws://vosk:2700}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
@@ -93,22 +82,14 @@ services:
       GOOGLE_DRIVE_REFRESH_TOKEN: ${GOOGLE_DRIVE_REFRESH_TOKEN:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     volumes:
-      - ./apps/backend/recordings:/app/recordings
-      - ./apps/backend/recordings:/recordings
       - uploads_data:/app/uploads
     depends_on:
       - redis
-      - mongo
       - livekit
-
-  # Alphacep / Vosk speech-to-text service is currently disabled (skipped while AI features are unused)
-  # vosk:
-  #   image: alphacep/kaldi-en:latest
-  #   container_name: quran-lms-vosk
-  #   restart: always
-  #   ports:
-  #     - "${VOSK_PORT_BINDING:-2700:2700}"
 
   nextjs:
     env_file:
@@ -116,18 +97,15 @@ services:
     build:
       context: ./apps/frontend
       dockerfile: Dockerfile
-      network: host
-      args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
-        NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
-        NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:5001}
     container_name: quran-lms-nextjs
-    restart: always
+    restart: unless-stopped
     ports:
       - "${NEXTJS_PORT_BINDING:-3030:3030}"
     environment:
       PORT: ${NEXTJS_PORT:-3030}
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+      HOSTNAME: "0.0.0.0"
+      NODE_ENV: ${NODE_ENV:-development}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:5000/api/v1}
       NEXT_PUBLIC_LIVEKIT_URL: ${NEXT_PUBLIC_LIVEKIT_URL:-ws://localhost:7880}
       NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-ws://localhost:5001}
     depends_on:
@@ -135,6 +113,5 @@ services:
 
 volumes:
   redis_data:
-  mongo_data:
   uploads_data:
 

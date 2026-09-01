@@ -31,7 +31,7 @@ export default function ThemeToggle() {
     <div className="relative inline-block text-left" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-white p-2 text-foreground hover:bg-muted transition-all duration-200 shadow-sm outline-none focus:ring-2 focus:ring-primary/30"
+        className="flex items-center gap-1.5 rounded-xl border border-border/60 bg-background p-2 text-foreground hover:bg-muted transition-all duration-200 shadow-sm outline-none focus:ring-2 focus:ring-primary/30"
         title={`Current theme: ${theme} (${resolvedTheme})`}
         aria-label="Toggle theme"
       >

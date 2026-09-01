@@ -42,7 +42,7 @@ function notifyStatus(connected: boolean) {
 
 function getWsUrl(): string {
   if (typeof window === 'undefined') return 'ws://localhost:5001';
-  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL;
+  if (process.env.NEXT_PUBLIC_WS_URL) return process.env.NEXT_PUBLIC_WS_URL.trim();
 
   const isSecure = window.location.protocol === 'https:';
   const protocol = isSecure ? 'wss:' : 'ws:';

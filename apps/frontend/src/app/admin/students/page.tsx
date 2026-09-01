@@ -99,6 +99,22 @@ export default function StudentsManagementPage() {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  // Restore admission wizard draft if page is reloaded with an open form
+  useEffect(() => {
+    try {
+      const draftRaw = typeof window !== 'undefined' ? localStorage.getItem('quran_lms_admission_wizard_draft') : null;
+      if (draftRaw) {
+        const draft = JSON.parse(draftRaw);
+        if (draft && draft.isOpen) {
+          setShowWizard(true);
+          if (draft.editingStudent) {
+            setEditingStudent(draft.editingStudent);
+          }
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   const fetchStudentsData = async () => {
     setLoading(true);
     try {
@@ -615,6 +631,9 @@ export default function StudentsManagementPage() {
         isOpen={showWizard}
         editingStudent={editingStudent}
         onClose={() => {
+          try {
+            localStorage.removeItem('quran_lms_admission_wizard_draft');
+          } catch (_) {}
           setShowWizard(false);
           setEditingStudent(null);
         }}

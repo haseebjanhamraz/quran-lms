@@ -11,7 +11,8 @@ import {
   Activity,
   Sparkles,
 } from 'lucide-react';
-import VersionBadge from '@/components/VersionBadge';
+import IslamabadClock from '@/components/IslamabadClock';
+import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -63,13 +64,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return `${formatPKTDate(iso)} at ${formatPKTTime(iso)} PKT`;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -207,19 +202,22 @@ export default function AdminDashboardPage() {
   return (
     <div className="relative mx-auto max-w-7xl space-y-6">
       {/* ── Top Bar ── */}
-      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-border/60">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-2 border-b border-border/60">
         <div>
           <h1 className="text-xl font-bold tracking-tight text-foreground font-display">
             Dashboard Overview
           </h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">{todayLabel()}</p>
+          <p className="mt-0.5 text-xs text-muted-foreground" suppressHydrationWarning>{todayLabel()}</p>
         </div>
-        {loading && (
-          <div className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs text-muted-foreground">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
-            Updating overview&hellip;
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          <IslamabadClock variant="badge" />
+          {loading && (
+            <div className="flex items-center gap-2 rounded-full border border-border bg-card/60 px-4 py-1.5 text-xs text-muted-foreground">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-brand" />
+              Updating overview&hellip;
+            </div>
+          )}
+        </div>
       </div>
 
       {/* ── Two-column Dashboard Area ── */}
@@ -276,7 +274,7 @@ export default function AdminDashboardPage() {
                             <p className="font-medium text-foreground">{s.course?.title ?? '\u2014'}</p>
                             <p className="text-xs text-muted-foreground">{s.course?.type ?? 'CourseType'}</p>
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-foreground/80 font-mono text-xs">
+                          <td className="whitespace-nowrap px-4 py-3 text-foreground/80 font-mono text-xs" suppressHydrationWarning>
                             {formatDate(s.scheduledAt)}
                           </td>
                           <td className="whitespace-nowrap px-4 py-3 text-foreground/80">
@@ -387,7 +385,7 @@ export default function AdminDashboardPage() {
                       <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
                         {log.action}
                       </span>
-                      <span className="text-[10px] text-muted-foreground font-mono">
+                      <span className="text-[10px] text-muted-foreground font-mono" suppressHydrationWarning>
                         {formatRelativeTime(log.createdAt)}
                       </span>
                     </div>
@@ -450,9 +448,6 @@ export default function AdminDashboardPage() {
           </section>
         </div>
       </div>
-
-      {/* Version & System Information Footer Badge */}
-      <VersionBadge className="mt-8" />
     </div>
   );
 }

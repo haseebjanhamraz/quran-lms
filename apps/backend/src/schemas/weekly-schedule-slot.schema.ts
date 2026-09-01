@@ -40,6 +40,15 @@ export class WeeklyScheduleSlot {
   course?: any;
   student?: any;
 
+  @Prop({ type: Number, default: 30 })
+  durationMinutes?: number;
+
+  @Prop()
+  teacherStartTime?: string; // e.g. '09:00' in PKT
+
+  @Prop()
+  studentStartTime?: string; // e.g. '09:00' in PKT
+
   @Prop({ default: true, type: Boolean })
   isRecurring: boolean;
 
@@ -52,7 +61,7 @@ export class WeeklyScheduleSlot {
 
 export const WeeklyScheduleSlotSchema = SchemaFactory.createForClass(WeeklyScheduleSlot);
 
-WeeklyScheduleSlotSchema.index({ dayOfWeek: 1, timeSlotIndex: 1 }, { unique: true });
+WeeklyScheduleSlotSchema.index({ dayOfWeek: 1, timeSlotIndex: 1, teacherId: 1 }, { unique: true });
 
 WeeklyScheduleSlotSchema.virtual('id').get(function (this: Document) {
   return this._id.toHexString();

@@ -100,4 +100,33 @@ export class SystemSettingsService {
     await this.cacheService.del(`system_setting:time_slots:all`);
     return sanitized;
   }
+
+  async getCurrentIslamabadTime() {
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+      weekday: 'long',
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+    });
+
+    const parts = formatter.formatToParts(now);
+    const map: Record<string, string> = {};
+    parts.forEach((p) => { map[p.type] = p.value; });
+
+    return {
+      timezone: 'Asia/Karachi',
+      city: 'Islamabad',
+      currentTime: `${map.hour || '12'}:${map.minute || '00'}:${map.second || '00'} ${map.dayPeriod || 'PM'}`,
+      dayOfWeek: map.weekday || 'Monday',
+      formattedDate: `${map.weekday}, ${map.month} ${map.day}, ${map.year}`,
+      iso: now.toISOString(),
+      offset: '+05:00',
+    };
+  }
 }

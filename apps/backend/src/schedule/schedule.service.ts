@@ -6,11 +6,38 @@ import {
   User, UserDocument, Role,
   Course, CourseDocument,
   ClassSession, ClassSessionDocument, ClassStatus,
-  Enrollment, EnrollmentDocument
+  Enrollment, EnrollmentDocument,
+  Student, StudentDocument,
 } from '../schemas';
 import { UpsertSlotDto } from './dto/upsert-slot.dto';
 import { ScheduleGateway } from './schedule.gateway';
 import { RedisCacheService } from '../cache/redis-cache.service';
+import {
+  getPKTDateParts,
+  getPKTHourAndMinute,
+  parsePKTDayAndTimeToDate,
+  SHORT_DAY_TO_FULL,
+  ISLAMABAD_TIMEZONE,
+  timeStringToMinutes,
+  minutesToTimeString,
+} from '../utils/islamabad-time';
+
+const SHORT_TO_FULL_DAYS: Record<string, DayOfWeek> = {
+  Mon: DayOfWeek.MONDAY,
+  Tue: DayOfWeek.TUESDAY,
+  Wed: DayOfWeek.WEDNESDAY,
+  Thu: DayOfWeek.THURSDAY,
+  Fri: DayOfWeek.FRIDAY,
+  Sat: DayOfWeek.SATURDAY,
+  Sun: DayOfWeek.SUNDAY,
+  Monday: DayOfWeek.MONDAY,
+  Tuesday: DayOfWeek.TUESDAY,
+  Wednesday: DayOfWeek.WEDNESDAY,
+  Thursday: DayOfWeek.THURSDAY,
+  Friday: DayOfWeek.FRIDAY,
+  Saturday: DayOfWeek.SATURDAY,
+  Sunday: DayOfWeek.SUNDAY,
+};
 
 @Injectable()
 export class ScheduleService {
@@ -27,6 +54,8 @@ export class ScheduleService {
     private readonly classSessionModel: Model<ClassSessionDocument>,
     @InjectModel(Enrollment.name)
     private readonly enrollmentModel: Model<EnrollmentDocument>,
+    @InjectModel(Student.name)
+    private readonly studentModel: Model<StudentDocument>,
     private readonly scheduleGateway: ScheduleGateway,
     private readonly cacheService: RedisCacheService,
   ) {}
@@ -206,9 +235,32 @@ export class ScheduleService {
 
     // Fetch enrollments for student
     const enrollments = await this.enrollmentModel.find({ studentId }).lean();
-    const enrolledCourseIds = enrollments.map((e: any) => e.courseId?.toString()).filter(Boolean);
+    let enrolledCourseIds = enrollments.map((e: any) => e.courseId?.toString()).filter(Boolean);
 
-    // Fetch courses the student is enrolled in
+    // Fetch student user & profile details
+    const [studentUser, studentDoc] = await Promise.all([
+      this.userModel.findById(studentId).select('id name email').lean(),
+      this.studentModel.findOne({ userId: studentId }).lean(),
+    ]);
+
+    const assignedTeacherId = studentDoc?.profile?.assignedTeacher
+      ? studentDoc.profile.assignedTeacher.toString()
+      : null;
+
+    // If student has an assigned teacher, also resolve teacher's courses
+    if (assignedTeacherId) {
+      const teacherCourses = await this.courseModel.find({
+        $or: [{ teacherId: assignedTeacherId }, { teacherIds: assignedTeacherId }],
+      }).lean();
+      teacherCourses.forEach((tc) => {
+        const tcId = tc._id.toString();
+        if (!enrolledCourseIds.includes(tcId)) {
+          enrolledCourseIds.push(tcId);
+        }
+      });
+    }
+
+    // Fetch courses the student is enrolled in or assigned to
     const courses = await this.courseModel.find({
       _id: { $in: enrolledCourseIds },
     }).lean();
@@ -219,15 +271,26 @@ export class ScheduleService {
       courseMap[cIdStr] = { id: cIdStr, _id: cIdStr, title: c.title, type: c.type };
     });
 
-    const studentUser = await this.userModel.findById(studentId).select('id name email').lean();
     const studentObj = studentUser
       ? { id: studentUser._id.toString(), name: studentUser.name, email: studentUser.email }
       : null;
 
-    // 1. Direct recurring slots assigned to this student
+    // 1. Direct and related recurring slots
+    const slotOrConditions: any[] = [{ studentId }];
+    if (enrolledCourseIds.length > 0) {
+      slotOrConditions.push({
+        courseId: { $in: enrolledCourseIds },
+      });
+    }
+    if (assignedTeacherId) {
+      slotOrConditions.push({
+        teacherId: assignedTeacherId,
+      });
+    }
+
     const directSlots = await this.weeklySlotModel.find({
       isActive: true,
-      studentId,
+      $or: slotOrConditions,
     })
       .populate('teacher', 'id name email profilePicture')
       .populate('course', 'id title type')
@@ -235,8 +298,13 @@ export class ScheduleService {
       .lean();
 
     // 2. Real scheduled class sessions for this student
+    const sessionOrConditions: any[] = [{ studentId }];
+    if (enrolledCourseIds.length > 0) {
+      sessionOrConditions.push({ courseId: { $in: enrolledCourseIds } });
+    }
+
     const studentSessions = await this.classSessionModel.find({
-      studentId,
+      $or: sessionOrConditions,
       status: { $ne: ClassStatus.CANCELLED },
     })
       .populate('teacher', 'id name email profilePicture')
@@ -258,15 +326,15 @@ export class ScheduleService {
     });
 
     studentSessions.forEach((sess: any) => {
-      const d = new Date(sess.scheduledAt);
-      const dayOfWeek = dayNames[d.getDay()];
-      const hours = d.getHours();
-      const minutes = d.getMinutes();
+      const pktParts = getPKTDateParts(new Date(sess.scheduledAt));
+      const dayOfWeek = pktParts.dayOfWeek;
+      const hours = pktParts.hours;
+      const minutes = pktParts.minutes;
 
       const totalMinutesFrom9 = (hours - 9) * 60 + minutes;
       let timeSlotIndex = Math.floor(totalMinutesFrom9 / 30);
       if (timeSlotIndex < 0) timeSlotIndex = 0;
-      if (timeSlotIndex > 11) timeSlotIndex = 11;
+      if (timeSlotIndex > 47) timeSlotIndex = 47;
 
       const key = `${dayOfWeek}-${timeSlotIndex}`;
       const startH = Math.floor((9 * 60 + timeSlotIndex * 30) / 60);
@@ -281,7 +349,7 @@ export class ScheduleService {
         id: sess._id?.toString() || sess.id,
         dayOfWeek,
         timeSlotIndex,
-        startTime,
+        startTime: sess.scheduledTimePKT || startTime,
         endTime,
         teacherId: sess.teacherId,
         teacher: sess.teacher,
@@ -293,6 +361,44 @@ export class ScheduleService {
         sessionStatus: sess.status,
       };
     });
+
+    // 3. Synthesize slots from student profile classDays if not yet represented in slotMap
+    const classDays = studentDoc?.profile?.classDays || [];
+    if (Array.isArray(classDays) && classDays.length > 0 && assignedTeacherId) {
+      const teacherUser = await this.userModel.findById(assignedTeacherId).select('id name email profilePicture').lean();
+      const defaultCourse = courses[0] || { id: 'default', title: 'Quran Class', type: 'NAZIRA' };
+
+      classDays.forEach((cd: any) => {
+        const fullDay = SHORT_TO_FULL_DAYS[cd.day] || cd.day;
+        const timeStr = cd.time || '16:00';
+        const [h, m] = timeStr.split(':').map(Number);
+        const totalMinutes = (isNaN(h) ? 16 : h) * 60 + (isNaN(m) ? 0 : m);
+        const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((totalMinutes - 9 * 60) / 30)));
+        const key = `${fullDay}-${timeSlotIndex}`;
+
+        if (!slotMap[key]) {
+          const duration = studentDoc?.profile?.classDuration || 60;
+          const endTotal = totalMinutes + duration;
+          const endH = Math.floor(endTotal / 60) % 24;
+          const endM = endTotal % 60;
+          const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+          slotMap[key] = {
+            id: `profile-${fullDay}-${timeSlotIndex}`,
+            dayOfWeek: fullDay,
+            timeSlotIndex,
+            startTime: timeStr,
+            endTime,
+            teacherId: assignedTeacherId,
+            teacher: teacherUser ? { id: teacherUser._id.toString(), name: teacherUser.name, email: teacherUser.email } : undefined,
+            courseId: defaultCourse.id || defaultCourse._id,
+            course: defaultCourse,
+            studentId,
+            student: studentObj,
+          };
+        }
+      });
+    }
 
     const result = Object.values(slotMap);
     await this.cacheService.set(cacheKey, result, 60); // 60s cache TTL
@@ -329,11 +435,12 @@ export class ScheduleService {
       }
     }
 
-    // Save/update slot in DB
+    // Save/update slot in DB per teacher
     const updatedSlot = await this.weeklySlotModel.findOneAndUpdate(
       {
         dayOfWeek: dto.dayOfWeek,
         timeSlotIndex: dto.timeSlotIndex,
+        teacherId: dto.teacherId,
       },
       {
         $set: {
@@ -342,6 +449,9 @@ export class ScheduleService {
           startTime: dto.startTime,
           endTime: dto.endTime,
           teacherId: dto.teacherId,
+          durationMinutes: dto.durationMinutes || 30,
+          teacherStartTime: dto.teacherStartTime || dto.startTime,
+          studentStartTime: dto.studentStartTime || dto.startTime,
           ...(courseId ? { courseId } : {}),
           ...(studentId ? { studentId } : {}),
           isRecurring: true,
@@ -368,6 +478,7 @@ export class ScheduleService {
 
     // Invalidate caches
     await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('sessions:*');
 
     // Broadcast update via WebSocket gateway with senderClientId tag
     this.scheduleGateway.broadcastScheduleUpdate('UPSERT_SLOT', slotObj, dto.clientId);
@@ -375,16 +486,22 @@ export class ScheduleService {
     return slotObj;
   }
 
-  async removeSlot(dayOfWeek: DayOfWeek, timeSlotIndex: number, clientId?: string) {
-    const deleted = await this.weeklySlotModel.findOneAndDelete({
+  async removeSlot(dayOfWeek: DayOfWeek, timeSlotIndex: number, clientId?: string, teacherId?: string) {
+    const filter: any = {
       dayOfWeek,
       timeSlotIndex,
-    });
+    };
+    if (teacherId) {
+      filter.teacherId = teacherId;
+    }
+
+    const deleted = await this.weeklySlotModel.findOneAndDelete(filter);
 
     if (deleted) {
       // Invalidate caches
       await this.cacheService.delByPattern('schedule:*');
-      this.scheduleGateway.broadcastScheduleUpdate('REMOVE_SLOT', { dayOfWeek, timeSlotIndex }, clientId);
+      await this.cacheService.delByPattern('sessions:*');
+      this.scheduleGateway.broadcastScheduleUpdate('REMOVE_SLOT', { dayOfWeek, timeSlotIndex, teacherId }, clientId);
     }
 
     return { success: true, removedSlot: deleted };
@@ -393,6 +510,7 @@ export class ScheduleService {
   async clearAllSlots() {
     await this.weeklySlotModel.deleteMany({});
     await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('sessions:*');
     this.scheduleGateway.broadcastScheduleUpdate('CLEAR_ALL', {});
     return { success: true };
   }
@@ -400,41 +518,20 @@ export class ScheduleService {
   // Automatic Weekly Session Generation based on recurring slots
   async generateWeeklySessions(targetDateStr?: string) {
     const targetDate = targetDateStr ? new Date(targetDateStr) : new Date();
-    
-    // Find Monday of the target week
-    const day = targetDate.getDay();
-    const diffToMonday = targetDate.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
-    const monday = new Date(targetDate.setDate(diffToMonday));
-    monday.setHours(0, 0, 0, 0);
-
-    const dayMap: Record<DayOfWeek, number> = {
-      [DayOfWeek.MONDAY]: 0,
-      [DayOfWeek.TUESDAY]: 1,
-      [DayOfWeek.WEDNESDAY]: 2,
-      [DayOfWeek.THURSDAY]: 3,
-      [DayOfWeek.FRIDAY]: 4,
-      [DayOfWeek.SATURDAY]: 5,
-      [DayOfWeek.SUNDAY]: 6,
-    };
 
     const slots = await this.weeklySlotModel.find({ isActive: true, isRecurring: true });
     let createdCount = 0;
 
     for (const slot of slots) {
-      const offset = dayMap[slot.dayOfWeek];
-      const slotDate = new Date(monday);
-      slotDate.setDate(monday.getDate() + offset);
-
-      // Parse start time "HH:MM"
-      const [hours, minutes] = slot.startTime.split(':').map(Number);
-      slotDate.setHours(hours, minutes, 0, 0);
+      const slotStartTime = slot.startTime || '09:00';
+      const slotEndTime = slot.endTime || '09:30';
+      const slotDate = parsePKTDayAndTimeToDate(slot.dayOfWeek, slotStartTime, targetDate);
 
       // Calculate duration
-      const [endHours, endMinutes] = slot.endTime.split(':').map(Number);
-      const startMs = slotDate.getTime();
-      const endSlotDate = new Date(slotDate);
-      endSlotDate.setHours(endHours, endMinutes, 0, 0);
-      const durationMinutes = Math.max(30, Math.round((endSlotDate.getTime() - startMs) / 60000));
+      const startMin = timeStringToMinutes(slotStartTime);
+      const endMin = timeStringToMinutes(slotEndTime);
+      let durationMinutes = slot.durationMinutes || (endMin > startMin ? endMin - startMin : 30);
+      if (durationMinutes <= 0) durationMinutes = 30;
 
       // Avoid creating duplicates for the exact same teacher & scheduledAt
       const existing = await this.classSessionModel.findOne({
@@ -450,12 +547,15 @@ export class ScheduleService {
           scheduledAt: slotDate,
           durationMinutes,
           status: ClassStatus.SCHEDULED,
+          timezone: ISLAMABAD_TIMEZONE,
+          scheduledTimePKT: slotStartTime,
         });
         createdCount++;
       }
     }
 
-    this.logger.log(`Generated ${createdCount} weekly sessions for week of ${monday.toDateString()}`);
-    return { success: true, createdCount, weekOf: monday.toISOString() };
+    await this.cacheService.delByPattern('sessions:*');
+    this.logger.log(`Generated ${createdCount} weekly sessions for week of ${targetDate.toDateString()} (Islamabad PKT)`);
+    return { success: true, createdCount, targetDate: targetDate.toISOString() };
   }
 }

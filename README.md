@@ -10,9 +10,9 @@ The project is structured as an npm workspaces monorepo:
 
 | Service | Description | Port |
 |---|---|---|
-| **`apps/backend/`** | NestJS API — Mongoose ODM (MongoDB), Passport JWT, BullMQ (Redis), LiveKit SDK | `5000` |
+| **`apps/backend/`** | NestJS API — Mongoose ODM (MongoDB Atlas), Passport JWT, BullMQ (Redis), LiveKit SDK | `5000` |
 | **`apps/frontend/`** | Next.js 15 — React 19, Tailwind CSS, LiveKit video components | `3030` |
-| **MongoDB** | Document database for application data | `27017` |
+| **MongoDB Atlas** | Hosted Cloud document database for application data | Configured via `MONGODB_URI` |
 | **Redis** | Message broker for BullMQ background job queues | `6379` |
 | **LiveKit** | WebRTC media server for live video classrooms | `7880` / `7882` |
 | **LiveKit Egress** | Session recording service (MP4 output) | — |
@@ -30,74 +30,68 @@ The project is structured as an npm workspaces monorepo:
 
 ---
 
-## Getting Started: Local Development
+## Getting Started
 
 ### Prerequisites
 
-- **Node.js** v20+
-- **Docker & Docker Compose** installed and running
-- **MongoDB** running locally or via MongoDB Atlas
-- **npm** v9+
+- **Docker & Docker Compose** installed and running (recommended for full stack dev)
+- **MongoDB Atlas** cluster URI (or cloud database)
+- **Node.js** v20+ and **npm** v9+ (if running outside Docker)
 
-### 1. Clone & Install Dependencies
+### 1. Environment Configuration
+
+Create a `.env` file at the project root:
 
 ```bash
-git clone <repo-url>
-cd quran-lms
-npm install
+cp .env.example .env
 ```
 
-### 2. Configure Environment Variables
-
-**Backend** — create `apps/backend/.env`:
-
+Ensure `MONGODB_URI` is set to your MongoDB Atlas connection string:
 ```env
-# Database
-MONGODB_URI="mongodb://127.0.0.1:27017/quran_lms"
-
-# JWT Auth
-JWT_SECRET="your_secure_development_jwt_secret"
-JWT_REFRESH_SECRET="your_secure_development_jwt_refresh_secret"
-JWT_EXPIRY="15m"
-JWT_REFRESH_EXPIRY="7d"
-
-# Redis (for BullMQ)
-REDIS_HOST="localhost"
-REDIS_PORT=6379
-
-# LiveKit WebRTC
-LIVEKIT_API_KEY="devkey"
-LIVEKIT_API_SECRET="secret"
-LIVEKIT_HOST="http://localhost:7880"
-
-# Google Gemini (AI evaluation)
-GEMINI_API_KEY="your-gemini-api-key"
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/quran_lms?retryWrites=true&w=majority
 ```
 
-**Frontend** — create `apps/frontend/.env.local`:
+---
 
-```env
-NEXT_PUBLIC_API_URL="http://localhost:5000/api/v1"
-```
+### Option A: Docker Development Workflow (Hot-Reload Enabled)
 
-### 3. Spin Up Infrastructure (Redis, LiveKit)
+Run the entire application stack in Docker with instant hot-reloading for code edits (no manual container/image rebuilds needed):
 
 ```bash
-docker compose up -d redis livekit
-```
-
-### 4. Initialize & Seed the Database
-
-```bash
-npm run db:seed
-```
-
-### 5. Start Dev Servers
-
-```bash
-npm run dev
+# Start all containers in development mode
+npm run docker:dev
+# (or: docker compose up)
 ```
 
 - **Frontend**: `http://localhost:3030`
 - **Backend API**: `http://localhost:5000/api/v1`
 - **LiveKit**: `ws://localhost:7880`
+
+To seed the database inside Docker:
+```bash
+docker exec -it quran-lms-nestjs npm run seed
+```
+
+---
+
+### Option B: Local Host Development Workflow
+
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+2. Spin up supporting infrastructure in Docker (Redis & LiveKit):
+   ```bash
+   docker compose up -d redis livekit
+   ```
+
+3. Seed the database:
+   ```bash
+   npm run db:seed
+   ```
+
+4. Start dev servers:
+   ```bash
+   npm run dev
+   ```

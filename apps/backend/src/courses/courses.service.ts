@@ -1,7 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Course, CourseDocument, User, UserDocument, Enrollment, EnrollmentDocument, ClassSession, ClassSessionDocument, SubjectCategory, SubjectCategoryDocument, Role } from '../schemas';
+import {
+  Course, CourseDocument,
+  User, UserDocument,
+  Enrollment, EnrollmentDocument,
+  ClassSession, ClassSessionDocument,
+  SubjectCategory, SubjectCategoryDocument,
+  Student, StudentDocument,
+  Role,
+} from '../schemas';
 import { CreateCourseDto } from './dto/create-course.dto';
 import { UpdateCourseDto } from './dto/update-course.dto';
 
@@ -13,6 +21,7 @@ export class CoursesService {
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
     @InjectModel(SubjectCategory.name) private readonly categoryModel: Model<SubjectCategoryDocument>,
+    @InjectModel(Student.name) private readonly studentModel: Model<StudentDocument>,
   ) {}
 
   async create(createCourseDto: CreateCourseDto) {
@@ -98,7 +107,21 @@ export class CoursesService {
 
   async findEnrolledCourses(studentId: string) {
     const enrollments = await this.enrollmentModel.find({ studentId }).lean();
-    const courseIds = enrollments.map((e: any) => e.courseId);
+    let courseIds = enrollments.map((e: any) => e.courseId);
+
+    if (courseIds.length === 0) {
+      const student = await this.studentModel.findOne({ userId: studentId }).lean();
+      const assignedTeacherId = student?.profile?.assignedTeacher;
+      if (assignedTeacherId) {
+        const teacherCourses = await this.courseModel.find({
+          $or: [{ teacherId: assignedTeacherId }, { teacherIds: assignedTeacherId }],
+        }).lean();
+        if (teacherCourses.length > 0) {
+          courseIds = teacherCourses.map((c: any) => c._id);
+        }
+      }
+    }
+
     return this.courseModel.find({ _id: { $in: courseIds } })
       .populate('teacher', 'id name email')
       .populate('teachers', 'id name email')
@@ -111,7 +134,7 @@ export class CoursesService {
     }).sort({ createdAt: -1 });
 
     const results = await Promise.all(
-      courses.map(async (course) => {
+      courses.map(async (course: any) => {
         const [enrollmentCount, sessionCount] = await Promise.all([
           this.enrollmentModel.countDocuments({ courseId: course._id }),
           this.classSessionModel.countDocuments({ courseId: course._id }),

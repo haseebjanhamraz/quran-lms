@@ -1,8 +1,16 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Enrollment, EnrollmentDocument, User, UserDocument, Course, CourseDocument, Role } from '../schemas';
+import {
+  Enrollment, EnrollmentDocument,
+  User, UserDocument,
+  Course, CourseDocument,
+  WeeklyScheduleSlot, WeeklyScheduleSlotDocument,
+  Student, StudentDocument,
+  Role
+} from '../schemas';
 import { CreateEnrollmentDto } from './dto/create-enrollment.dto';
+import { RedisCacheService } from '../cache/redis-cache.service';
 
 @Injectable()
 export class EnrollmentsService {
@@ -10,6 +18,9 @@ export class EnrollmentsService {
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(WeeklyScheduleSlot.name) private readonly weeklySlotModel: Model<WeeklyScheduleSlotDocument>,
+    @InjectModel(Student.name) private readonly studentModel: Model<StudentDocument>,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   async create(createEnrollmentDto: CreateEnrollmentDto) {
@@ -36,6 +47,10 @@ export class EnrollmentsService {
       courseId: createEnrollmentDto.courseId,
     });
 
+    // Invalidate caches
+    await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('stats:*');
+
     return this.enrollmentModel.findById(created._id)
       .populate('student', 'id name email')
       .populate('course', 'id title');
@@ -54,7 +69,10 @@ export class EnrollmentsService {
       throw new NotFoundException('Enrollment not found');
     }
 
-    return this.enrollmentModel.findByIdAndDelete(id);
+    const res = await this.enrollmentModel.findByIdAndDelete(id);
+    await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('stats:*');
+    return res;
   }
 
   async getStats() {
@@ -149,7 +167,17 @@ export class EnrollmentsService {
       if (!existing) {
         await this.enrollmentModel.create({ studentId, courseId: cId });
       }
+
+      // If slots exist for this course without studentId, associate studentId
+      await this.weeklySlotModel.updateMany(
+        { courseId: cId, studentId: { $exists: false } },
+        { $set: { studentId } }
+      );
     }
+
+    // Invalidate caches
+    await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('stats:*');
 
     return this.findByStudent(studentId);
   }

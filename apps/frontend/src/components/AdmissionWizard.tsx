@@ -143,6 +143,8 @@ export default function AdmissionWizard({
     return String(baseUSD);
   };
 
+  const DRAFT_KEY = 'quran_lms_admission_wizard_draft';
+
   // Auto calculate fee when duration, classDays, or currency changes, unless manually overridden
   useEffect(() => {
     if (!feeInfo.isFeeManuallyEdited && !editingStudent) {
@@ -176,128 +178,202 @@ export default function AdmissionWizard({
   // Initialize form when opened or editingStudent changes
   useEffect(() => {
     if (isOpen) {
-      setStep(1);
       setErrorMsg(null);
       setCompletedMessage(null);
       setShowPassword(false);
       setCopiedPassword(false);
 
-      if (editingStudent) {
-        setPersonalInfo({
-          name: editingStudent.name || '',
-          preferredName: editingStudent.preferredName || '',
-          email: editingStudent.email || '',
-          password: '',
-          gender: editingStudent.gender || 'Male',
-          dob: editingStudent.dob ? new Date(editingStudent.dob).toISOString().split('T')[0] : '',
-          country: editingStudent.country || 'PK',
-          phoneCode: editingStudent.phoneCode || '+92',
-          phone: editingStudent.phone || '',
-          timezone: editingStudent.timezone || 'Asia/Karachi',
-          profilePicture: editingStudent.profilePicture || '',
-          cameraRestricted: editingStudent.cameraRestricted || false,
-        });
+      // Check if there is a saved draft in localStorage
+      let loadedFromDraft = false;
+      try {
+        const savedDraftRaw = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null;
+        if (savedDraftRaw) {
+          const draft = JSON.parse(savedDraftRaw);
+          if (draft && draft.isOpen) {
+            const currentEditingId = editingStudent ? (editingStudent.id || editingStudent._id) : null;
+            const draftEditingId = draft.editingStudent ? (draft.editingStudent.id || draft.editingStudent._id) : null;
 
-        setGuardianInfo({
-          guardianType: editingStudent.guardianType || 'Father',
-          guardianTypeOther: editingStudent.guardianTypeOther || '',
-          guardianName: editingStudent.guardianName || '',
-          guardianPhone: editingStudent.guardianPhone || '',
-          guardianPhoneCode: editingStudent.guardianPhoneCode || editingStudent.phoneCode || '+92',
-          guardianEmail: editingStudent.guardianEmail || '',
-        });
+            if (currentEditingId === draftEditingId) {
+              if (draft.step) setStep(draft.step);
+              if (draft.personalInfo) setPersonalInfo(draft.personalInfo);
+              if (draft.guardianInfo) setGuardianInfo(draft.guardianInfo);
+              if (draft.enrollmentStatus) setEnrollmentStatus(draft.enrollmentStatus);
+              if (draft.bulkTime) setBulkTime(draft.bulkTime);
+              if (draft.feeInfo) setFeeInfo(draft.feeInfo);
+              if (draft.selectedTeacherId !== undefined) setSelectedTeacherId(draft.selectedTeacherId);
+              if (draft.assignTeacherLater !== undefined) setAssignTeacherLater(draft.assignTeacherLater);
+              if (draft.noteToTeacher !== undefined) setNoteToTeacher(draft.noteToTeacher);
+              loadedFromDraft = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to restore admission draft from localStorage:', e);
+      }
 
-        const initialDays = editingStudent.classDays && Array.isArray(editingStudent.classDays) && editingStudent.classDays.length > 0
-          ? editingStudent.classDays
-          : [
-            { day: 'Mon', time: '16:00' },
-            { day: 'Tue', time: '16:00' },
-            { day: 'Wed', time: '16:00' },
-            { day: 'Thu', time: '16:00' },
-            { day: 'Fri', time: '16:00' },
-          ];
+      if (!loadedFromDraft) {
+        setStep(1);
+        if (editingStudent) {
+          setPersonalInfo({
+            name: editingStudent.name || '',
+            preferredName: editingStudent.preferredName || '',
+            email: editingStudent.email || '',
+            password: '',
+            gender: editingStudent.gender || 'Male',
+            dob: editingStudent.dob ? new Date(editingStudent.dob).toISOString().split('T')[0] : '',
+            country: editingStudent.country || 'PK',
+            phoneCode: editingStudent.phoneCode || '+92',
+            phone: editingStudent.phone || '',
+            timezone: editingStudent.timezone || 'Asia/Karachi',
+            profilePicture: editingStudent.profilePicture || '',
+            cameraRestricted: editingStudent.cameraRestricted || false,
+          });
 
-        setEnrollmentStatus({
-          enrollmentDate: editingStudent.enrollmentDate
-            ? new Date(editingStudent.enrollmentDate).toISOString().split('T')[0]
-            : new Date().toISOString().split('T')[0],
-          status: editingStudent.studentStatus || editingStudent.status || 'Regular',
-          trialStatus: editingStudent.trialStatus || 'N/A',
-          isDiscontinued: editingStudent.discontinued || false,
-          classDuration: editingStudent.classDuration || 60,
-          classesPerWeek: initialDays.length,
-          classDays: initialDays,
-          tier: editingStudent.tier || 'Beginner',
-        });
+          setGuardianInfo({
+            guardianType: editingStudent.guardianType || 'Father',
+            guardianTypeOther: editingStudent.guardianTypeOther || '',
+            guardianName: editingStudent.guardianName || '',
+            guardianPhone: editingStudent.guardianPhone || '',
+            guardianPhoneCode: editingStudent.guardianPhoneCode || editingStudent.phoneCode || '+92',
+            guardianEmail: editingStudent.guardianEmail || '',
+          });
 
-        setFeeInfo({
-          monthlyFee: editingStudent.monthlyFee ? String(editingStudent.monthlyFee) : (editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '50'),
-          currency: editingStudent.currency || 'USD',
-          feeWaiverPercent: editingStudent.feeWaiverPercent ? String(editingStudent.feeWaiverPercent) : '0',
-          customFeeNotes: editingStudent.customFeeNotes || '',
-          isFeeManuallyEdited: true,
-        });
+          const initialDays = editingStudent.classDays && Array.isArray(editingStudent.classDays) && editingStudent.classDays.length > 0
+            ? editingStudent.classDays
+            : [
+              { day: 'Mon', time: '16:00' },
+              { day: 'Tue', time: '16:00' },
+              { day: 'Wed', time: '16:00' },
+              { day: 'Thu', time: '16:00' },
+              { day: 'Fri', time: '16:00' },
+            ];
 
-        setNoteToTeacher(editingStudent.noteToTeacher || '');
+          setEnrollmentStatus({
+            enrollmentDate: editingStudent.enrollmentDate
+              ? new Date(editingStudent.enrollmentDate).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
+            status: editingStudent.studentStatus || editingStudent.status || 'Regular',
+            trialStatus: editingStudent.trialStatus || 'N/A',
+            isDiscontinued: editingStudent.discontinued || false,
+            classDuration: editingStudent.classDuration || 60,
+            classesPerWeek: initialDays.length,
+            classDays: initialDays,
+            tier: editingStudent.tier || 'Beginner',
+          });
 
-        const teacherId = editingStudent.assignedTeacher?._id || editingStudent.assignedTeacher?.id || editingStudent.assignedTeacher || editingStudent.teacherId || '';
-        setSelectedTeacherId(teacherId);
-        setAssignTeacherLater(!teacherId);
-      } else {
-        // Reset for new student
-        setPersonalInfo({
-          name: '',
-          preferredName: '',
-          email: '',
-          password: '',
-          gender: 'Male',
-          dob: '',
-          country: 'PK',
-          phoneCode: '+92',
-          phone: '',
-          timezone: 'Asia/Karachi',
-          profilePicture: '',
-          cameraRestricted: false,
-        });
-        setGuardianInfo({
-          guardianType: 'Father',
-          guardianTypeOther: '',
-          guardianName: '',
-          guardianPhone: '',
-          guardianPhoneCode: '+92',
-          guardianEmail: '',
-        });
-        setEnrollmentStatus({
-          enrollmentDate: new Date().toISOString().split('T')[0],
-          status: 'Regular',
-          trialStatus: 'N/A',
-          isDiscontinued: false,
-          classDuration: 60,
-          classesPerWeek: 5,
-          classDays: [
-            { day: 'Mon', time: '16:00' },
-            { day: 'Tue', time: '16:00' },
-            { day: 'Wed', time: '16:00' },
-            { day: 'Thu', time: '16:00' },
-            { day: 'Fri', time: '16:00' },
-          ],
-          tier: 'Beginner',
-        });
-        setFeeInfo({
-          monthlyFee: '50',
-          currency: 'USD',
-          feeWaiverPercent: '0',
-          customFeeNotes: '',
-          isFeeManuallyEdited: false,
-        });
-        setNoteToTeacher('');
-        setSelectedTeacherId('');
-        setAssignTeacherLater(false);
+          setFeeInfo({
+            monthlyFee: editingStudent.monthlyFee ? String(editingStudent.monthlyFee) : (editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '50'),
+            currency: editingStudent.currency || 'USD',
+            feeWaiverPercent: editingStudent.feeWaiverPercent ? String(editingStudent.feeWaiverPercent) : '0',
+            customFeeNotes: editingStudent.customFeeNotes || '',
+            isFeeManuallyEdited: true,
+          });
+
+          setNoteToTeacher(editingStudent.noteToTeacher || '');
+
+          const teacherId = editingStudent.assignedTeacher?._id || editingStudent.assignedTeacher?.id || editingStudent.assignedTeacher || editingStudent.teacherId || '';
+          setSelectedTeacherId(teacherId);
+          setAssignTeacherLater(!teacherId);
+        } else {
+          // Reset for new student
+          setPersonalInfo({
+            name: '',
+            preferredName: '',
+            email: '',
+            password: '',
+            gender: 'Male',
+            dob: '',
+            country: 'PK',
+            phoneCode: '+92',
+            phone: '',
+            timezone: 'Asia/Karachi',
+            profilePicture: '',
+            cameraRestricted: false,
+          });
+          setGuardianInfo({
+            guardianType: 'Father',
+            guardianTypeOther: '',
+            guardianName: '',
+            guardianPhone: '',
+            guardianPhoneCode: '+92',
+            guardianEmail: '',
+          });
+          setEnrollmentStatus({
+            enrollmentDate: new Date().toISOString().split('T')[0],
+            status: 'Regular',
+            trialStatus: 'N/A',
+            isDiscontinued: false,
+            classDuration: 60,
+            classesPerWeek: 5,
+            classDays: [
+              { day: 'Mon', time: '16:00' },
+              { day: 'Tue', time: '16:00' },
+              { day: 'Wed', time: '16:00' },
+              { day: 'Thu', time: '16:00' },
+              { day: 'Fri', time: '16:00' },
+            ],
+            tier: 'Beginner',
+          });
+          setFeeInfo({
+            monthlyFee: '50',
+            currency: 'USD',
+            feeWaiverPercent: '0',
+            customFeeNotes: '',
+            isFeeManuallyEdited: false,
+          });
+          setNoteToTeacher('');
+          setSelectedTeacherId('');
+          setAssignTeacherLater(false);
+        }
       }
 
       fetchTeachers();
     }
   }, [isOpen, editingStudent]);
+
+  // Persist form draft to localStorage across page reloads
+  useEffect(() => {
+    if (!isOpen || completedMessage) return;
+    try {
+      const draft = {
+        isOpen: true,
+        step,
+        editingStudent: editingStudent ? { id: editingStudent.id || editingStudent._id, name: editingStudent.name } : null,
+        personalInfo,
+        guardianInfo,
+        enrollmentStatus,
+        bulkTime,
+        feeInfo,
+        selectedTeacherId,
+        assignTeacherLater,
+        noteToTeacher,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch (err) {
+      console.error('Failed to save admission draft to localStorage:', err);
+    }
+  }, [
+    isOpen,
+    completedMessage,
+    step,
+    editingStudent,
+    personalInfo,
+    guardianInfo,
+    enrollmentStatus,
+    bulkTime,
+    feeInfo,
+    selectedTeacherId,
+    assignTeacherLater,
+    noteToTeacher,
+  ]);
+
+  const handleClose = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (_) {}
+    onClose();
+  };
 
   const fetchTeachers = async () => {
     setLoadingTeachers(true);
@@ -363,7 +439,7 @@ export default function AdmissionWizard({
   const handleNext = () => {
     setErrorMsg(null);
     if (step === 1) {
-      if (!personalInfo.name || !personalInfo.email || (!editingStudent && !personalInfo.password)) {
+      if (!personalInfo.name.trim() || !personalInfo.email.trim() || (!editingStudent && !personalInfo.password)) {
         setErrorMsg('Please complete all required fields (Name, Email, Password).');
         return;
       }
@@ -389,40 +465,67 @@ export default function AdmissionWizard({
     setStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     setErrorMsg(null);
+
+    // Validate step 1 fields
+    if (!personalInfo.name.trim() || !personalInfo.email.trim() || (!editingStudent && !personalInfo.password)) {
+      setErrorMsg('Please complete all required fields on Step 1 (Name, Email, Password).');
+      setStep(1);
+      return;
+    }
+
+    // Validate step 2 fields
+    if (!guardianInfo.guardianName.trim()) {
+      setErrorMsg('Guardian Full Name is required on Step 2.');
+      setStep(2);
+      return;
+    }
+    if (!guardianInfo.guardianPhone.trim()) {
+      setErrorMsg('Guardian Contact Phone is required on Step 2.');
+      setStep(2);
+      return;
+    }
+    if (guardianInfo.guardianType === 'Other' && !guardianInfo.guardianTypeOther.trim()) {
+      setErrorMsg('Please specify the guardian relationship on Step 2.');
+      setStep(2);
+      return;
+    }
+
+    setSubmitting(true);
 
     try {
       const userPayload: any = {
-        name: personalInfo.name,
-        preferredName: personalInfo.preferredName,
-        email: personalInfo.email,
+        name: personalInfo.name.trim(),
+        preferredName: personalInfo.preferredName?.trim() || undefined,
+        email: personalInfo.email.trim(),
         role: 'STUDENT',
         gender: personalInfo.gender,
         dob: personalInfo.dob || undefined,
         dateOfBirth: personalInfo.dob || undefined,
         country: personalInfo.country,
-        phone: personalInfo.phone,
-        phoneCode: personalInfo.phoneCode,
+        phone: personalInfo.phone?.trim() || undefined,
+        phoneCode: personalInfo.phoneCode || undefined,
         timezone: personalInfo.timezone,
         profilePicture: personalInfo.profilePicture || undefined,
         cameraRestricted: personalInfo.cameraRestricted,
 
         // Step 2: Guardian
         guardianType: guardianInfo.guardianType,
-        guardianTypeOther: guardianInfo.guardianTypeOther,
-        guardianName: guardianInfo.guardianName,
-        guardianPhone: guardianInfo.guardianPhone,
-        guardianEmail: guardianInfo.guardianEmail,
+        guardianTypeOther: guardianInfo.guardianType === 'Other' ? guardianInfo.guardianTypeOther?.trim() : undefined,
+        guardianName: guardianInfo.guardianName.trim(),
+        guardianPhone: guardianInfo.guardianPhone.trim(),
+        guardianEmail: guardianInfo.guardianEmail?.trim() || undefined,
 
         // Step 3: Enrollment
-        enrollmentDate: enrollmentStatus.enrollmentDate,
+        enrollmentDate: enrollmentStatus.enrollmentDate || undefined,
         studentStatus: enrollmentStatus.status,
         trialStatus: enrollmentStatus.trialStatus,
         discontinued: enrollmentStatus.isDiscontinued,
-        classDuration: enrollmentStatus.classDuration,
+        classDuration: enrollmentStatus.classDuration ? Number(enrollmentStatus.classDuration) : 60,
         classesPerWeek: enrollmentStatus.classDays.length,
         classDays: enrollmentStatus.classDays,
         tier: enrollmentStatus.tier,
@@ -432,11 +535,11 @@ export default function AdmissionWizard({
         monthlyFeeOverride: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
         currency: feeInfo.currency || 'USD',
         feeWaiverPercent: feeInfo.feeWaiverPercent ? Number(feeInfo.feeWaiverPercent) : 0,
-        customFeeNotes: feeInfo.customFeeNotes,
+        customFeeNotes: feeInfo.customFeeNotes?.trim() || undefined,
 
         // Step 5: Teacher & Note
         assignedTeacher: assignTeacherLater ? null : (selectedTeacherId || undefined),
-        noteToTeacher,
+        noteToTeacher: noteToTeacher?.trim() || undefined,
       };
 
       if (!editingStudent && personalInfo.password) {
@@ -446,8 +549,7 @@ export default function AdmissionWizard({
       let studentData: any = null;
 
       if (editingStudent) {
-        // When editing an existing student, email and password are intentionally not updated here
-        // as they are handled via the separate Account Credentials dialog.
+        // When editing an existing student, password and email are handled separately
         delete userPayload.password;
         delete userPayload.email;
 
@@ -459,8 +561,15 @@ export default function AdmissionWizard({
 
         studentData = await res.json();
         if (!res.ok) {
-          throw new Error(studentData.message || 'Failed to update student profile.');
+          const errMsg = Array.isArray(studentData.message)
+            ? studentData.message.join(', ')
+            : studentData.message || 'Failed to update student profile.';
+          throw new Error(errMsg);
         }
+
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch (_) {}
 
         setCompletedMessage(`Student ${studentData.name} has been successfully updated.`);
       } else {
@@ -477,6 +586,10 @@ export default function AdmissionWizard({
           throw new Error(errMsg);
         }
 
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch (_) {}
+
         setCompletedMessage(`Student ${studentData.name} has been successfully admitted.`);
       }
     } catch (err: any) {
@@ -490,10 +603,7 @@ export default function AdmissionWizard({
     if (step < 5) {
       handleNext();
     } else {
-      const form = document.getElementById('admission-wizard-form') as HTMLFormElement | null;
-      if (form) {
-        form.requestSubmit();
-      }
+      handleSubmit();
     }
   };
 
@@ -513,7 +623,7 @@ export default function AdmissionWizard({
           step={step}
           totalSteps={5}
           editingStudent={editingStudent}
-          onClose={onClose}
+          onClose={handleClose}
         />
 
         {/* 2. Top Stepper Progression Bar */}
@@ -552,7 +662,7 @@ export default function AdmissionWizard({
                     type="button"
                     onClick={() => {
                       onSuccess();
-                      onClose();
+                      handleClose();
                     }}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-2xl text-sm font-bold shadow-xl hover:scale-105 transition-all"
                   >

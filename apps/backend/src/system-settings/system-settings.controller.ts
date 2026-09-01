@@ -10,6 +10,12 @@ import { Role } from '../schemas';
 export class SystemSettingsController {
   constructor(private readonly settingsService: SystemSettingsService) {}
 
+  @Get('current-time')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
+  async getCurrentTime() {
+    return this.settingsService.getCurrentIslamabadTime();
+  }
+
   @Get('time-slots')
   @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.SUPERVISOR, Role.TEACHER, Role.STUDENT)
   async getTimeSlots() {

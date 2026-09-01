@@ -1,5 +1,3 @@
-'use client';
-
 import React, { useState, useMemo } from 'react';
 import {
   Calendar, Clock, PlayCircle, PlaneTakeoff,
@@ -7,6 +5,8 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { apiFetch } from '@/utils/apiFetch';
+import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
+import { useUrlState } from '@/hooks/useUrlState';
 
 interface DashboardTabProps {
   user: any;
@@ -25,27 +25,15 @@ interface DashboardTabProps {
   canStartInstantClass?: boolean;
 }
 
-function formatTeacherTimeRange(isoDate: string, durationMinutes: number, teacherTimezone?: string): string {
+function formatPKTTimeRange(isoDate: string, durationMinutes: number): string {
   try {
     const start = new Date(isoDate);
     const end = new Date(start.getTime() + (durationMinutes || 30) * 60000);
-    const tz = teacherTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-    const sStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-    const eStr = end.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-    return `${sStr} - ${eStr}`;
+    const sStr = formatPKTTime(start);
+    const eStr = formatPKTTime(end);
+    return `${sStr} - ${eStr} PKT`;
   } catch (_) {
     return 'N/A';
-  }
-}
-
-function formatStudentTime(isoDate: string, durationMinutes: number, studentTimezone?: string): string {
-  try {
-    const start = new Date(isoDate);
-    const tz = studentTimezone || 'UTC';
-    const sStr = start.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: tz });
-    return `${sStr} (${durationMinutes || 30} Mins)`;
-  } catch (_) {
-    return `${durationMinutes || 30} Mins`;
   }
 }
 
@@ -57,9 +45,11 @@ export default function DashboardTab({
   onOpenInstantModal,
   canStartInstantClass = true,
 }: DashboardTabProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  const todayStr = useMemo(() => {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useUrlState('date', todayStr);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [historyStudent, setHistoryStudent] = useState<any | null>(null);
@@ -284,9 +274,9 @@ export default function DashboardTab({
               <thead>
                 <tr className="border-b border-border/80 bg-muted/40">
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] w-12 text-center">#</th>
-                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Teacher</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Class Timing (PKT)</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Duration</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Student</th>
-                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Name</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Course</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">History</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
@@ -297,8 +287,6 @@ export default function DashboardTab({
               <tbody className="divide-y divide-border/40">
                 {daySessions.map((session, idx) => {
                   const studentName = session.student?.name || session.student?.preferredName || 'Unassigned Student';
-                  const studentTimezone = session.student?.timezone || 'UTC';
-                  const teacherTimezone = user?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
                   const isLive = session.status === 'LIVE';
 
                   return (
@@ -313,14 +301,14 @@ export default function DashboardTab({
                         {idx + 1}
                       </td>
 
-                      {/* Teacher Timezone Interval */}
+                      {/* Class Time Interval in PKT */}
                       <td className="py-3.5 px-4 font-mono font-bold text-foreground whitespace-nowrap">
-                        {formatTeacherTimeRange(session.scheduledAt, session.durationMinutes, teacherTimezone)}
+                        {formatPKTTimeRange(session.scheduledAt, session.durationMinutes)}
                       </td>
 
-                      {/* Student Timezone Start Time & Duration */}
+                      {/* Duration */}
                       <td className="py-3.5 px-4 font-mono font-semibold text-muted-foreground whitespace-nowrap">
-                        {formatStudentTime(session.scheduledAt, session.durationMinutes, studentTimezone)}
+                        {session.durationMinutes || 30} Mins
                       </td>
 
                       {/* Student Name */}

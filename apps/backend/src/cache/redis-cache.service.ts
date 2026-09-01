@@ -143,6 +143,22 @@ export class RedisCacheService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async getOrSet<T = any>(
+    key: string,
+    factory: () => Promise<T>,
+    ttlSeconds: number = 60,
+  ): Promise<T> {
+    const cached = await this.get<T>(key);
+    if (cached !== null && cached !== undefined) {
+      return cached;
+    }
+    const fresh = await factory();
+    if (fresh !== undefined && fresh !== null) {
+      await this.set(key, fresh, ttlSeconds);
+    }
+    return fresh;
+  }
+
   async onModuleDestroy() {
     if (this.client) {
       try {

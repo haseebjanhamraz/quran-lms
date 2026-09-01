@@ -48,8 +48,11 @@ export class ClassSession {
   @Prop()
   endedAt?: Date;
 
+  @Prop({ default: 'Asia/Karachi' })
+  timezone: string;
+
   @Prop()
-  timezone?: string;
+  scheduledTimePKT?: string;
 
   createdAt?: Date;
   updatedAt?: Date;

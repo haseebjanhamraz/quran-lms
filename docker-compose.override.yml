@@ -1,0 +1,38 @@
+# ==============================================================================
+# Quran LMS Local Development Docker Compose Override
+# ==============================================================================
+# This file is automatically loaded by 'docker compose up' in development.
+# It enables live hot-reloading by mounting source code and running watch servers.
+
+services:
+  egress:
+    volumes:
+      - ./apps/backend/recordings:/recordings
+
+  nestjs:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      NODE_ENV: development
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ./apps/backend:/app
+      - /app/node_modules
+      - ./apps/backend/recordings:/app/recordings
+    command: npm run start:dev
+
+  nextjs:
+    build:
+      context: ./apps/frontend
+      dockerfile: Dockerfile
+      target: dev
+    environment:
+      NODE_ENV: development
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./apps/frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: npm run dev -- -p 3030 -H 0.0.0.0

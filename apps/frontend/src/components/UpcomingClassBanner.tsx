@@ -163,7 +163,8 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
             <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground font-mono">
               <span className="flex items-center gap-1">
                 <Calendar size={13} className="text-brand" />
-                {new Date(upcomingSession.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {new Date(upcomingSession.scheduledAt).toLocaleDateString('en-US', { timeZone: 'Asia/Karachi', weekday: 'short', month: 'short', day: 'numeric' })} at{' '}
+                {new Date(upcomingSession.scheduledAt).toLocaleTimeString('en-US', { timeZone: 'Asia/Karachi', hour: '2-digit', minute: '2-digit' })} PKT
               </span>
               <span>•</span>
               <span className={`font-bold font-mono ${isLive ? 'text-blue-400 animate-pulse' : 'text-brand'}`}>

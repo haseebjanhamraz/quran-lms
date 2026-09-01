@@ -45,16 +45,16 @@
     --input: 214 32% 88%;
     --ring: 221 83% 53%;                 /* #2563EB Focus ring */
 
-    /* Dark Black Navigation / Sidebar in Light Mode */
-    --sidebar-bg: 222 47% 8%;            /* #0B101B Premium Black Header / Sidebar */
-    --sidebar-foreground: 210 40% 98%;    /* Crisp white text */
-    --sidebar-border: 222 47% 14%;       /* #131D2E */
+    /* Navigation / Sidebar / Header in Light Mode: Light Crisp Blue-Tinted Canvas */
+    --sidebar-bg: 0 0% 100%;             /* #FFFFFF Pure White */
+    --sidebar-foreground: 222 47% 11%;   /* #0F172A Rich Slate-Black */
+    --sidebar-border: 214 32% 90%;       /* #E2E8F0 Soft Blue-Slate Border */
 
-    /* Brand Blue */
-    --brand-gold: 217 91% 60%;           /* #3B82F6 Vibrant Brand Blue */
+    /* Brand Royal Blue */
+    --brand-gold: 221 83% 53%;           /* #2563EB Royal Blue Accent */
     --brand-gold-foreground: 0 0% 100%;
 
-    --surface: 214 32% 95%;
+    --surface: 214 32% 96%;
     --header-bg: 0 0% 100%;
 
     --radius: 0.75rem;
@@ -98,10 +98,10 @@
     --input: 222 47% 13%;
     --ring: 217 91% 60%;                 /* #3B82F6 Glowing blue ring */
 
-    /* Sidebar / Header in Dark Mode */
-    --sidebar-bg: 224 71% 3%;            /* #02050E Absolute Obsidian Black */
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-border: 222 47% 10%;       /* #0C1220 */
+    /* Sidebar / Header in Dark Mode: Deep Midnight Navy/Black */
+    --sidebar-bg: 224 71% 4%;            /* #030712 Deep Midnight Navy */
+    --sidebar-foreground: 210 40% 98%;   /* Pure White Text */
+    --sidebar-border: 222 47% 14%;       /* #121929 Subtle Navy Border */
 
     /* Brand Blue */
     --brand-gold: 217 91% 60%;           /* #3B82F6 */

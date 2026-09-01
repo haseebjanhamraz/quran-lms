@@ -9,6 +9,9 @@ import {
   Counter, CounterSchema,
   Notification, NotificationSchema,
   ClassSession, ClassSessionSchema,
+  WeeklyScheduleSlot, WeeklyScheduleSlotSchema,
+  Course, CourseSchema,
+  Enrollment, EnrollmentSchema,
 } from '../schemas';
 
 @Module({
@@ -20,6 +23,9 @@ import {
       { name: Counter.name, schema: CounterSchema },
       { name: Notification.name, schema: NotificationSchema },
       { name: ClassSession.name, schema: ClassSessionSchema },
+      { name: WeeklyScheduleSlot.name, schema: WeeklyScheduleSlotSchema },
+      { name: Course.name, schema: CourseSchema },
+      { name: Enrollment.name, schema: EnrollmentSchema },
     ]),
   ],
   controllers: [UsersController],

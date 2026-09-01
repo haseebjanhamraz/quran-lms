@@ -201,6 +201,9 @@ export default function ScheduleEditorModal({
           timeSlotIndex: slotIndex,
           startTime: newSlotStart,
           endTime: end,
+          durationMinutes: Number(newSlotDuration),
+          teacherStartTime: newSlotStart,
+          studentStartTime: newSlotStart,
           teacherId: tId,
           studentId: newSlotStudentId || undefined,
           courseId: newSlotCourseId || undefined,
@@ -262,17 +265,27 @@ export default function ScheduleEditorModal({
         </button>
 
         {/* Header */}
-        <div className="flex items-center gap-3 border-b border-border/60 pb-4 shrink-0">
-          <div className="h-11 w-11 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold">
-            <Calendar className="h-6 w-6" />
+        <div className="flex items-center justify-between border-b border-border/60 pb-4 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="h-11 w-11 rounded-2xl bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold">
+              <Calendar className="h-6 w-6" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold font-display text-foreground">
+                {mode === 'student' ? 'Edit Student Schedule & Timings' : 'Manage Teacher Schedule & Slots'}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {entity.name} &bull; {entity.email} &bull; <span className="font-semibold text-primary">Islamabad Time (PKT &bull; UTC+5)</span>
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-lg font-bold font-display text-foreground">
-              {mode === 'student' ? 'Edit Student Schedule & Timings' : 'Manage Teacher Schedule & Slots'}
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              {entity.name} &bull; {entity.email} &bull; {entity.timezone || 'UTC'}
-            </p>
+        </div>
+
+        {/* PKT Operating Timezone Banner */}
+        <div className="mt-3 p-3 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-between text-xs text-primary font-semibold">
+          <div className="flex items-center gap-2">
+            <Clock className="h-4 w-4 shrink-0 text-primary" />
+            <span>All scheduling operates natively in <strong>Islamabad Time (PKT)</strong>. Both teacher and student times are set in PKT.</span>
           </div>
         </div>
 

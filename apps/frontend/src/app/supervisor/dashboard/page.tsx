@@ -17,11 +17,16 @@ import {
   Activity,
   TrendingUp,
   BookOpen,
-  Save
+  Save,
+  UserCheck,
+  Settings,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
 import UpcomingClassBanner from '@/components/UpcomingClassBanner';
+import { useUrlState } from '@/hooks/useUrlState';
+import { formatPKTDate, formatPKTTime } from '@/utils/islamabadTime';
+import Navbar from '@/components/Navbar';
 
 function SupervisorSettingsTab() {
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -155,7 +160,7 @@ export default function SupervisorDashboardPage() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<'pending' | 'flagged' | 'history' | 'assignments' | 'settings'>('pending');
+  const [activeTab, setActiveTab] = useUrlState<'pending' | 'flagged' | 'history' | 'assignments' | 'settings'>('tab', 'pending');
   const [pendingSessions, setPendingSessions] = useState<SessionItem[]>([]);
   const [flaggedReviews, setFlaggedReviews] = useState<FlaggedReview[]>([]);
   const [historyReviews, setHistoryReviews] = useState<ReviewHistoryItem[]>([]);
@@ -204,14 +209,7 @@ export default function SupervisorDashboardPage() {
   }, [user?.id]);
 
   function formatDate(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return `${formatPKTDate(iso)} at ${formatPKTTime(iso)} PKT`;
   }
 
   function severityColor(s: string) {
@@ -261,33 +259,19 @@ export default function SupervisorDashboardPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="rounded-xl border border-brand/30 bg-brand/10 p-2 text-brand">
-              <ShieldCheck size={20} />
-            </div>
-            <span className="font-display text-base font-bold text-foreground">Supervisor Portal</span>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <NotificationsDropdown />
-            <div className="hidden text-right sm:block">
-              <p className="text-sm font-semibold text-foreground leading-none">{user?.name ?? ''}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{user?.email ?? ''}</p>
-            </div>
-            <button
-              onClick={logout}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive transition-all"
-            >
-              <LogOut size={14} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-      </header>
+      {/* Reusable Dynamic Navbar */}
+      <Navbar
+        role="SUPERVISOR"
+        activeTab={activeTab}
+        onTabChange={(tabKey) => setActiveTab(tabKey as any)}
+        customTabs={[
+          { key: 'pending', label: 'Pending Reviews', badgeCount: pendingSessions.length, icon: Clock },
+          { key: 'flagged', label: 'Escalated Flags', badgeCount: flaggedReviews.length, icon: Flag },
+          { key: 'history', label: 'Evaluations History', badgeCount: historyReviews.length, icon: Activity },
+          { key: 'assignments', label: 'Assigned Courses', badgeCount: assignments.length, icon: UserCheck },
+          { key: 'settings', label: 'System Settings', icon: Settings },
+        ]}
+      />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
         <section className="mb-8">
@@ -314,25 +298,6 @@ export default function SupervisorDashboardPage() {
               </div>
             </div>
           ))}
-        </div>
-
-        {/* Tabs bar */}
-        <div className="flex border-b border-border mb-6 gap-2 overflow-x-auto">
-          <button onClick={() => setActiveTab('pending')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'pending' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-            Pending Reviews ({pendingSessions.length})
-          </button>
-          <button onClick={() => setActiveTab('flagged')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'flagged' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-            Escalated Flags ({flaggedReviews.length})
-          </button>
-          <button onClick={() => setActiveTab('history')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'history' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-            My Completed Evaluations ({historyReviews.length})
-          </button>
-          <button onClick={() => setActiveTab('assignments')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'assignments' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-            Assigned Courses ({assignments.length})
-          </button>
-          <button onClick={() => setActiveTab('settings')} className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'border-primary text-primary font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-            System Settings
-          </button>
         </div>
 
         <div className="glass-panel rounded-2xl p-6">

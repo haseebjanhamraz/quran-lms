@@ -8,12 +8,33 @@ import {
   Counter, CounterDocument,
   Notification, NotificationDocument, NotificationType,
   ClassSession, ClassSessionDocument, ClassStatus,
+  WeeklyScheduleSlot, WeeklyScheduleSlotDocument, DayOfWeek,
+  Course, CourseDocument,
+  Enrollment, EnrollmentDocument,
 } from '../schemas';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { RedisCacheService } from '../cache/redis-cache.service';
 import * as bcrypt from 'bcrypt';
+
+const SHORT_TO_FULL_DAYS: Record<string, DayOfWeek> = {
+  Mon: DayOfWeek.MONDAY,
+  Tue: DayOfWeek.TUESDAY,
+  Wed: DayOfWeek.WEDNESDAY,
+  Thu: DayOfWeek.THURSDAY,
+  Fri: DayOfWeek.FRIDAY,
+  Sat: DayOfWeek.SATURDAY,
+  Sun: DayOfWeek.SUNDAY,
+  Monday: DayOfWeek.MONDAY,
+  Tuesday: DayOfWeek.TUESDAY,
+  Wednesday: DayOfWeek.WEDNESDAY,
+  Thursday: DayOfWeek.THURSDAY,
+  Friday: DayOfWeek.FRIDAY,
+  Saturday: DayOfWeek.SATURDAY,
+  Sunday: DayOfWeek.SUNDAY,
+};
 
 @Injectable()
 export class UsersService {
@@ -24,6 +45,10 @@ export class UsersService {
     @InjectModel(Counter.name) private readonly counterModel: Model<CounterDocument>,
     @InjectModel(Notification.name) private readonly notificationModel: Model<NotificationDocument>,
     @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
+    @InjectModel(WeeklyScheduleSlot.name) private readonly weeklySlotModel: Model<WeeklyScheduleSlotDocument>,
+    @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
+    @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   private async getNextStudentId(): Promise<number> {
@@ -130,6 +155,16 @@ export class UsersService {
           customFeeNotes,
         },
       });
+
+      // Synchronize schedule slots and enrollments if teacher or class days are assigned
+      if (assignedTeacher || (classDays && classDays.length > 0)) {
+        await this.syncStudentScheduleAndEnrollments(
+          createdUser._id.toString(),
+          assignedTeacher ? assignedTeacher.toString() : undefined,
+          classDays,
+          classDuration !== undefined ? Number(classDuration) : 60,
+        );
+      }
     } else if (baseUserDto.role === Role.TEACHER) {
       await this.teacherModel.create({
         userId: createdUser._id,
@@ -287,6 +322,15 @@ export class UsersService {
           { userId: id },
           { $set: studentUpdate },
           { upsert: true },
+        );
+      }
+
+      if (assignedTeacher || (classDays && classDays.length > 0)) {
+        await this.syncStudentScheduleAndEnrollments(
+          id,
+          assignedTeacher ? assignedTeacher.toString() : undefined,
+          classDays,
+          classDuration !== undefined ? Number(classDuration) : undefined,
         );
       }
     } else if (user.role === Role.TEACHER) {
@@ -509,5 +553,82 @@ export class UsersService {
     await this.userModel.findByIdAndDelete(id);
 
     return { success: true, message: 'User account permanently deleted' };
+  }
+
+  private async syncStudentScheduleAndEnrollments(
+    studentUserId: string,
+    assignedTeacherId?: string,
+    classDays?: Array<{ day: string; time: string }>,
+    classDuration?: number,
+  ) {
+    if (!assignedTeacherId) return;
+
+    try {
+      // 1. Find teacher's courses
+      const teacherCourses = await this.courseModel.find({
+        $or: [{ teacherId: assignedTeacherId }, { teacherIds: assignedTeacherId }],
+      });
+
+      // 2. Auto-enroll student in teacher's primary course if not enrolled
+      if (teacherCourses.length > 0) {
+        const primaryCourse = teacherCourses[0];
+        const existingEnrollment = await this.enrollmentModel.findOne({
+          studentId: studentUserId,
+          courseId: primaryCourse._id,
+        });
+        if (!existingEnrollment) {
+          await this.enrollmentModel.create({
+            studentId: studentUserId,
+            courseId: primaryCourse._id,
+          });
+        }
+      }
+
+      // 3. Sync WeeklyScheduleSlots for classDays
+      if (Array.isArray(classDays) && classDays.length > 0) {
+        const primaryCourseId = teacherCourses.length > 0 ? teacherCourses[0]._id : undefined;
+
+        for (const slot of classDays) {
+          const fullDay = SHORT_TO_FULL_DAYS[slot.day] || (slot.day as DayOfWeek);
+          const timeStr = slot.time || '16:00';
+          const [h, m] = timeStr.split(':').map(Number);
+          const totalMinutes = (isNaN(h) ? 16 : h) * 60 + (isNaN(m) ? 0 : m);
+          const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((totalMinutes - 9 * 60) / 30)));
+
+          const dur = classDuration || 60;
+          const endTotal = totalMinutes + dur;
+          const endH = Math.floor(endTotal / 60) % 24;
+          const endM = endTotal % 60;
+          const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+
+          await this.weeklySlotModel.findOneAndUpdate(
+            {
+              dayOfWeek: fullDay,
+              timeSlotIndex,
+              teacherId: assignedTeacherId,
+            },
+            {
+              $set: {
+                dayOfWeek: fullDay,
+                timeSlotIndex,
+                startTime: timeStr,
+                endTime,
+                teacherId: assignedTeacherId,
+                studentId: studentUserId,
+                ...(primaryCourseId ? { courseId: primaryCourseId } : {}),
+                isRecurring: true,
+                isActive: true,
+              },
+            },
+            { upsert: true, new: true },
+          );
+        }
+      }
+
+      await this.cacheService.delByPattern('schedule:*');
+      await this.cacheService.delByPattern('stats:*');
+    } catch (err: any) {
+      // Non-fatal error during schedule sync
+    }
   }
 }

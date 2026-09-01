@@ -10,6 +10,15 @@ import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useTimeSlots, DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
 import { useRef } from 'react';
+import {
+  getCurrentDayOfWeekPKT,
+  getPKTHourAndMinute,
+  formatSlotRangePKT,
+  formatPKTTime,
+  DAYS_OF_WEEK,
+} from '@/utils/islamabadTime';
+import IslamabadClock from '@/components/IslamabadClock';
+import { useUrlState } from '@/hooks/useUrlState';
 
 export interface TeacherItem {
   id: string;
@@ -37,7 +46,7 @@ export interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
+  status: 'SCHEDULED' | 'ACTIVATED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   teacherId?: string;
   studentId?: string;
   teacher?: { id: string; name: string; email?: string; profilePicture?: string };
@@ -73,9 +82,7 @@ export function getTeacherColor(index: number): string {
 }
 
 export function getCurrentDayOfWeek(): string {
-  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const dayIndex = new Date().getDay();
-  return dayNames[dayIndex];
+  return getCurrentDayOfWeekPKT();
 }
 
 interface DailyScheduleViewProps {
@@ -111,12 +118,15 @@ export default function DailyScheduleView({
 }: DailyScheduleViewProps) {
   const { timeSlots: hookTimeSlots } = useTimeSlots();
   const timeSlots = customTimeSlots || hookTimeSlots || DEFAULT_TIME_SLOTS;
-  const currentTodayName = useMemo(() => getCurrentDayOfWeek(), []);
-  const [selectedDay, setSelectedDay] = useState<string>(currentTodayName);
-  const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedTeacherFilter, setSelectedTeacherFilter] = useState<string>(teacherId || '');
+  const currentTodayName = useMemo(() => getCurrentDayOfWeekPKT(), []);
+
+  // URL Query Synced States - keeps user's active day, search query, layout and teacher filter on refresh
+  const [selectedDay, setSelectedDay] = useUrlState<string>('day', currentTodayName);
+  const [searchQuery, setSearchQuery] = useUrlState<string>('q', '');
+  const [selectedTeacherFilter, setSelectedTeacherFilter] = useUrlState<string>('teacher', teacherId || '');
+  const [displayLayout, setDisplayLayout] = useUrlState<'cards' | 'table'>('layout', 'cards');
+
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [displayLayout, setDisplayLayout] = useState<'table' | 'cards'>('cards');
 
   // Internal state if props not passed
   const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>(initialGridAssignments || {});
@@ -226,7 +236,7 @@ export default function DailyScheduleView({
     fetchDailyDataRef.current();
   }, []);
 
-  // Map day to actual day sessions for correlation
+  // Map day to actual day sessions for correlation in Islamabad Time (PKT)
   const daySessionsMap = useMemo(() => {
     const map: Record<string, SessionItem[]> = {};
     DAYS.forEach((d) => { map[d] = []; });
@@ -234,8 +244,7 @@ export default function DailyScheduleView({
     sessions.forEach((s) => {
       try {
         const d = new Date(s.scheduledAt);
-        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const dayName = dayNames[d.getDay()];
+        const dayName = getCurrentDayOfWeekPKT(d);
         if (map[dayName]) {
           map[dayName].push(s);
         }
@@ -245,19 +254,20 @@ export default function DailyScheduleView({
     return map;
   }, [sessions]);
 
-  // Extract daily slots for the selected day
+  // Extract daily slots for the selected day in Islamabad Time (PKT)
   const dailySlots = useMemo(() => {
     return timeSlots.map((timeSlot, timeIdx) => {
       const slotKey = `${selectedDay}-${timeIdx}`;
       const assignment = gridAssignments[slotKey];
 
-      // Correlate with real session if available
+      // Correlate with real session if available in PKT
       const relatedSession = (daySessionsMap[selectedDay] || []).find((s) => {
         try {
           const sDate = new Date(s.scheduledAt);
+          const { hours: sHours, minutes: sMinutes } = getPKTHourAndMinute(sDate);
           const [startStr] = timeSlot.split(' - ');
           const [startH, startM] = startStr.split(':').map(Number);
-          return sDate.getHours() === startH && Math.abs(sDate.getMinutes() - startM) < 15;
+          return sHours === startH && Math.abs(sMinutes - startM) < 15;
         } catch (_) {
           return false;
         }
@@ -299,14 +309,18 @@ export default function DailyScheduleView({
         const assStudentId = assignment
           ? (typeof (assignment as any).studentId === 'object'
             ? (assignment as any).studentId?._id || (assignment as any).studentId?.id
-            : (assignment as any).studentId) || assignment?.student?.id
-          : session?.studentId || session?.student?.id;
+            : (assignment as any).studentId) || assignment?.student?.id || (assignment?.student as any)?._id
+          : session?.studentId || session?.student?.id || (session?.student as any)?._id;
 
-        if (assStudentId && assStudentId !== studentId) {
+        const assStudentIdStr = assStudentId ? assStudentId.toString() : null;
+        const targetStudentIdStr = studentId.toString();
+
+        if (assStudentIdStr && assStudentIdStr !== targetStudentIdStr) {
           return false;
         }
 
-        if (session?.studentId && session.studentId !== studentId) {
+        const sessStudentIdStr = session?.studentId ? session.studentId.toString() : (session?.student?.id ? session.student.id.toString() : null);
+        if (sessStudentIdStr && sessStudentIdStr !== targetStudentIdStr) {
           return false;
         }
       }
@@ -375,23 +389,9 @@ export default function DailyScheduleView({
     return Object.values(daySlotCounts).reduce((acc, c) => acc + c, 0);
   }, [daySlotCounts]);
 
-  // Format student local time display
+  // Format student time display in Islamabad PKT
   const formatStudentTime = (teacherTime: string) => {
-    try {
-      const [startStr, endStr] = teacherTime.split(' - ');
-      const formatPart = (timeStr: string) => {
-        const [hStr, mStr] = timeStr.split(':');
-        let hours = parseInt(hStr, 10);
-        const mins = parseInt(mStr, 10);
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const displayHours = hours % 12 || 12;
-        const formattedMins = mins < 10 ? `0${mins}` : mins;
-        return `${displayHours}:${formattedMins} ${period}`;
-      };
-      return `${formatPart(startStr)} – ${formatPart(endStr)}`;
-    } catch (_) {
-      return teacherTime;
-    }
+    return formatSlotRangePKT(teacherTime);
   };
 
   // Drag handlers (for Admin)
@@ -437,7 +437,7 @@ export default function DailyScheduleView({
     <div className="space-y-6 animate-fadeIn">
       {/* ─── Top Control Panel & Day Selector ─── */}
       <div className="glass-panel p-5 rounded-2xl border border-border/60 shadow-md space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5 flex-wrap">
               <h3 className="text-xl font-display font-bold text-foreground">
@@ -455,13 +455,14 @@ export default function DailyScheduleView({
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {role === 'STUDENT'
-                ? `Your scheduled Quran & Islamic Studies learning slots for ${selectedDay}.`
-                : `Active sessions & assigned slots for ${selectedDay}. (${daySlotCounts[selectedDay] || 0} slots assigned today)`}
+                ? `Your scheduled Quran & Islamic Studies learning slots for ${selectedDay} (All times in Islamabad PKT).`
+                : `Active sessions & assigned slots for ${selectedDay} in Islamabad Time. (${daySlotCounts[selectedDay] || 0} slots assigned today)`}
             </p>
           </div>
 
-          {/* Quick Filters & Layout Switcher */}
+          {/* Islamabad Live Clock & Quick Filters */}
           <div className="flex flex-wrap items-center gap-2.5">
+            <IslamabadClock variant="badge" />
             {/* Search Input */}
             <div className="relative min-w-[200px]">
               <Search className="w-4 h-4 absolute left-3 top-2.5 text-muted-foreground" />

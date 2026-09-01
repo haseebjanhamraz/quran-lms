@@ -200,13 +200,7 @@ export default function ScheduleTab({
                           Edit
                         </button>
                         <button
-                          onClick={() => {
-                            if (handleActivateClass) {
-                              handleActivateClass(session.id);
-                            } else {
-                              handleStartClass(session.id);
-                            }
-                          }}
+                          onClick={() => handleStartClass(session.id)}
                           className="flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-4 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-200"
                         >
                           <Zap size={14} />

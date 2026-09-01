@@ -15,6 +15,8 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 import { useWebSocket } from '@/hooks/useWebSocket';
+import IslamabadClock from '@/components/IslamabadClock';
+import { useUrlState } from '@/hooks/useUrlState';
 
 interface TeacherItem {
   id: string;
@@ -68,10 +70,10 @@ function getTeacherColor(index: number): string {
 
 export default function ScheduleManagement() {
   const { timeSlots, loading: timeSlotsLoading, saveTimeSlots, refetch: refetchTimeSlots } = useTimeSlots();
-  const [view, setView] = useState<'weekly' | 'daily'>('weekly');
+  const [view, setView] = useUrlState<'weekly' | 'daily'>('view', 'weekly');
+  const [activeFilter, setActiveFilter] = useUrlState<string | null>('filter', null);
   const [teachers, setTeachers] = useState<TeacherItem[]>(DEFAULT_TEACHERS);
   const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>({});
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [generating, setGenerating] = useState<boolean>(false);
 
@@ -403,6 +405,8 @@ export default function ScheduleManagement() {
 
         {/* Action Buttons */}
         <div className="flex flex-wrap items-center gap-3">
+          <IslamabadClock variant="badge" />
+
           {/* Manage Time Slots Button */}
           <button
             onClick={handleOpenSlotsModal}

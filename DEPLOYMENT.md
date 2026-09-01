@@ -16,7 +16,6 @@ graph TD
     subgraph Docker Compose Network (quran-lms-net)
         CF -->|quran-lms.kpcybers.com → :3030| NextJS[Next.js Frontend]
         CF -->|api.quran-lms.kpcybers.com → :5000| NestJS[NestJS Backend API]
-        NestJS -->|Internal| Mongo[(MongoDB Container)]
         NestJS -->|Internal| Redis[(Redis Container)]
         NestJS -->|SDK / Egress Client| LiveKit
         LiveKit -->|Webhooks| NestJS
@@ -25,6 +24,8 @@ graph TD
         Egress -->|Recordings| Volume[Shared Recordings Volume]
         NestJS -->|Process & Stream| Volume
     end
+
+    NestJS -->|Cloud Database / TLS| Atlas[(MongoDB Atlas Cluster)]
 ```
 
 ### Host Port Mapping
@@ -32,11 +33,10 @@ graph TD
 | Service | Internal (Container) Port | Host Mapping (Configured in `.env`) |
 |---|---|---|
 | **Next.js Frontend** | `3030` | `3030:3030` / `127.0.0.1:3030` |
-| **NestJS Backend API** | `4000` / `5000` | `5000:5000` / `127.0.0.1:5000` |
+| **NestJS Backend API** | `5000` | `5000:5000` / `127.0.0.1:5000` |
 | **LiveKit Media Server** | `7880`, `7881`, `7882/udp`, `3478/udp` | `7880`, `7881`, `7882/udp`, `3478/udp` |
 | **Redis Queue Broker** | `6379` | `6379:6379` / `127.0.0.1:6380` |
-| **MongoDB Database** | `27017` | `27017:27017` |
-
+| **MongoDB Atlas** | Hosted Cloud Service | Configured via `MONGODB_URI` in `.env` |
 
 ---
 
@@ -45,7 +45,7 @@ graph TD
 ### Step 1: Configure Environment Variables
 
 ```env
-MONGODB_URI=mongodb://127.0.0.1:27017/quran_lms
+MONGODB_URI=mongodb+srv://<username>:<password>@cluster0.mongodb.net/quran_lms?retryWrites=true&w=majority
 REDIS_HOST=redis
 REDIS_PORT=6379
 PORT=5000
@@ -54,7 +54,10 @@ PORT=5000
 ### Step 2: Start Dockerized Services
 
 ```bash
+# Production deployment:
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# or using npm script:
+npm run docker:prod
 ```
 
 ### Step 3: Seed Database

@@ -136,8 +136,8 @@ export default function Step3ScheduleTier({
         {enrollmentStatus.classDays.length > 0 ? (
           <div className="space-y-3 pt-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                Class Starting Timings:
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                <span>Class Starting Timings (Islamabad PKT):</span>
               </label>
               <div className="flex items-center gap-2">
                 <input

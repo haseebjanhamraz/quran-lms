@@ -20,6 +20,12 @@ import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { RecordingsService } from '../recordings/recordings.service';
 import { LocalStorageService } from '../local-storage/local-storage.service';
 import { RedisCacheService } from '../cache/redis-cache.service';
+import {
+  formatPKTTime,
+  getPKTDateParts,
+  ISLAMABAD_TIMEZONE,
+  PKT_OFFSET_HOURS,
+} from '../utils/islamabad-time';
 
 @Injectable()
 export class ClassSessionsService {
@@ -117,8 +123,14 @@ export class ClassSessionsService {
       scheduledAt: scheduledDate,
       durationMinutes: createClassSessionDto.durationMinutes,
       status: ClassStatus.SCHEDULED,
+      timezone: ISLAMABAD_TIMEZONE,
+      scheduledTimePKT: formatPKTTime(scheduledDate),
       endedAt,
     });
+
+    await this.cacheService.delByPattern('sessions:*');
+    await this.cacheService.delByPattern('stats:*');
+    await this.cacheService.delByPattern('schedule:*');
 
     return this.classSessionModel.findById(created._id).populate('course', 'title type');
   }
@@ -210,13 +222,15 @@ export class ClassSessionsService {
 
     const endedAt = new Date(newScheduledAt.getTime() + newDuration * 60 * 1000);
 
-    return this.classSessionModel.findByIdAndUpdate(
+    const updated = await this.classSessionModel.findByIdAndUpdate(
       id,
       {
         $set: {
           scheduledAt: newScheduledAt,
           durationMinutes: newDuration,
           status: updateClassSessionDto.status,
+          timezone: ISLAMABAD_TIMEZONE,
+          scheduledTimePKT: formatPKTTime(newScheduledAt),
           startedAt,
           actualStartTime,
           actualEndTime,
@@ -225,6 +239,12 @@ export class ClassSessionsService {
       },
       { new: true },
     ).populate('course', 'title');
+
+    await this.cacheService.delByPattern('sessions:*');
+    await this.cacheService.delByPattern('stats:*');
+    await this.cacheService.delByPattern('schedule:*');
+
+    return updated;
   }
 
   async remove(id: string) {
@@ -243,7 +263,13 @@ export class ClassSessionsService {
       }
     }
 
-    return this.classSessionModel.findByIdAndDelete(id);
+    const deleted = await this.classSessionModel.findByIdAndDelete(id);
+
+    await this.cacheService.delByPattern('sessions:*');
+    await this.cacheService.delByPattern('stats:*');
+    await this.cacheService.delByPattern('schedule:*');
+
+    return deleted;
   }
 
   async getPipelineLogs(sessionId: string) {
@@ -259,53 +285,66 @@ export class ClassSessionsService {
   }
 
   async findTeacherCalendar(teacherId: string) {
-    return this.classSessionModel.find({ teacherId })
-      .populate('course', 'title type')
-      .populate('student', 'id name preferredName email timezone studentId profilePicture')
-      .populate('attendances')
-      .populate('recording')
-      .sort({ scheduledAt: 1 });
+    const cacheKey = `sessions:calendar:teacher:${teacherId}`;
+    return this.cacheService.getOrSet(cacheKey, async () => {
+      return this.classSessionModel.find({ teacherId })
+        .populate('course', 'title type')
+        .populate('student', 'id name preferredName email timezone studentId profilePicture')
+        .populate('attendances')
+        .populate('recording')
+        .sort({ scheduledAt: 1 })
+        .lean();
+    }, 30);
   }
 
   async findStudentCalendar(studentId: string) {
-    const enrollments = await this.enrollmentModel.find({ studentId }, 'courseId');
-    const courseIds = enrollments.map((e) => e.courseId);
+    const cacheKey = `sessions:calendar:student:${studentId}`;
+    return this.cacheService.getOrSet(cacheKey, async () => {
+      const enrollments = await this.enrollmentModel.find({ studentId }, 'courseId');
+      const courseIds = enrollments.map((e) => e.courseId);
 
-    return this.classSessionModel.find({
-      $or: [
-        { studentId },
-        { courseId: { $in: courseIds }, studentId: { $exists: false } },
-        { courseId: { $in: courseIds }, studentId: null },
-      ],
-    })
-      .populate('course', 'title type')
-      .populate('teacher', 'id name email profilePicture')
-      .populate('recording')
-      .sort({ scheduledAt: 1 });
+      const orConditions: any[] = [{ studentId }];
+      if (courseIds.length > 0) {
+        orConditions.push({ courseId: { $in: courseIds } });
+      }
+
+      return this.classSessionModel.find({
+        $or: orConditions,
+      })
+        .populate('course', 'title type')
+        .populate('teacher', 'id name email profilePicture')
+        .populate('recording')
+        .sort({ scheduledAt: 1 })
+        .lean();
+    }, 30);
   }
 
   async findSupervisorCalendar(supervisorId: string) {
-    const assignments = await this.supervisorAssignmentModel.find({ supervisorId, isActive: true });
-    const teacherIds = assignments.map((a) => a.teacherId).filter(Boolean);
-    const courseIds = assignments.map((a) => a.courseId).filter(Boolean);
+    const cacheKey = `sessions:calendar:supervisor:${supervisorId}`;
+    return this.cacheService.getOrSet(cacheKey, async () => {
+      const assignments = await this.supervisorAssignmentModel.find({ supervisorId, isActive: true });
+      const teacherIds = assignments.map((a) => a.teacherId).filter(Boolean);
+      const courseIds = assignments.map((a) => a.courseId).filter(Boolean);
 
-    const query: any = {};
-    if (teacherIds.length > 0 && courseIds.length > 0) {
-      query.$or = [{ teacherId: { $in: teacherIds } }, { courseId: { $in: courseIds } }];
-    } else if (teacherIds.length > 0) {
-      query.teacherId = { $in: teacherIds };
-    } else if (courseIds.length > 0) {
-      query.courseId = { $in: courseIds };
-    } else {
-      return [];
-    }
+      const query: any = {};
+      if (teacherIds.length > 0 && courseIds.length > 0) {
+        query.$or = [{ teacherId: { $in: teacherIds } }, { courseId: { $in: courseIds } }];
+      } else if (teacherIds.length > 0) {
+        query.teacherId = { $in: teacherIds };
+      } else if (courseIds.length > 0) {
+        query.courseId = { $in: courseIds };
+      } else {
+        return [];
+      }
 
-    return this.classSessionModel.find(query)
-      .populate('course', 'title type')
-      .populate('teacher', 'id name email profilePicture')
-      .populate('student', 'id name preferredName email timezone studentId profilePicture')
-      .populate('recording')
-      .sort({ scheduledAt: 1 });
+      return this.classSessionModel.find(query)
+        .populate('course', 'title type')
+        .populate('teacher', 'id name email profilePicture')
+        .populate('student', 'id name preferredName email timezone studentId profilePicture')
+        .populate('recording')
+        .sort({ scheduledAt: 1 })
+        .lean();
+    }, 30);
   }
 
   async logAttendance(
@@ -513,162 +552,169 @@ export class ClassSessionsService {
     const userId = user.id;
 
     if (role === Role.ADMIN) {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
+      const cacheKey = 'stats:admin';
+      return this.cacheService.getOrSet(cacheKey, async () => {
+        const parts = getPKTDateParts(new Date());
+        const todayStart = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 0 - PKT_OFFSET_HOURS, 0, 0, 0));
+        const todayEnd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 23 - PKT_OFFSET_HOURS, 59, 59, 999));
 
-      const [total, scheduled, live, completed, cancelled, expired, frozen, today] = await Promise.all([
-        this.classSessionModel.countDocuments(),
-        this.classSessionModel.countDocuments({ status: ClassStatus.SCHEDULED }),
-        this.classSessionModel.countDocuments({ status: ClassStatus.LIVE }),
-        this.classSessionModel.countDocuments({ status: ClassStatus.COMPLETED }),
-        this.classSessionModel.countDocuments({ status: ClassStatus.CANCELLED }),
-        this.classSessionModel.countDocuments({ status: ClassStatus.EXPIRED }),
-        this.classSessionModel.countDocuments({ status: ClassStatus.FROZEN }),
-        this.classSessionModel.countDocuments({
-          scheduledAt: { $gte: todayStart, $lt: todayEnd },
-        }),
-      ]);
+        const [total, scheduled, live, completed, cancelled, expired, frozen, today] = await Promise.all([
+          this.classSessionModel.countDocuments(),
+          this.classSessionModel.countDocuments({ status: ClassStatus.SCHEDULED }),
+          this.classSessionModel.countDocuments({ status: ClassStatus.LIVE }),
+          this.classSessionModel.countDocuments({ status: ClassStatus.COMPLETED }),
+          this.classSessionModel.countDocuments({ status: ClassStatus.CANCELLED }),
+          this.classSessionModel.countDocuments({ status: ClassStatus.EXPIRED }),
+          this.classSessionModel.countDocuments({ status: ClassStatus.FROZEN }),
+          this.classSessionModel.countDocuments({
+            scheduledAt: { $gte: todayStart, $lt: todayEnd },
+          }),
+        ]);
 
-      const totalTeachers = await this.userModel.countDocuments({ role: Role.TEACHER });
-      const totalStudents = await this.userModel.countDocuments({ role: Role.STUDENT });
-      const totalCourses = await this.courseModel.countDocuments();
+        const totalTeachers = await this.userModel.countDocuments({ role: Role.TEACHER });
+        const totalStudents = await this.userModel.countDocuments({ role: Role.STUDENT });
+        const totalCourses = await this.courseModel.countDocuments();
 
-      return {
-        total,
-        scheduled,
-        live,
-        completed,
-        cancelled,
-        expired,
-        frozen,
-        today,
-        totalTeachers,
-        totalStudents,
-        totalCourses,
-      };
+        return {
+          total,
+          scheduled,
+          live,
+          completed,
+          cancelled,
+          expired,
+          frozen,
+          today,
+          totalTeachers,
+          totalStudents,
+          totalCourses,
+        };
+      }, 30);
     }
 
     if (role === Role.TEACHER) {
       const cacheKey = `stats:teacher:${userId}`;
-      const cached = await this.cacheService.get(cacheKey);
-      if (cached) return cached;
+      return this.cacheService.getOrSet(cacheKey, async () => {
+        const parts = getPKTDateParts(new Date());
+        const todayStart = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 0 - PKT_OFFSET_HOURS, 0, 0, 0));
+        const todayEnd = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 23 - PKT_OFFSET_HOURS, 59, 59, 999));
+        const now = new Date();
 
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const todayEnd = new Date();
-      todayEnd.setHours(23, 59, 59, 999);
-      const now = new Date();
+        const [
+          total,
+          scheduled,
+          live,
+          completed,
+          cancelled,
+          today,
+          courses,
+          pendingLeaves,
+          approvedLeaves,
+          leaveBalanceDoc,
+          nextClass,
+        ] = await Promise.all([
+          this.classSessionModel.countDocuments({ teacherId: userId }),
+          this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.SCHEDULED }),
+          this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.LIVE }),
+          this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.COMPLETED }),
+          this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.CANCELLED }),
+          this.classSessionModel.countDocuments({
+            teacherId: userId,
+            scheduledAt: { $gte: todayStart, $lt: todayEnd },
+          }),
+          this.courseModel.find({ teacherId: userId }, 'id'),
+          this.leaveRequestModel.countDocuments({ teacherId: userId, status: LeaveStatus.PENDING }),
+          this.leaveRequestModel.countDocuments({ teacherId: userId, status: LeaveStatus.APPROVED }),
+          this.leaveBalanceModel.findOne({ teacherId: userId, year: parts.year }),
+          this.classSessionModel.findOne({
+            teacherId: userId,
+            status: { $in: [ClassStatus.SCHEDULED, ClassStatus.LIVE] },
+            scheduledAt: { $gte: new Date(now.getTime() - 60 * 60 * 1000) },
+          }).populate('course', 'title type').sort({ scheduledAt: 1 }).lean(),
+        ]);
 
-      const [
-        total,
-        scheduled,
-        live,
-        completed,
-        cancelled,
-        today,
-        courses,
-        pendingLeaves,
-        approvedLeaves,
-        leaveBalanceDoc,
-        nextClass,
-      ] = await Promise.all([
-        this.classSessionModel.countDocuments({ teacherId: userId }),
-        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.SCHEDULED }),
-        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.LIVE }),
-        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.COMPLETED }),
-        this.classSessionModel.countDocuments({ teacherId: userId, status: ClassStatus.CANCELLED }),
-        this.classSessionModel.countDocuments({
-          teacherId: userId,
-          scheduledAt: { $gte: todayStart, $lt: todayEnd },
-        }),
-        this.courseModel.find({ teacherId: userId }, 'id'),
-        this.leaveRequestModel.countDocuments({ teacherId: userId, status: LeaveStatus.PENDING }),
-        this.leaveRequestModel.countDocuments({ teacherId: userId, status: LeaveStatus.APPROVED }),
-        this.leaveBalanceModel.findOne({ teacherId: userId, year: now.getFullYear() }),
-        this.classSessionModel.findOne({
-          teacherId: userId,
-          status: { $in: [ClassStatus.SCHEDULED, ClassStatus.LIVE] },
-          scheduledAt: { $gte: new Date(now.getTime() - 60 * 60 * 1000) },
-        }).populate('course', 'title type').sort({ scheduledAt: 1 }).lean(),
-      ]);
+        const completedSessions = await this.classSessionModel.find(
+          { teacherId: userId, status: ClassStatus.COMPLETED },
+          'durationMinutes',
+        );
+        const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
 
-      const completedSessions = await this.classSessionModel.find(
-        { teacherId: userId, status: ClassStatus.COMPLETED },
-        'durationMinutes',
-      );
-      const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
+        const courseIds = courses.map((c) => c._id);
+        const studentCountResult = await this.enrollmentModel.distinct('studentId', { courseId: { $in: courseIds } });
 
-      const courseIds = courses.map((c) => c._id);
-      const studentCountResult = await this.enrollmentModel.distinct('studentId', { courseId: { $in: courseIds } });
+        const allocated = leaveBalanceDoc?.allocated || { sick: 10, casual: 12, annual: 15, other: 5 };
+        const used = leaveBalanceDoc?.used || { sick: 0, casual: 0, annual: 0, other: 0 };
+        const remainingLeaves = {
+          sick: Math.max(0, (allocated.sick || 0) - (used.sick || 0)),
+          casual: Math.max(0, (allocated.casual || 0) - (used.casual || 0)),
+          annual: Math.max(0, (allocated.annual || 0) - (used.annual || 0)),
+          other: Math.max(0, (allocated.other || 0) - (used.other || 0)),
+          totalRemaining: Math.max(0,
+            ((allocated.sick || 0) + (allocated.casual || 0) + (allocated.annual || 0) + (allocated.other || 0)) -
+            ((used.sick || 0) + (used.casual || 0) + (used.annual || 0) + (used.other || 0))
+          ),
+        };
 
-      const allocated = leaveBalanceDoc?.allocated || { sick: 10, casual: 12, annual: 15, other: 5 };
-      const used = leaveBalanceDoc?.used || { sick: 0, casual: 0, annual: 0, other: 0 };
-      const remainingLeaves = {
-        sick: Math.max(0, (allocated.sick || 0) - (used.sick || 0)),
-        casual: Math.max(0, (allocated.casual || 0) - (used.casual || 0)),
-        annual: Math.max(0, (allocated.annual || 0) - (used.annual || 0)),
-        other: Math.max(0, (allocated.other || 0) - (used.other || 0)),
-        totalRemaining: Math.max(0,
-          ((allocated.sick || 0) + (allocated.casual || 0) + (allocated.annual || 0) + (allocated.other || 0)) -
-          ((used.sick || 0) + (used.casual || 0) + (used.annual || 0) + (used.other || 0))
-        ),
-      };
-
-      const result = {
-        total,
-        scheduled,
-        live,
-        completed,
-        cancelled,
-        today,
-        totalHours: Math.round(totalMinutes / 60),
-        totalStudents: studentCountResult.length,
-        pendingLeaves,
-        approvedLeaves,
-        remainingLeaves,
-        nextClass: nextClass ? {
-          id: nextClass._id.toString(),
-          title: (nextClass as any).course?.title || 'Quran Session',
-          type: (nextClass as any).course?.type || 'NAZIRA',
-          scheduledAt: nextClass.scheduledAt,
-          durationMinutes: nextClass.durationMinutes,
-          status: nextClass.status,
-        } : null,
-      };
-
-      await this.cacheService.set(cacheKey, result, 30); // 30s cache TTL
-      return result;
+        return {
+          total,
+          scheduled,
+          live,
+          completed,
+          cancelled,
+          today,
+          totalHours: Math.round(totalMinutes / 60),
+          totalStudents: studentCountResult.length,
+          pendingLeaves,
+          approvedLeaves,
+          remainingLeaves,
+          nextClass: nextClass ? {
+            id: (nextClass as any)._id?.toString() || (nextClass as any).id,
+            title: (nextClass as any).course?.title || 'Quran Session',
+            type: (nextClass as any).course?.type || 'NAZIRA',
+            scheduledAt: (nextClass as any).scheduledAt,
+            durationMinutes: (nextClass as any).durationMinutes,
+            status: (nextClass as any).status,
+          } : null,
+        };
+      }, 30);
     }
 
     if (role === Role.STUDENT) {
-      const enrollments = await this.enrollmentModel.find({ studentId: userId }, 'courseId');
-      const courseIds = enrollments.map((e) => e.courseId);
+      const cacheKey = `stats:student:${userId}`;
+      return this.cacheService.getOrSet(cacheKey, async () => {
+        const enrollments = await this.enrollmentModel.find({ studentId: userId }, 'courseId');
+        const courseIds = enrollments.map((e) => e.courseId);
 
-      const [total, scheduled, live, completed, cancelled] = await Promise.all([
-        this.classSessionModel.countDocuments({ courseId: { $in: courseIds } }),
-        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.SCHEDULED }),
-        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.LIVE }),
-        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.COMPLETED }),
-        this.classSessionModel.countDocuments({ courseId: { $in: courseIds }, status: ClassStatus.CANCELLED }),
-      ]);
+        const query: any = {
+          $or: [
+            { studentId: userId },
+            ...(courseIds.length > 0 ? [{ courseId: { $in: courseIds } }] : []),
+          ],
+        };
 
-      const completedSessions = await this.classSessionModel.find(
-        { courseId: { $in: courseIds }, status: ClassStatus.COMPLETED },
-        'durationMinutes',
-      );
-      const totalMinutes = completedSessions.reduce((acc, s) => acc + s.durationMinutes, 0);
+        const [total, scheduled, live, completed, cancelled] = await Promise.all([
+          this.classSessionModel.countDocuments(query),
+          this.classSessionModel.countDocuments({ ...query, status: ClassStatus.SCHEDULED }),
+          this.classSessionModel.countDocuments({ ...query, status: ClassStatus.LIVE }),
+          this.classSessionModel.countDocuments({ ...query, status: ClassStatus.COMPLETED }),
+          this.classSessionModel.countDocuments({ ...query, status: ClassStatus.CANCELLED }),
+        ]);
 
-      return {
-        total,
-        scheduled,
-        live,
-        completed,
-        cancelled,
-        totalHours: Math.round((totalMinutes / 60) * 10) / 10,
-        enrolledCourses: courseIds.length,
-      };
+        const completedSessions = await this.classSessionModel.find(
+          { ...query, status: ClassStatus.COMPLETED },
+          'durationMinutes',
+        );
+        const totalMinutes = completedSessions.reduce((acc, s) => acc + (s.durationMinutes || 0), 0);
+
+        return {
+          total,
+          scheduled,
+          live,
+          completed,
+          cancelled,
+          totalHours: Math.round((totalMinutes / 60) * 10) / 10,
+          enrolledCourses: courseIds.length,
+        };
+      }, 30);
     }
 
     if (role === Role.SUPERVISOR) {
@@ -715,21 +761,33 @@ export class ClassSessionsService {
   }
 
   async getTeacherTimetable(teacherId: string, date: string) {
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const cacheKey = `sessions:timetable:${teacherId}:${date}`;
+    return this.cacheService.getOrSet(cacheKey, async () => {
+      let startOfDay: Date;
+      let endOfDay: Date;
 
-    return this.classSessionModel.find({
-      teacherId,
-      scheduledAt: {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
-    })
-      .populate('course', 'title type')
-      .populate('student', 'name timezone')
-      .sort({ scheduledAt: 1 });
+      if (date && date.includes('-')) {
+        const [yStr, mStr, dStr] = date.split('-').map(Number);
+        startOfDay = new Date(Date.UTC(yStr, mStr - 1, dStr, 0 - PKT_OFFSET_HOURS, 0, 0, 0));
+        endOfDay = new Date(Date.UTC(yStr, mStr - 1, dStr, 23 - PKT_OFFSET_HOURS, 59, 59, 999));
+      } else {
+        const parts = getPKTDateParts(new Date());
+        startOfDay = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 0 - PKT_OFFSET_HOURS, 0, 0, 0));
+        endOfDay = new Date(Date.UTC(parts.year, parts.month - 1, parts.day, 23 - PKT_OFFSET_HOURS, 59, 59, 999));
+      }
+
+      return this.classSessionModel.find({
+        teacherId,
+        scheduledAt: {
+          $gte: startOfDay,
+          $lte: endOfDay,
+        },
+      })
+        .populate('course', 'title type')
+        .populate('student', 'name timezone')
+        .sort({ scheduledAt: 1 })
+        .lean();
+    }, 30);
   }
 
   async getWeeklyScheduleGrid() {

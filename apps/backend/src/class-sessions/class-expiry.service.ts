@@ -11,6 +11,7 @@ import {
   NotificationType,
 } from '../schemas';
 import { NotificationsService } from '../notifications/notifications.service';
+import { RedisCacheService } from '../cache/redis-cache.service';
 
 @Injectable()
 export class ClassExpiryService {
@@ -21,6 +22,7 @@ export class ClassExpiryService {
     private readonly classSessionModel: Model<ClassSessionDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly configService: ConfigService,
+    private readonly cacheService: RedisCacheService,
   ) {}
 
   @Cron(CronExpression.EVERY_5_MINUTES)
@@ -86,6 +88,8 @@ export class ClassExpiryService {
     }
 
     if (expiredCount > 0) {
+      await this.cacheService.delByPattern('sessions:*');
+      await this.cacheService.delByPattern('stats:*');
       this.logger.log(`Successfully expired ${expiredCount} past scheduled class sessions.`);
     }
 
@@ -128,6 +132,11 @@ export class ClassExpiryService {
           this.logger.warn(`Could not delete LiveKit room for stale session ${session._id}: ${err.message}`);
         }
       }
+    }
+
+    if (cleanedCount > 0) {
+      await this.cacheService.delByPattern('sessions:*');
+      await this.cacheService.delByPattern('stats:*');
     }
 
     return cleanedCount;

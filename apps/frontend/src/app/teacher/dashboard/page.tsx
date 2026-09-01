@@ -16,13 +16,13 @@ import StudentsTab from './components/StudentsTab';
 import RecordingsTab from './components/RecordingsTab';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import InstantClassModal from './components/InstantClassModal';
-import VersionBadge from '@/components/VersionBadge';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import ThemeToggle from '@/components/ThemeToggle';
 import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useUrlState } from '@/hooks/useUrlState';
+import Navbar from '@/components/Navbar';
 
 // Interfaces
 interface SessionItem {
@@ -69,29 +69,14 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1
 const TABS = ['Dashboard', 'Schedule', 'My Courses', 'My Students', 'Class Recordings'] as const;
 type TabType = (typeof TABS)[number];
 
-function NavTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`relative px-4 py-2 text-sm font-medium transition-colors duration-200 ${
-        active ? 'text-primary font-bold' : 'text-muted-foreground hover:text-foreground'
-      }`}
-    >
-      {label}
-      {active && (
-        <span className="absolute bottom-0 left-0 right-0 h-0.5 rounded-full bg-primary shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-      )}
-    </button>
-  );
-}
-
 export default function TeacherDashboard() {
   const { user, logout, loading: authLoading, hasPermission } = useAuth();
   const router = useRouter();
 
   const canStartInstantClass = hasPermission ? hasPermission('schedule.create') : true;
 
-  const [activeTab, setActiveTab] = useState<TabType>('Dashboard');
+  // Synced with URL search params: ?tab=Schedule, ?tab=Dashboard, etc.
+  const [activeTab, setActiveTab] = useUrlState<TabType>('tab', 'Dashboard');
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [students, setStudents] = useState<StudentRecord[]>([]);
@@ -378,77 +363,23 @@ export default function TeacherDashboard() {
 
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Navbar */}
-      <header className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-xl border border-primary/30 bg-primary/10 p-1.5 flex items-center justify-center">
-              <Image src="/logo.png" width={24} height={24} alt="Logo" />
-            </div>
-            <span className="font-display text-base font-bold text-foreground">Teacher Portal</span>
-          </div>
-
-          {/* Desktop Navigation Tabs */}
-          <nav className="hidden items-center gap-1 md:flex">
-            {TABS.map((tab) => (
-              <NavTab
-                key={tab}
-                label={tab}
-                active={activeTab === tab}
-                onClick={() => setActiveTab(tab)}
-              />
-            ))}
-          </nav>
-
-          {/* Right Header Items */}
-          <div className="flex items-center gap-3">
-            {/* Quick Leave Portal Link */}
-            <Link
-              href="/teacher/leave"
-              className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/70 bg-card/60 text-xs font-semibold text-foreground hover:border-brand/40 hover:bg-card transition-all"
-              title="Leave Management"
-            >
-              <PlaneTakeoff size={14} className="text-brand" />
-              <span>Leaves</span>
-            </Link>
-
-            <ThemeToggle />
-            <NotificationsDropdown />
-
-            <div className="hidden text-right lg:block">
-              <p className="text-sm font-semibold text-foreground leading-none">{user.name}</p>
-              <p className="mt-0.5 text-xs text-muted-foreground">{user.email}</p>
-            </div>
-
-            <button
-              onClick={logout}
-              className="flex items-center gap-1.5 rounded-xl border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all duration-200 hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive"
-            >
-              <LogOut size={14} />
-              <span className="hidden sm:inline">Logout</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile tabs bar */}
-        <div className="flex border-t border-border/60 md:hidden overflow-x-auto px-2">
-          {TABS.map((tab) => (
-            <NavTab
-              key={tab}
-              label={tab}
-              active={activeTab === tab}
-              onClick={() => setActiveTab(tab)}
-            />
-          ))}
+      {/* Reusable Dynamic Navbar */}
+      <Navbar
+        role="TEACHER"
+        activeTab={activeTab}
+        onTabChange={(tabKey) => setActiveTab(tabKey as TabType)}
+        customTabs={TABS.map((t) => ({ key: t, label: t }))}
+        extraActions={
           <Link
             href="/teacher/leave"
-            className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground shrink-0 flex items-center gap-1"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/70 bg-card/60 text-xs font-semibold text-foreground hover:border-brand/40 hover:bg-card transition-all"
+            title="Leave Management"
           >
-            <PlaneTakeoff size={13} />
-            <span>Leaves</span>
+            <PlaneTakeoff size={14} className="text-brand" />
+            <span className="hidden sm:inline">Leaves</span>
           </Link>
-        </div>
-      </header>
+        }
+      />
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
@@ -496,7 +427,6 @@ export default function TeacherDashboard() {
         {/* 3. My Courses Tab */}
         {activeTab === 'My Courses' && (
           <>
-            <StatsRow stats={stats} />
             <CoursesTab
               courses={courses}
               coursesLoading={coursesLoading}
@@ -507,7 +437,6 @@ export default function TeacherDashboard() {
         {/* 4. My Students Tab */}
         {activeTab === 'My Students' && (
           <>
-            <StatsRow stats={stats} />
             <StudentsTab
               students={students}
               studentsLoading={studentsLoading}
@@ -518,7 +447,6 @@ export default function TeacherDashboard() {
         {/* 5. Class Recordings Tab */}
         {activeTab === 'Class Recordings' && (
           <>
-            <StatsRow stats={stats} />
             <RecordingsTab
               sessions={sessions}
               sessionsLoading={sessionsLoading}
@@ -526,9 +454,6 @@ export default function TeacherDashboard() {
             />
           </>
         )}
-
-        {/* Version & System Information Footer Badge */}
-        <VersionBadge className="mt-10" />
       </main>
 
       <InstantClassModal

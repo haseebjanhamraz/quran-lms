@@ -30,8 +30,14 @@ export function getCountryByPhoneCode(phoneCode?: string): CountryInfo | undefin
   return COUNTRIES.find((c) => c.phoneCode === cleaned);
 }
 
-export function getAllCurrencies(): { code: string; name: string; symbol: string }[] {
-  const map = new Map<string, { code: string; name: string; symbol: string }>();
+export interface CurrencyInfo {
+  code: string;
+  name: string;
+  symbol: string;
+}
+
+export function getAllCurrencies(): CurrencyInfo[] {
+  const map = new Map<string, CurrencyInfo>();
   for (const c of COUNTRIES) {
     if (!map.has(c.currency)) {
       map.set(c.currency, {

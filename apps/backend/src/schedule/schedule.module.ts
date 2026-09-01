@@ -9,6 +9,7 @@ import {
   Course, CourseSchema,
   ClassSession, ClassSessionSchema,
   Enrollment, EnrollmentSchema,
+  Student, StudentSchema,
 } from '../schemas';
 
 @Module({
@@ -19,6 +20,7 @@ import {
       { name: Course.name, schema: CourseSchema },
       { name: ClassSession.name, schema: ClassSessionSchema },
       { name: Enrollment.name, schema: EnrollmentSchema },
+      { name: Student.name, schema: StudentSchema },
     ]),
   ],
   controllers: [ScheduleController],

@@ -34,4 +34,16 @@ export class UpsertSlotDto {
   @IsString()
   @IsOptional()
   clientId?: string;
+
+  @IsInt()
+  @IsOptional()
+  durationMinutes?: number;
+
+  @IsString()
+  @IsOptional()
+  teacherStartTime?: string;
+
+  @IsString()
+  @IsOptional()
+  studentStartTime?: string;
 }

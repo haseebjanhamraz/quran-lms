@@ -9,10 +9,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Image from 'next/image';
-import ThemeToggle from '@/components/ThemeToggle';
-import NotificationsDropdown from '@/components/NotificationsDropdown';
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import Navbar from '@/components/Navbar';
 
 interface LeaveRequestItem {
   id?: string;
@@ -209,30 +208,20 @@ export default function TeacherLeavePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Top Header */}
-      <header className="sticky top-0 z-50 border-b border-border bg-header/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <Link
-              href="/teacher/dashboard"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border bg-card/60 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-card transition-all"
-            >
-              <ArrowLeft size={14} />
-              <span>Back to Dashboard</span>
-            </Link>
-            <div className="h-4 w-px bg-border hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <PlaneTakeoff size={20} className="text-primary" />
-              <span className="font-display text-base font-bold text-foreground">Teacher Leave Portal</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <ThemeToggle />
-            <NotificationsDropdown />
-          </div>
-        </div>
-      </header>
+      {/* Reusable Dynamic Navbar */}
+      <Navbar
+        role="TEACHER"
+        portalTitle="Teacher Leave Portal"
+        extraActions={
+          <Link
+            href="/teacher/dashboard"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-border/70 bg-card/60 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-card transition-all"
+          >
+            <ArrowLeft size={14} />
+            <span className="hidden sm:inline">Back to Dashboard</span>
+          </Link>
+        }
+      />
 
       {/* Main Content */}
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 space-y-8 animate-fadeIn">
