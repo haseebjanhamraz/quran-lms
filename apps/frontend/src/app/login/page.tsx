@@ -9,6 +9,7 @@ import Footer from '@/components/Footer';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -20,7 +21,7 @@ export default function LoginPage() {
     setIsSubmitting(true);
     setFormError(null);
     try {
-      await login(quickEmail, quickPass);
+      await login(quickEmail, quickPass, rememberMe);
     } catch (err: any) {
       setFormError(err.message || 'Incorrect email or password.');
       setIsSubmitting(false);
@@ -38,7 +39,7 @@ export default function LoginPage() {
     setFormError(null);
 
     try {
-      await login(email, password);
+      await login(email, password, rememberMe);
     } catch (err: any) {
       setFormError(err.message || 'Incorrect email or password.');
       setIsSubmitting(false);
@@ -128,6 +129,19 @@ export default function LoginPage() {
               </div>
             </div>
 
+            {/* Remember Me Option */}
+            <div className="flex items-center justify-between py-0.5">
+              <label className="flex items-center gap-2.5 text-xs font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="h-4 w-4 rounded border-border text-primary focus:ring-primary/20 accent-primary cursor-pointer"
+                />
+                <span>Remember me (30 days)</span>
+              </label>
+            </div>
+
             {/* Submit Button */}
             <button
               type="submit"
@@ -153,9 +167,17 @@ export default function LoginPage() {
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
+                onClick={() => handleQuickLogin('ceo@lms.com', 'password123')}
+                disabled={isSubmitting}
+                className="border border-purple-500/40 hover:bg-purple-500/10 text-xs font-semibold text-purple-400 py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift col-span-2 flex items-center justify-center gap-1.5"
+              >
+                <span>Super Admin (CEO)</span>
+              </button>
+              <button
+                type="button"
                 onClick={() => handleQuickLogin('admin1@lms.com', 'password123')}
                 disabled={isSubmitting}
-                className="border border-blue-500/30 hover:bg-blue-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none"
+                className="border border-blue-500/30 hover:bg-blue-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift"
               >
                 Admin Portal
               </button>
@@ -171,7 +193,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => handleQuickLogin('rayyan@lms.com', 'password123')}
                 disabled={isSubmitting}
-                className="border border-purple-500/30 hover:bg-purple-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift"
+                className="border border-indigo-500/30 hover:bg-indigo-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift"
               >
                 Student Portal
               </button>
@@ -187,7 +209,7 @@ export default function LoginPage() {
                 type="button"
                 onClick={() => handleQuickLogin('hr@lms.com', 'password123')}
                 disabled={isSubmitting}
-                className="border border-cyan-500/30 hover:bg-cyan-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift col-span-2 sm:col-span-1"
+                className="border border-cyan-500/30 hover:bg-cyan-500/10 text-xs font-semibold text-foreground py-2 px-3 rounded-lg transition-colors duration-200 outline-none hover-lift col-span-2"
               >
                 HR Portal
               </button>

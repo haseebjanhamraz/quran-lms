@@ -23,16 +23,17 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const user = await this.authService.validateUser(loginDto);
-    const { accessToken, refreshToken, user: userData } = await this.authService.login(user);
+    const { accessToken, refreshToken, user: userData } = await this.authService.login(user, loginDto.rememberMe);
 
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
     // Set Access Token cookie (HttpOnly)
     response.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      maxAge: 15 * 60 * 1000, // 15 minutes
+      maxAge: loginDto.rememberMe ? thirtyDaysMs : 15 * 60 * 1000,
       path: '/',
     });
 
@@ -41,7 +42,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      maxAge: loginDto.rememberMe ? thirtyDaysMs : 7 * 24 * 60 * 60 * 1000,
       path: '/',
     });
 
@@ -62,14 +63,15 @@ export class AuthController {
       throw new UnauthorizedException('Refresh token is missing');
     }
 
-    const { accessToken, user } = await this.authService.refresh(refreshToken);
+    const { accessToken, user, isLongLived } = await this.authService.refresh(refreshToken);
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
 
     response.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      maxAge: 15 * 60 * 1000,
+      maxAge: isLongLived ? thirtyDaysMs : 15 * 60 * 1000,
       path: '/',
     });
 

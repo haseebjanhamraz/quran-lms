@@ -228,14 +228,14 @@ export default function TeacherWizard({
             g1Phone: g1.phone || '',
             g1Email: g1.email || '',
             g1Relationship: g1.relationship || 'Father',
-            g1Cnic: g1.cnic || '',
+            g1Cnic: g1.cnicOrId || g1.cnic || '',
             g1Address: g1.address || '',
 
             g2Name: g2.name || '',
             g2Phone: g2.phone || '',
             g2Email: g2.email || '',
             g2Relationship: g2.relationship || 'Brother',
-            g2Cnic: g2.cnic || '',
+            g2Cnic: g2.cnicOrId || g2.cnic || '',
             g2Address: g2.address || '',
           });
 
@@ -547,7 +547,8 @@ export default function TeacherWizard({
               phone: guarantorInfo.g1Phone.trim(),
               email: guarantorInfo.g1Email?.trim() || undefined,
               relationship: guarantorInfo.g1Relationship?.trim() || 'Father',
-              cnic: guarantorInfo.g1Cnic?.trim() || undefined,
+              cnicOrId: guarantorInfo.g1Cnic?.trim() || '',
+              cnic: guarantorInfo.g1Cnic?.trim() || '',
               address: guarantorInfo.g1Address?.trim() || undefined,
             });
           }
@@ -557,7 +558,8 @@ export default function TeacherWizard({
               phone: guarantorInfo.g2Phone.trim(),
               email: guarantorInfo.g2Email?.trim() || undefined,
               relationship: guarantorInfo.g2Relationship?.trim() || 'Brother',
-              cnic: guarantorInfo.g2Cnic?.trim() || undefined,
+              cnicOrId: guarantorInfo.g2Cnic?.trim() || '',
+              cnic: guarantorInfo.g2Cnic?.trim() || '',
               address: guarantorInfo.g2Address?.trim() || undefined,
             });
           }

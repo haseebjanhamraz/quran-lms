@@ -449,7 +449,7 @@ export default function StudentsManagementPage() {
                 <DropdownMenuItem
                   onClick={() => setAccountStatusState({
                     isOpen: true,
-                    user: s,
+                    user: { ...s, id: s.id || s._id },
                     initialAction: 'REACTIVATE',
                   })}
                 >
@@ -461,7 +461,7 @@ export default function StudentsManagementPage() {
                   <DropdownMenuItem
                     onClick={() => setAccountStatusState({
                       isOpen: true,
-                      user: s,
+                      user: { ...s, id: s.id || s._id },
                       initialAction: 'SUSPEND',
                     })}
                   >
@@ -471,7 +471,7 @@ export default function StudentsManagementPage() {
                   <DropdownMenuItem
                     onClick={() => setAccountStatusState({
                       isOpen: true,
-                      user: s,
+                      user: { ...s, id: s.id || s._id },
                       initialAction: 'TERMINATE',
                     })}
                   >
@@ -486,7 +486,7 @@ export default function StudentsManagementPage() {
                 variant="destructive"
                 onClick={() => setAccountStatusState({
                   isOpen: true,
-                  user: s,
+                  user: { ...s, id: s.id || s._id },
                   initialAction: 'DELETE',
                 })}
               >

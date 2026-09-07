@@ -148,6 +148,12 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
+  @Delete(':id/permanent')
+  @Roles(Role.ADMIN)
+  async hardDelete(@Param('id') id: string) {
+    return this.usersService.hardDelete(id);
+  }
+
   @Delete(':id')
   @Roles(Role.ADMIN)
   async remove(@Param('id') id: string) {
@@ -218,9 +224,4 @@ export class UsersController {
     return this.usersService.submitAppeal(user.id, body);
   }
 
-  @Delete(':id/permanent')
-  @Roles(Role.ADMIN)
-  async hardDelete(@Param('id') id: string) {
-    return this.usersService.hardDelete(id);
-  }
 }

@@ -24,6 +24,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    if (!payload?.sub) {
+      throw new UnauthorizedException('Token payload is missing subject ID');
+    }
     const user = await this.usersService.findById(payload.sub);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('User session is invalid or user is inactive');

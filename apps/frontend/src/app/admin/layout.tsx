@@ -8,7 +8,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground overflow-x-hidden">
       <Navbar
-        role="ADMIN"
         subHeader="Compliance & Academy Administration Portal"
       />
 

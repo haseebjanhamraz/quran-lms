@@ -38,7 +38,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   hasPermission: (permission: string) => boolean;
   error: string | null;
@@ -91,15 +91,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     checkAuth();
+
+    const handleUserRefreshed = (e: any) => {
+      if (e.detail) {
+        setUser(e.detail);
+      }
+    };
+    window.addEventListener('auth:user-refreshed', handleUserRefreshed);
+    return () => window.removeEventListener('auth:user-refreshed', handleUserRefreshed);
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, rememberMe: boolean = false) => {
     setError(null);
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, rememberMe }),
         credentials: 'include',
       });
 

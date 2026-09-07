@@ -17,7 +17,8 @@ export interface GuarantorItem {
   phone: string;
   email?: string;
   relationship: string;
-  cnicOrId: string;
+  cnicOrId?: string;
+  cnic?: string;
   address?: string;
 }
 
@@ -776,7 +777,7 @@ export default function TeacherDetailModal({
                       <div className="space-y-2 text-xs">
                         <div className="flex justify-between py-0.5">
                           <span className="text-muted-foreground font-medium">CNIC / Government ID:</span>
-                          <span className="font-mono font-bold text-foreground">{g.cnicOrId}</span>
+                          <span className="font-mono font-bold text-foreground">{g.cnicOrId || g.cnic || 'N/A'}</span>
                         </div>
                         <div className="flex justify-between py-0.5">
                           <span className="text-muted-foreground font-medium">Contact Phone:</span>

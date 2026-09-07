@@ -17,8 +17,8 @@ export class Guarantor {
   @Prop({ required: true })
   relationship: string;
 
-  @Prop({ required: true })
-  cnicOrId: string;
+  @Prop({ default: '', required: false })
+  cnicOrId?: string;
 
   @Prop()
   address?: string;

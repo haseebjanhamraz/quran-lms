@@ -35,27 +35,39 @@ export class AuthService {
     }
 
     const { passwordHash: _, ...result } = userObj;
+    if (result._id) {
+      result.id = result._id.toString();
+    }
     return result;
   }
 
-  async login(user: any) {
+  async login(user: any, rememberMe?: boolean) {
     const permissions = await this.permissionsService.getUserPermissions(user.role);
     const userWithPerms = { ...user, permissions };
-    const payload = { email: user.email, sub: user.id, role: user.role, accountStatus: user.accountStatus || 'ACTIVE' };
+    const userId = (user.id || user._id)?.toString();
+    const payload = {
+      email: user.email,
+      sub: userId,
+      role: user.role,
+      accountStatus: user.accountStatus || 'ACTIVE',
+    };
+
+    const accessExpiry = rememberMe ? '30d' : (this.configService.getOrThrow<string>('JWT_EXPIRY') as any);
+    const refreshExpiry = rememberMe ? '30d' : (this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRY') as any);
     
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-      expiresIn: this.configService.getOrThrow<string>('JWT_EXPIRY') as any,
+      expiresIn: accessExpiry,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRY') as any,
+      expiresIn: refreshExpiry,
     });
 
     // Log the user login event
     try {
-      await this.auditLogsService.log('USER_LOGIN', user.id, { email: user.email, role: user.role });
+      await this.auditLogsService.log('USER_LOGIN', userId, { email: user.email, role: user.role });
     } catch (_) {}
 
     return {
@@ -71,6 +83,10 @@ export class AuthService {
         secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
       });
 
+      if (!payload?.sub) {
+        throw new UnauthorizedException('Invalid refresh token: missing user identifier');
+      }
+
       const user = await this.usersService.findById(payload.sub);
       if (!user) {
         throw new UnauthorizedException('Invalid user session');
@@ -79,15 +95,26 @@ export class AuthService {
       const permissions = await this.permissionsService.getUserPermissions(user.role);
       const userWithPerms = { ...user, permissions };
 
-      const newPayload = { email: user.email, sub: user.id, role: user.role, accountStatus: user.accountStatus || 'ACTIVE' };
+      const userId = (user.id || user._id)?.toString();
+      const newPayload = {
+        email: user.email,
+        sub: userId,
+        role: user.role,
+        accountStatus: user.accountStatus || 'ACTIVE',
+      };
+
+      const isLongLived = Boolean(payload.exp && payload.iat && (payload.exp - payload.iat > 8 * 24 * 60 * 60));
+      const accessExpiry = isLongLived ? '30d' : (this.configService.getOrThrow<string>('JWT_EXPIRY') as any);
+
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-        expiresIn: this.configService.getOrThrow<string>('JWT_EXPIRY') as any,
+        expiresIn: accessExpiry,
       });
 
       return {
         accessToken: newAccessToken,
         user: userWithPerms,
+        isLongLived,
       };
     } catch (e) {
       throw new UnauthorizedException('Invalid or expired refresh token');

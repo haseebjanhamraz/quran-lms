@@ -58,6 +58,12 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
       });
 
       if (refreshRes.ok) {
+        try {
+          const refreshData = await refreshRes.json();
+          if (refreshData?.user && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:user-refreshed', { detail: refreshData.user }));
+          }
+        } catch (_) {}
         processQueue(null);
         response = await fetch(url, mergedOptions);
       } else {

@@ -1,7 +1,7 @@
-import { ConflictException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import {
   User, UserDocument, Role, AccountStatus,
   Teacher, TeacherDocument,
@@ -69,6 +69,10 @@ export class UsersService {
     const obj = userDoc.toObject ? userDoc.toObject() : { ...userDoc };
     delete obj.passwordHash;
     delete obj.__v;
+
+    if (obj._id) {
+      obj.id = obj._id.toString();
+    }
 
     // Flatten embedded profile fields for smooth API compatibility
     if (obj.studentProfile) {
@@ -197,6 +201,17 @@ export class UsersService {
       const resolvedCurrency = currency || createUserDto.salaryProfile?.currency || 'PKR';
       const resolvedCountry = country || createUserDto.salaryProfile?.country || 'Pakistan';
 
+      const formattedGuarantors = Array.isArray(guarantors)
+        ? guarantors.map((g: any) => ({
+            name: g?.name || '',
+            phone: g?.phone || '',
+            email: g?.email || undefined,
+            relationship: g?.relationship || 'Father',
+            cnicOrId: g?.cnicOrId || g?.cnic || g?.cnicNumber || '',
+            address: g?.address || undefined,
+          }))
+        : [];
+
       await this.teacherModel.create({
         userId: createdUser._id,
         profile: {
@@ -217,7 +232,7 @@ export class UsersService {
           languages: languages || [],
           dateOfBirth: finalDob ? new Date(finalDob) : undefined,
           canEditProfile: canEditProfile !== undefined ? canEditProfile : true,
-          guarantors: guarantors || [],
+          guarantors: formattedGuarantors,
         },
       });
 
@@ -245,6 +260,9 @@ export class UsersService {
   }
 
   async findById(id: string) {
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw new NotFoundException('User not found');
+    }
     const user = await this.userModel.findById(id)
       .populate({
         path: 'studentProfile',
@@ -418,7 +436,18 @@ export class UsersService {
       const finalDob = dateOfBirth !== undefined ? dateOfBirth : dob;
       if (finalDob !== undefined) teacherUpdate['profile.dateOfBirth'] = finalDob ? new Date(finalDob) : null;
       if (canEditProfile !== undefined) teacherUpdate['profile.canEditProfile'] = canEditProfile;
-      if (guarantors !== undefined) teacherUpdate['profile.guarantors'] = guarantors;
+      if (guarantors !== undefined) {
+        teacherUpdate['profile.guarantors'] = Array.isArray(guarantors)
+          ? guarantors.map((g: any) => ({
+              name: g?.name || '',
+              phone: g?.phone || '',
+              email: g?.email || undefined,
+              relationship: g?.relationship || 'Father',
+              cnicOrId: g?.cnicOrId || g?.cnic || g?.cnicNumber || '',
+              address: g?.address || undefined,
+            }))
+          : [];
+      }
 
       if (Object.keys(teacherUpdate).length > 0) {
         await this.teacherModel.findOneAndUpdate(
@@ -605,6 +634,10 @@ export class UsersService {
   }
 
   async hardDelete(id: string) {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid user ID format');
+    }
+
     const user = await this.userModel.findById(id);
     if (!user) {
       throw new NotFoundException('User not found');
@@ -612,10 +645,24 @@ export class UsersService {
 
     if (user.role === Role.TEACHER) {
       await this.teacherModel.deleteMany({ userId: id });
+      await this.weeklySlotModel.deleteMany({ teacherId: id });
+      await this.classSessionModel.deleteMany({ teacherId: id });
+      await this.studentModel.updateMany(
+        { 'profile.assignedTeacher': id },
+        { $unset: { 'profile.assignedTeacher': '' } },
+      );
+      await this.courseModel.updateMany(
+        { teacherId: id },
+        { $unset: { teacherId: '' }, $pull: { teacherIds: id } },
+      );
     } else if (user.role === Role.STUDENT) {
       await this.studentModel.deleteMany({ userId: id });
+      await this.weeklySlotModel.deleteMany({ studentId: id });
+      await this.classSessionModel.deleteMany({ studentId: id });
+      await this.enrollmentModel.deleteMany({ studentId: id });
     }
 
+    await this.notificationModel.deleteMany({ userId: id });
     await this.userModel.findByIdAndDelete(id);
 
     return { success: true, message: 'User account permanently deleted' };

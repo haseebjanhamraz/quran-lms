@@ -113,7 +113,6 @@ const ADMIN_MORE_NAV: NavItemConfig[] = [
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments', permission: 'enrollments.read' },
   { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments', permission: 'supervisors.read' },
   { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports', permission: 'reports.read' },
-  { label: 'Flagged Reviews', icon: Flag, href: '/admin/dashboard', isFlaggedReviews: true },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs', permission: 'audit-logs.read' },
   { label: 'Feedback & Complaints', icon: Clock, href: '/admin/feedback', permission: 'feedback.read' },
   { label: 'Roles & Permissions', icon: Shield, href: '/admin/roles-permissions' },
@@ -214,7 +213,7 @@ export default function Navbar({
   const moreRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const activeRole = (propRole || user?.role || 'STUDENT').toUpperCase();
+  const activeRole = (user?.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (user?.role || propRole || 'STUDENT')).toUpperCase();
   const displayPortalTitle = portalTitle || getRolePortalTitle(activeRole);
 
   // Close dropdowns on outside click

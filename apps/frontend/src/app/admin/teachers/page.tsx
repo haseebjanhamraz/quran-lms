@@ -29,7 +29,8 @@ interface GuarantorItem {
   phone: string;
   email?: string;
   relationship: string;
-  cnicOrId: string;
+  cnicOrId?: string;
+  cnic?: string;
   address?: string;
 }
 
@@ -91,7 +92,11 @@ export default function TeachersManagementPage() {
       const res = await apiFetch(`${API_URL}/users`);
       if (res.ok) {
         const data = await res.json();
-        const teacherOnly = Array.isArray(data) ? data.filter((u: any) => u.role === 'TEACHER') : [];
+        const teacherOnly = Array.isArray(data)
+          ? data
+              .filter((u: any) => u.role === 'TEACHER')
+              .map((u: any) => ({ ...u, id: u.id || u._id }))
+          : [];
         setTeachers(teacherOnly);
       }
     } catch (err) {
@@ -333,7 +338,7 @@ export default function TeachersManagementPage() {
                 <DropdownMenuItem
                   onClick={() => setAccountStatusState({
                     isOpen: true,
-                    user: t,
+                    user: { ...t, id: t.id || t._id },
                     initialAction: 'REACTIVATE',
                   })}
                 >
@@ -345,7 +350,7 @@ export default function TeachersManagementPage() {
                   <DropdownMenuItem
                     onClick={() => setAccountStatusState({
                       isOpen: true,
-                      user: t,
+                      user: { ...t, id: t.id || t._id },
                       initialAction: 'SUSPEND',
                     })}
                   >
@@ -355,7 +360,7 @@ export default function TeachersManagementPage() {
                   <DropdownMenuItem
                     onClick={() => setAccountStatusState({
                       isOpen: true,
-                      user: t,
+                      user: { ...t, id: t.id || t._id },
                       initialAction: 'TERMINATE',
                     })}
                   >
@@ -370,7 +375,7 @@ export default function TeachersManagementPage() {
                 variant="destructive"
                 onClick={() => setAccountStatusState({
                   isOpen: true,
-                  user: t,
+                  user: { ...t, id: t.id || t._id },
                   initialAction: 'DELETE',
                 })}
               >

@@ -14,7 +14,8 @@ interface AccountStatusModalProps {
   isOpen: boolean;
   onClose: () => void;
   user: {
-    id: string;
+    id?: string;
+    _id?: string;
     name: string;
     email: string;
     role: string;
@@ -45,22 +46,43 @@ export default function AccountStatusModal({
   const [deleteConfirmName, setDeleteConfirmName] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(false);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      setIsDeleteMode(initialAction === 'DELETE');
+      setDeleteConfirmName('');
+      setReason('');
+      setTargetStatus(
+        initialAction === 'REACTIVATE'
+          ? 'ACTIVE'
+          : initialAction === 'TERMINATE'
+          ? 'TERMINATED'
+          : 'SUSPENDED'
+      );
+    }
+  }, [isOpen, initialAction, user]);
+
   if (!isOpen || !user) return null;
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+  const targetUserId = user.id || (user as any)._id;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (isDeleteMode) {
-      if (deleteConfirmName.trim() !== user.name.trim()) {
+      if (deleteConfirmName.trim().toLowerCase() !== user.name.trim().toLowerCase()) {
         toast.error(`Please type the exact name "${user.name}" to confirm permanent deletion.`);
+        return;
+      }
+
+      if (!targetUserId) {
+        toast.error('Unable to delete account: User ID is missing.');
         return;
       }
 
       setLoading(true);
       try {
-        const res = await apiFetch(`${API_URL}/users/${user.id}/permanent`, {
+        const res = await apiFetch(`${API_URL}/users/${targetUserId}/permanent`, {
           method: 'DELETE',
         });
         if (res.ok) {
@@ -68,7 +90,7 @@ export default function AccountStatusModal({
           onStatusUpdated();
           onClose();
         } else {
-          const err = await res.json();
+          const err = await res.json().catch(() => ({}));
           toast.error(err.message || 'Failed to delete user account');
         }
       } catch (err: any) {
@@ -84,9 +106,14 @@ export default function AccountStatusModal({
       return;
     }
 
+    if (!targetUserId) {
+      toast.error('Unable to update status: User ID is missing.');
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await apiFetch(`${API_URL}/users/${user.id}/status`, {
+      const res = await apiFetch(`${API_URL}/users/${targetUserId}/status`, {
         method: 'PATCH',
         body: JSON.stringify({
           accountStatus: targetStatus,
@@ -99,7 +126,7 @@ export default function AccountStatusModal({
         onStatusUpdated();
         onClose();
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         toast.error(err.message || 'Failed to update account status');
       }
     } catch (err: any) {
