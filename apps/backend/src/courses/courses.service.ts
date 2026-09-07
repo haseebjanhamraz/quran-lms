@@ -49,6 +49,13 @@ export class CoursesService {
     return this.courseModel.find()
       .populate('teacher', 'id name email')
       .populate('teachers', 'id name email')
+      .populate({
+        path: 'enrollments',
+        populate: {
+          path: 'student',
+          select: 'id name email',
+        },
+      })
       .sort({ createdAt: -1 });
   }
 

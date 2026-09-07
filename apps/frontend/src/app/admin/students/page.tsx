@@ -525,7 +525,7 @@ export default function StudentsManagementPage() {
       </div>
 
       {/* Ribbon Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
           <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
             <Users className="h-6 w-6" />
@@ -565,7 +565,7 @@ export default function StudentsManagementPage() {
             <p className="text-xs text-muted-foreground font-medium">Discontinued</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Roster Multi-Filter Selector Bar */}
       <div className="glass-panel p-4 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-border/50 shadow-sm bg-card/60">

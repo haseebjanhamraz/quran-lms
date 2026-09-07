@@ -169,11 +169,21 @@ export default function DailyScheduleView({
               : [];
 
             teacherIds.forEach((tId: any) => {
-              const tIdStr = tId.toString();
-              map[tIdStr] = {
-                courseTitle,
-                enrolledStudents,
-              };
+              const tIdStr = typeof tId === 'object' ? (tId._id || tId.id)?.toString() : tId?.toString();
+              if (!tIdStr) return;
+              if (map[tIdStr]) {
+                const existing = map[tIdStr].enrolledStudents;
+                enrolledStudents.forEach((st: any) => {
+                  if (!existing.some((e) => (st.id && e.id === st.id) || e.name === st.name)) {
+                    existing.push(st);
+                  }
+                });
+              } else {
+                map[tIdStr] = {
+                  courseTitle,
+                  enrolledStudents: [...enrolledStudents],
+                };
+              }
             });
           });
         }
@@ -285,10 +295,9 @@ export default function DailyScheduleView({
   // Filter slots based on user role, selected teacher filter, and search query
   const filteredSlots = useMemo(() => {
     return dailySlots.filter(({ assignment, session, timeSlotIndex }) => {
-      // In student view, if no assignment and no session, hide empty slot rows
+      // Remove empty schedule rows: only display time slots which are assigned
       if (!assignment && !session) {
-        if (role === 'STUDENT') return false;
-        return true;
+        return false;
       }
 
       const assTeacherId = assignment
@@ -299,7 +308,10 @@ export default function DailyScheduleView({
 
       // Teacher dashboard filter
       if (teacherId) {
-        if (assTeacherId !== teacherId && assignment?.teacher?.id !== teacherId) {
+        const targetTeacherId = teacherId.toString();
+        const assTeacherIdStr = assTeacherId ? assTeacherId.toString() : null;
+        const objTeacherId = (assignment?.teacher?.id || (assignment?.teacher as any)?._id)?.toString();
+        if (assTeacherIdStr !== targetTeacherId && objTeacherId !== targetTeacherId) {
           return false;
         }
       }
@@ -709,7 +721,7 @@ export default function DailyScheduleView({
                     #
                   </th>
                   <th className="p-3.5 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider border-r border-border">
-                    Time Slot
+                    Time Slot (Teacher / Student)
                   </th>
                   <th className="p-3.5 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider border-r border-border">
                     Course / Subject
@@ -735,11 +747,12 @@ export default function DailyScheduleView({
                   <tr>
                     <td colSpan={role === 'STUDENT' ? 6 : 7} className="p-12 text-center text-muted-foreground">
                       <AlertCircle className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-                      <p className="font-semibold text-sm">No schedule slots match your filter criteria for {selectedDay}.</p>
+                      <p className="font-semibold text-sm">No scheduled classes found for {selectedDay}.</p>
+                      <p className="text-xs text-muted-foreground/70 mt-1">There are no assigned class time slots for this day.</p>
                     </td>
                   </tr>
                 ) : (
-                  filteredSlots.map(({ timeSlotIndex, timeSlot, assignment, session }) => {
+                  filteredSlots.map(({ timeSlotIndex, timeSlot, assignment, session }, rowIndex) => {
                     const isDragOver = dragOverIndex === timeSlotIndex;
                     const teacherIndex = teachers.findIndex((t) => t.id === assignment?.teacherId);
                     const colorClass = getTeacherColor(teacherIndex >= 0 ? teacherIndex : timeSlotIndex);
@@ -756,12 +769,33 @@ export default function DailyScheduleView({
                     const displayCourseTitle = assignment?.course?.title || session?.course?.title || mappedInfo?.courseTitle || (assignment ? 'Quran Session' : null);
                     const courseType = assignment?.course?.type || session?.course?.type;
 
-                    // Resolve real enrolled students
+                    // Resolve all real enrolled students
                     const assignedStudentObj = assignment?.student || session?.student;
                     const enrolledList = (assignment as any)?.enrolledStudents || mappedInfo?.enrolledStudents || [];
 
-                    const displayStudentName = assignedStudentObj?.name
-                      || (enrolledList.length > 0 ? enrolledList[timeSlotIndex % enrolledList.length]?.name : null);
+                    const slotStudents: Array<{ id?: string; name: string; email?: string }> = [];
+                    const seenStudentKeys = new Set<string>();
+
+                    const addSlotStudent = (st: any) => {
+                      if (!st) return;
+                      const name = typeof st === 'string' ? st : (st.name || st.preferredName);
+                      if (!name || typeof name !== 'string' || !name.trim()) return;
+                      const id = typeof st === 'object' ? (st.id || st._id)?.toString() : undefined;
+                      const key = (id || name.trim()).toLowerCase();
+                      if (!seenStudentKeys.has(key)) {
+                        seenStudentKeys.add(key);
+                        slotStudents.push({
+                          id,
+                          name: name.trim(),
+                          email: typeof st === 'object' ? st.email : undefined,
+                        });
+                      }
+                    };
+
+                    if (assignedStudentObj) addSlotStudent(assignedStudentObj);
+                    if (Array.isArray((assignment as any)?.students)) (assignment as any).students.forEach(addSlotStudent);
+                    if (Array.isArray((session as any)?.students)) (session as any).students.forEach(addSlotStudent);
+                    if (Array.isArray(enrolledList)) enrolledList.forEach(addSlotStudent);
 
                     const isLive = session?.status === 'LIVE';
                     const targetSessionId = session?.id || assignment?.id || `slot-${timeSlotIndex}`;
@@ -777,14 +811,20 @@ export default function DailyScheduleView({
                       >
                         {/* Index */}
                         <td className="p-3.5 text-center font-mono font-medium text-muted-foreground border-r border-border">
-                          {timeSlotIndex + 1}
+                          <span className="font-semibold text-foreground">{rowIndex + 1}</span>
                         </td>
 
                         {/* Time Slot */}
-                        <td className="p-3.5 font-mono text-xs font-semibold text-foreground border-r border-border whitespace-nowrap">
-                          <div className="flex items-center gap-1.5">
-                            <Clock className="w-3.5 h-3.5 text-brand" />
-                            <span>{formatStudentTime(timeSlot)}</span>
+                        <td className="p-3.5 font-mono text-xs border-r border-border whitespace-nowrap">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 font-semibold text-foreground">
+                              <span className="text-[10px] font-sans font-bold text-muted-foreground uppercase">Teacher:</span>
+                              <span className="font-mono">{(assignment as any)?.teacherStartTime || (session as any)?.teacherStartTime || assignment?.startTime || (session as any)?.startTime || formatStudentTime(timeSlot)}</span>
+                            </div>
+                            <div className="flex items-center gap-1.5 font-semibold text-brand">
+                              <span className="text-[10px] font-sans font-bold text-muted-foreground uppercase">Student:</span>
+                              <span className="font-mono">{(assignment as any)?.studentStartTime || (session as any)?.studentStartTime || assignment?.startTime || (session as any)?.startTime || formatStudentTime(timeSlot)}</span>
+                            </div>
                           </div>
                         </td>
 
@@ -828,17 +868,24 @@ export default function DailyScheduleView({
                         {/* Student (Hidden on Student role) */}
                         {role !== 'STUDENT' && (
                           <td className="p-3.5 border-r border-border">
-                            {displayStudentName ? (
-                              <div className="flex flex-col gap-0.5">
-                                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-foreground">
-                                  <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-                                  <span>{displayStudentName}</span>
-                                </span>
-                                {enrolledList.length > 1 && (
-                                  <span className="text-[10px] text-muted-foreground font-medium pl-3.5">
-                                    +{enrolledList.length - 1} other student{enrolledList.length - 1 > 1 ? 's' : ''} enrolled
-                                  </span>
-                                )}
+                            {slotStudents.length > 0 ? (
+                              <div className="flex flex-col gap-1.5 py-0.5 max-h-36 overflow-y-auto">
+                                {slotStudents.map((st, sIdx) => (
+                                  <div
+                                    key={st.id || `${st.name}-${sIdx}`}
+                                    className="inline-flex items-center gap-1.5"
+                                  >
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0 shadow-2xs" />
+                                    <span className="text-xs font-semibold text-foreground leading-snug">
+                                      {st.name}
+                                    </span>
+                                    {st.email && (
+                                      <span className="text-[10px] text-muted-foreground font-normal hidden xl:inline">
+                                        ({st.email})
+                                      </span>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
                             ) : assignment ? (
                               <span className="text-xs text-muted-foreground/60 italic font-normal">No Student Enrolled</span>

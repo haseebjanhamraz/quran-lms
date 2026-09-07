@@ -1,4 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength, IsNumber, IsDateString } from 'class-validator';
+import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength, IsNumber, IsDateString, IsArray } from 'class-validator';
 import { Role, AccountStatus } from '../../schemas';
 
 export class UpdateUserDto {
@@ -80,7 +80,7 @@ export class UpdateUserDto {
   classesPerWeek?: number;
 
   @IsOptional()
-  classDays?: Array<{ day: string; time: string }>;
+  classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>;
 
   @IsString()
   @IsOptional()
@@ -204,4 +204,12 @@ export class UpdateUserDto {
   @IsString()
   @IsOptional()
   customFeeNotes?: string;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  languages?: string[];
+
+  @IsOptional()
+  salaryProfile?: any;
 }

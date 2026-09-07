@@ -1,8 +1,13 @@
 'use client';
 
 import React from 'react';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, BookOpen } from 'lucide-react';
 import { TeacherQualificationsInfo } from './types';
+import MultiSelectDropdown from '../ui/MultiSelectDropdown';
+import {
+  PREDEFINED_SPECIALIZATIONS,
+  PREDEFINED_QUALIFICATIONS,
+} from '@/utils/teacher-qualifications';
 
 interface Step2QualificationsProps {
   qualificationsInfo: TeacherQualificationsInfo;
@@ -29,56 +34,78 @@ export default function Step2Qualifications({
 
       <div className="glass-panel p-6 rounded-3xl border border-border/60 space-y-6 bg-card/60">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Specialization Dropdown with Add More */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Specialization</label>
-            <input
-              type="text"
-              placeholder="e.g. Nazira & Tajweed"
+            <MultiSelectDropdown
+              label="Specialization"
+              required
+              icon={BookOpen}
+              placeholder="Select specialization or type custom..."
+              addCustomPrefix="specialization"
+              options={PREDEFINED_SPECIALIZATIONS}
               value={qualificationsInfo.specialization}
-              onChange={(e) => setQualificationsInfo((prev) => ({ ...prev, specialization: e.target.value }))}
-              className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
+              onChange={(specs) =>
+                setQualificationsInfo((prev) => ({ ...prev, specialization: specs }))
+              }
             />
           </div>
 
+          {/* Degree / Qualification Dropdown with Add More */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Degree / Qualification</label>
-            <input
-              type="text"
-              placeholder="e.g. Certified Hafiz & Qari"
+            <MultiSelectDropdown
+              label="Degree / Qualification"
+              required
+              icon={GraduationCap}
+              placeholder="Select degree or type custom..."
+              addCustomPrefix="degree"
+              options={PREDEFINED_QUALIFICATIONS}
               value={qualificationsInfo.qualification}
-              onChange={(e) => setQualificationsInfo((prev) => ({ ...prev, qualification: e.target.value }))}
-              className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
+              onChange={(quals) =>
+                setQualificationsInfo((prev) => ({ ...prev, qualification: quals }))
+              }
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Employee ID / System Code</label>
+            <label className="text-xs font-bold text-foreground uppercase tracking-wider">
+              Employee ID / System Code
+            </label>
             <input
               type="text"
               placeholder="EMP-1001"
               value={qualificationsInfo.employeeId}
-              onChange={(e) => setQualificationsInfo((prev) => ({ ...prev, employeeId: e.target.value }))}
+              onChange={(e) =>
+                setQualificationsInfo((prev) => ({ ...prev, employeeId: e.target.value }))
+              }
               className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-mono font-medium text-foreground outline-none transition-all shadow-sm"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Academy Joining Date</label>
+            <label className="text-xs font-bold text-foreground uppercase tracking-wider">
+              Academy Joining Date
+            </label>
             <input
               type="date"
               value={qualificationsInfo.joiningDate}
-              onChange={(e) => setQualificationsInfo((prev) => ({ ...prev, joiningDate: e.target.value }))}
+              onChange={(e) =>
+                setQualificationsInfo((prev) => ({ ...prev, joiningDate: e.target.value }))
+              }
               className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm cursor-pointer"
             />
           </div>
 
           <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Teacher Biography / Introduction</label>
+            <label className="text-xs font-bold text-foreground uppercase tracking-wider">
+              Teacher Biography / Introduction
+            </label>
             <textarea
               rows={4}
               placeholder="Short teacher introduction, teaching experience, Quranic certifications..."
               value={qualificationsInfo.bio}
-              onChange={(e) => setQualificationsInfo((prev) => ({ ...prev, bio: e.target.value }))}
+              onChange={(e) =>
+                setQualificationsInfo((prev) => ({ ...prev, bio: e.target.value }))
+              }
               className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm resize-none"
             />
           </div>

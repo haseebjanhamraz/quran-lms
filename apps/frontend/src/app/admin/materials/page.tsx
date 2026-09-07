@@ -265,7 +265,7 @@ export default function AdminMaterialsPage() {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-border/80 bg-card p-4 shadow-sm">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Total Documents</p>
           <p className="text-2xl font-extrabold font-mono text-foreground mt-1">{materials.length}</p>
@@ -289,7 +289,7 @@ export default function AdminMaterialsPage() {
           <p className="text-2xl font-extrabold font-mono text-violet-400 mt-1">6 Subject Areas</p>
           <p className="text-[11px] text-muted-foreground mt-0.5">Structured syllabi</p>
         </div>
-      </div>
+      </div> */}
 
       {/* Category Pills & Search */}
       <div className="space-y-4">

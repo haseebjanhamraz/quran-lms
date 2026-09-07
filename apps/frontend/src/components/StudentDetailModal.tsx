@@ -23,6 +23,7 @@ interface StudentUser {
   dob?: string;
   dateOfBirth?: string;
   country?: string;
+  languages?: string[];
   phone?: string;
   phoneCode?: string;
   timezone?: string;
@@ -389,13 +390,14 @@ export default function StudentDetailModal({
           {/* TAB: TIMETABLE */}
           {activeTab === 'timetable' && (
             <StudentTimetableGrid
-              studentId={student.id || student._id || ''}
-              studentName={student.name}
-              classDays={student.classDays || []}
-              classDuration={student.classDuration || 60}
-              assignedTeacher={student.assignedTeacher || student.teacher}
-              timezone={student.timezone || 'UTC'}
-              tier={student.tier || 'Beginner'}
+              studentId={student.id || student._id || (student as any).userId || ''}
+              studentName={student.name || 'Student'}
+              classDays={student.classDays || (student as any).studentProfile?.profile?.classDays || []}
+              classDuration={student.classDuration || (student as any).studentProfile?.profile?.classDuration || 30}
+              assignedTeacher={student.assignedTeacher || student.teacher || (student as any).studentProfile?.profile?.assignedTeacher}
+              timezone={student.timezone || (student as any).studentProfile?.profile?.timezone || 'UTC'}
+              tier={student.tier || (student as any).studentProfile?.profile?.tier || 'Beginner'}
+              totalClasses={(student as any).totalClasses || (student as any).studentProfile?.profile?.totalClasses}
             />
           )}
 
@@ -426,6 +428,20 @@ export default function StudentDetailModal({
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Phone Number:</span>
                     <span className="font-mono font-semibold text-foreground">{student.phone || 'Not provided'}</span>
+                  </div>
+                  <div className="flex justify-between py-1 border-b border-border/30 items-center">
+                    <span className="text-muted-foreground font-medium">Languages:</span>
+                    <span className="font-semibold text-foreground flex flex-wrap gap-1 justify-end max-w-[60%]">
+                      {student.languages && student.languages.length > 0 ? (
+                        student.languages.map((l) => (
+                          <span key={l} className="px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 text-[11px]">
+                            {l}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground italic">Not specified</span>
+                      )}
+                    </span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Gender:</span>

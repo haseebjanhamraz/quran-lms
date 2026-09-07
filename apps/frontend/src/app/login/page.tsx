@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { BookOpen, Mail, Lock, Loader2, ShieldAlert } from 'lucide-react';
+import {  Mail, Lock, Loader2, ShieldAlert } from 'lucide-react';
 import Image from 'next/image';
 import ThemeToggle from '@/components/ThemeToggle';
-
+import Footer from '@/components/Footer';
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -46,6 +46,7 @@ export default function LoginPage() {
   };
 
   return (
+    <>
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-background">
       {/* Top right theme switcher */}
       <div className="absolute top-4 right-4 z-50">
@@ -192,9 +193,10 @@ export default function LoginPage() {
               </button>
             </div>
           </div>
-
         </div>
       </div>
     </div>
+    <Footer />
+  </>
   );
 }

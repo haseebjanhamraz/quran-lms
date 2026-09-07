@@ -435,6 +435,25 @@ export class ScheduleService {
       }
     }
 
+    // Check if slot is already occupied by a different student
+    const existingSlot = await this.weeklySlotModel.findOne({
+      dayOfWeek: dto.dayOfWeek,
+      timeSlotIndex: dto.timeSlotIndex,
+      teacherId: dto.teacherId,
+      isActive: true,
+    });
+
+    if (
+      existingSlot &&
+      existingSlot.studentId &&
+      studentId &&
+      existingSlot.studentId.toString() !== studentId.toString()
+    ) {
+      throw new ConflictException(
+        `This teacher already has a class assigned to another student at this time slot (${dto.dayOfWeek} at ${dto.startTime || existingSlot.startTime}). A teacher can only have one class at a time. Please remove or adjust the existing assignment first.`
+      );
+    }
+
     // Save/update slot in DB per teacher
     const updatedSlot = await this.weeklySlotModel.findOneAndUpdate(
       {

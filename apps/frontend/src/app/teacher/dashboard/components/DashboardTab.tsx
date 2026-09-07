@@ -286,12 +286,31 @@ export default function DashboardTab({
               </thead>
               <tbody className="divide-y divide-border/40">
                 {daySessions.map((session, idx) => {
-                  const studentName = session.student?.name || session.student?.preferredName || 'Unassigned Student';
+                  const studentCandidates: Array<{ name: string; email?: string }> = [];
+                  if (session.student?.name) {
+                    studentCandidates.push({ name: session.student.name, email: session.student.email });
+                  }
+                  if (Array.isArray((session as any).students)) {
+                    (session as any).students.forEach((st: any) => {
+                      if (st?.name && !studentCandidates.some(e => e.name === st.name)) {
+                        studentCandidates.push({ name: st.name, email: st.email });
+                      }
+                    });
+                  }
+                  if (Array.isArray((session as any).enrolledStudents)) {
+                    (session as any).enrolledStudents.forEach((st: any) => {
+                      if (st?.name && !studentCandidates.some(e => e.name === st.name)) {
+                        studentCandidates.push({ name: st.name, email: st.email });
+                      }
+                    });
+                  }
+                  const hasStudents = studentCandidates.length > 0;
                   const isLive = session.status === 'LIVE';
+                  const id = session.id || session._id || `session-${idx}`;
 
                   return (
                     <tr
-                      key={session.id}
+                      key={id}
                       className={`hover:bg-muted/30 transition-colors ${
                         isLive ? 'bg-emerald-500/5' : ''
                       }`}
@@ -313,17 +332,30 @@ export default function DashboardTab({
 
                       {/* Student Name */}
                       <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-[10px] shrink-0 border border-brand/20">
-                            {studentName.charAt(0).toUpperCase()}
+                        {hasStudents ? (
+                          <div className="flex flex-col gap-1.5 py-0.5">
+                            {studentCandidates.map((st, sIdx) => (
+                              <div key={sIdx} className="flex items-center gap-2">
+                                <div className="h-6 w-6 rounded-full bg-brand/10 text-brand flex items-center justify-center font-bold text-[9px] shrink-0 border border-brand/20">
+                                  {st.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <p className="font-bold text-foreground text-xs leading-tight">{st.name}</p>
+                                  {st.email && (
+                                    <p className="text-[10px] text-muted-foreground">{st.email}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
                           </div>
-                          <div>
-                            <p className="font-bold text-foreground">{studentName}</p>
-                            {session.student?.email && (
-                              <p className="text-[10px] text-muted-foreground">{session.student.email}</p>
-                            )}
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center font-bold text-[9px] shrink-0 border border-border">
+                              U
+                            </div>
+                            <p className="text-xs text-muted-foreground italic">Unassigned</p>
                           </div>
-                        </div>
+                        )}
                       </td>
 
                       {/* Course */}

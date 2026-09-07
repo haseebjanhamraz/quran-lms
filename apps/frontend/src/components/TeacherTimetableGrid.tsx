@@ -20,10 +20,14 @@ interface SlotAssignment {
   timeSlotIndex: number;
   startTime: string;
   endTime: string;
+  teacherStartTime?: string;
+  studentStartTime?: string;
+  durationMinutes?: number;
   teacherId: string;
   teacher?: { id: string; name: string; email?: string };
   course?: { id: string; title: string; type: string };
   student?: { id: string; name: string };
+  enrolledStudents?: { id: string; name: string; email?: string }[];
 }
 
 interface TeacherTimetableGridProps {
@@ -36,6 +40,7 @@ interface TeacherTimetableGridProps {
   specialization?: string;
   coursesCount?: number;
   studentsCount?: number;
+  totalClasses?: number;
 }
 
 export { DEFAULT_TIME_SLOTS };
@@ -53,6 +58,7 @@ export default function TeacherTimetableGrid({
   specialization = 'Tajweed & Quranic Studies',
   coursesCount = 0,
   studentsCount = 0,
+  totalClasses,
 }: TeacherTimetableGridProps) {
   const { timeSlots: hookTimeSlots } = useTimeSlots();
   const timeSlots = customTimeSlots || hookTimeSlots || DEFAULT_TIME_SLOTS;
@@ -134,6 +140,55 @@ export default function TeacherTimetableGrid({
   }, [gridAssignments, timeSlots]);
 
   const totalWeeklySlots = Object.keys(gridAssignments).length;
+  const totalClassesCount =
+    totalClasses !== undefined
+      ? totalClasses
+      : sessions.length > 0
+      ? sessions.length
+      : totalWeeklySlots > 0
+      ? totalWeeklySlots * 4
+      : 0;
+
+  // Filter only time slots that have at least one assigned class across any day (removes empty rows)
+  const activeRows = useMemo(() => {
+    const assignedIndices = new Set<number>();
+    Object.keys(gridAssignments).forEach((key) => {
+      const slot = gridAssignments[key];
+      if (typeof slot.timeSlotIndex === 'number') {
+        assignedIndices.add(slot.timeSlotIndex);
+      }
+    });
+
+    const rows = timeSlots
+      .map((slot, timeIdx) => {
+        const hasAssignment =
+          assignedIndices.has(timeIdx) ||
+          DAYS.some((day) => Boolean(gridAssignments[`${day}-${timeIdx}`]));
+        return { slot, timeIdx, hasAssignment };
+      })
+      .filter((r) => r.hasAssignment);
+
+    if (rows.length > 0) return rows;
+
+    // Fallback: If slots have indexes beyond timeSlots or custom slots
+    const uniqueSlotIndexes = Array.from(
+      new Set(Object.values(gridAssignments).map((s) => s.timeSlotIndex))
+    ).sort((a, b) => a - b);
+
+    return uniqueSlotIndexes.map((idx) => {
+      const anySlot = Object.values(gridAssignments).find((s) => s.timeSlotIndex === idx);
+      const label = anySlot?.teacherStartTime && anySlot?.endTime
+        ? `${anySlot.teacherStartTime} - ${anySlot.endTime}`
+        : anySlot?.startTime && anySlot?.endTime
+        ? `${anySlot.startTime} - ${anySlot.endTime}`
+        : (timeSlots[idx] || `Time Slot #${idx + 1}`);
+      return {
+        slot: label,
+        timeIdx: idx,
+        hasAssignment: true,
+      };
+    });
+  }, [timeSlots, gridAssignments]);
 
   if (loading) {
     return (
@@ -180,11 +235,11 @@ export default function TeacherTimetableGrid({
 
         <div className="glass-panel p-4 rounded-2xl border border-border/60 bg-card/60 flex items-center gap-3.5 shadow-sm">
           <div className="p-3 bg-purple-500/10 text-purple-500 rounded-xl border border-purple-500/20">
-            <Globe className="h-5 w-5" />
+            <BookOpen className="h-5 w-5" />
           </div>
           <div className="truncate">
-            <p className="text-xs font-bold font-mono text-foreground truncate">Islamabad (PKT)</p>
-            <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Academy Standard Time</p>
+            <p className="text-xl font-bold font-mono text-purple-500">{totalClassesCount} Classes</p>
+            <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider">Total Classes</p>
           </div>
         </div>
       </div>
@@ -266,87 +321,112 @@ export default function TeacherTimetableGrid({
           </span>
         </div>
 
-        <div className="glass-panel rounded-2xl overflow-hidden shadow-lg border border-border/60">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-muted/60 border-b border-border">
-                  <th className="p-3 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider w-32 border-r border-border">
-                    Time Slot
-                  </th>
-                  {DAYS.map((day) => (
-                    <th
-                      key={day}
-                      className="p-3 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider text-center border-r border-border last:border-0"
-                    >
-                      {day}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {timeSlots.map((slot, timeIdx) => (
-                  <tr key={slot} className="hover:bg-card/40 transition-colors">
-                    <td className="p-2.5 font-mono text-[11px] text-foreground/80 border-r border-border whitespace-nowrap bg-muted/20">
-                      {slot}
-                    </td>
-                    {DAYS.map((day) => {
-                      const slotKey = `${day}-${timeIdx}`;
-                      const slotData = gridAssignments[slotKey];
-                      const isWeekend = day === 'Saturday' || day === 'Sunday';
-
-                      return (
-                        <td
-                          key={slotKey}
-                          className={`p-2 text-center border-r border-border last:border-0 ${
-                            slotData
-                              ? 'bg-brand/10'
-                              : isWeekend
-                              ? 'bg-card/10'
-                              : ''
-                          }`}
-                        >
-                          {slotData ? (
-                            <div className="inline-flex flex-col items-center justify-center p-2 rounded-xl text-[11px] font-bold bg-brand/20 text-brand border border-brand/40 shadow-sm w-full animate-fadeIn">
-                              <span className="truncate max-w-[110px] font-bold text-foreground">
-                                {slotData.course?.title || 'Quranic Session'}
-                              </span>
-                              <span className="text-[10px] font-mono text-brand font-semibold">
-                                {slotData.startTime} - {slotData.endTime}
-                              </span>
-                              {slotData.student && (
-                                <span className="text-[9px] text-muted-foreground font-normal truncate max-w-[110px]">
-                                  Student: {slotData.student.name}
-                                </span>
-                              )}
-                            </div>
-                          ) : isWeekend ? (
-                            <span className="text-[9px] font-bold text-muted-foreground/30 uppercase">WEEKEND OFF</span>
-                          ) : (
-                            <span className="text-muted-foreground/20 text-xs">—</span>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                <tr className="bg-muted/40 border-t-2 border-border font-semibold">
-                  <td className="p-3 text-[11px] text-muted-foreground uppercase tracking-wider border-r border-border">
-                    Daily Classes
-                  </td>
-                  {DAYS.map((day) => (
-                    <td
-                      key={`classes-${day}`}
-                      className="p-3 text-center text-foreground font-mono text-xs border-r border-border last:border-0"
-                    >
-                      {dailyClassesCount[day] || 0}
-                    </td>
-                  ))}
-                </tr>
-              </tbody>
-            </table>
+        {activeRows.length === 0 ? (
+          <div className="glass-panel rounded-2xl p-10 text-center border border-border/60 shadow-md space-y-2">
+            <Calendar className="w-8 h-8 mx-auto text-muted-foreground/40" />
+            <h5 className="font-bold text-sm text-foreground">No Recurring Classes Scheduled</h5>
+            <p className="text-xs text-muted-foreground max-w-sm mx-auto">
+              {teacherName ? `${teacherName} has no` : 'No'} active recurring class slots assigned for this week.
+            </p>
           </div>
-        </div>
+        ) : (
+          <div className="glass-panel rounded-2xl overflow-hidden shadow-lg border border-border/60">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-muted/60 border-b border-border">
+                    <th className="p-3 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider w-36 border-r border-border">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-brand" />
+                        <span>Time Slot</span>
+                      </div>
+                    </th>
+                    {DAYS.map((day) => (
+                      <th
+                        key={day}
+                        className="p-3 font-semibold text-[11px] text-muted-foreground uppercase tracking-wider text-center border-r border-border last:border-0"
+                      >
+                        {day}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {activeRows.map(({ slot, timeIdx }, rowIdx) => (
+                    <tr key={`${slot}-${timeIdx}`} className="hover:bg-card/40 transition-colors">
+                      <td className="p-2.5 font-mono text-[11px] text-foreground/80 border-r border-border whitespace-nowrap bg-muted/20">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-muted-foreground font-bold">#{rowIdx + 1}</span>
+                          <span>{slot}</span>
+                        </div>
+                      </td>
+                      {DAYS.map((day) => {
+                        const slotKey = `${day}-${timeIdx}`;
+                        const slotData = gridAssignments[slotKey];
+                        const isWeekend = day === 'Saturday' || day === 'Sunday';
+
+                        return (
+                          <td
+                            key={slotKey}
+                            className={`p-2 text-center border-r border-border last:border-0 ${
+                              slotData
+                                ? 'bg-brand/10'
+                                : isWeekend
+                                ? 'bg-card/10'
+                                : ''
+                            }`}
+                          >
+                            {slotData ? (
+                              <div className="inline-flex flex-col items-center justify-center p-2.5 rounded-xl text-[11px] font-bold bg-brand/20 text-brand border border-brand/40 shadow-sm w-full animate-fadeIn gap-0.5">
+                                <span className="truncate max-w-[120px] font-bold text-foreground">
+                                  {slotData.course?.title || 'Quranic Session'}
+                                </span>
+                                <div className="text-[10px] font-mono text-brand font-semibold">
+                                  {slotData.teacherStartTime || slotData.startTime} - {slotData.endTime}
+                                </div>
+                                {slotData.studentStartTime && (
+                                  <div className="text-[9px] font-mono text-muted-foreground">
+                                    Student: {slotData.studentStartTime}
+                                  </div>
+                                )}
+                                {slotData.enrolledStudents && slotData.enrolledStudents.length > 0 ? (
+                                  <span className="text-[9px] text-muted-foreground font-medium truncate max-w-[120px]" title={slotData.enrolledStudents.map((s: any) => s.name).join(', ')}>
+                                    {slotData.enrolledStudents.map((s: any) => s.name).join(', ')}
+                                  </span>
+                                ) : slotData.student ? (
+                                  <span className="text-[9px] text-muted-foreground font-normal truncate max-w-[120px]">
+                                    {slotData.student.name}
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : isWeekend ? (
+                              <span className="text-[9px] font-bold text-muted-foreground/30 uppercase">OFF</span>
+                            ) : (
+                              <span className="text-muted-foreground/20 text-xs">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  <tr className="bg-muted/40 border-t-2 border-border font-semibold">
+                    <td className="p-3 text-[11px] text-muted-foreground uppercase tracking-wider border-r border-border">
+                      Daily Classes
+                    </td>
+                    {DAYS.map((day) => (
+                      <td
+                        key={`classes-${day}`}
+                        className="p-3 text-center text-foreground font-mono text-xs border-r border-border last:border-0"
+                      >
+                        {dailyClassesCount[day] || 0}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 4. Upcoming & Live Class Sessions */}

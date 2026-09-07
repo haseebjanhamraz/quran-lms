@@ -12,6 +12,7 @@ interface TeacherFooterProps {
   editingTeacher?: any | null;
   onBack: () => void;
   onNext: () => void;
+  onSubmit: () => void;
   onClose: () => void;
 }
 
@@ -23,6 +24,7 @@ export default function TeacherFooter({
   editingTeacher = null,
   onBack,
   onNext,
+  onSubmit,
   onClose,
 }: TeacherFooterProps) {
   return (
@@ -63,26 +65,34 @@ export default function TeacherFooter({
 
       {step < totalSteps ? (
         <button
+          key="teacher-next-btn"
           type="button"
-          onClick={onNext}
-          className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-6 rounded-xl text-xs font-bold shadow-md hover:shadow-primary/20 hover:scale-105 transition-all"
+          onClick={(e) => {
+            e.preventDefault();
+            onNext();
+          }}
+          className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-6 rounded-xl text-xs font-bold shadow-md hover:shadow-primary/20 hover:scale-105 transition-all cursor-pointer"
         >
-          <span>Next Step</span>
+          <span>Continue to Step 0{step + 1}</span>
           <ChevronRight className="h-4 w-4" />
         </button>
       ) : (
         <button
-          type="submit"
-          form="teacher-wizard-form"
+          key="teacher-submit-btn"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
           disabled={submitting}
-          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-7 rounded-xl text-xs font-bold shadow-xl hover:shadow-primary/25 hover:scale-105 transition-all disabled:opacity-50"
+          className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-7 rounded-xl text-xs font-bold shadow-xl hover:shadow-primary/25 hover:scale-105 transition-all disabled:opacity-50 cursor-pointer"
         >
           {submitting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <CheckCircle className="h-4 w-4" />
           )}
-          <span>{editingTeacher ? 'Update Teacher' : 'Register Teacher'}</span>
+          <span>{editingTeacher ? 'Update Teacher Profile' : 'Complete Registration'}</span>
         </button>
       )}
     </div>

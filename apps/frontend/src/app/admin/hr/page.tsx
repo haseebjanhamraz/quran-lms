@@ -464,7 +464,7 @@ function HRManagementContent() {
       {activeTab === 'payroll' && (
         <div className="space-y-6 animate-fadeIn">
           {/* Payroll Stats Ribbon */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
               <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
                 <UserCheck className="h-6 w-6" />
@@ -504,7 +504,7 @@ function HRManagementContent() {
                 <p className="text-xs text-muted-foreground font-medium">Total Paid / {payrollStats.totalExpectedAmount.toLocaleString()}</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Roster & Payroll Table */}
           <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border border-border/50">
@@ -608,47 +608,47 @@ function HRManagementContent() {
           )}
 
           {/* Stats Ribbon */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
-              <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
-                <CreditCard className="h-6 w-6" />
+            {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
+                <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
+                  <CreditCard className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{feeStats.total}</p>
+                  <p className="text-xs text-muted-foreground font-medium">Invoices Issued</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-foreground">{feeStats.total}</p>
-                <p className="text-xs text-muted-foreground font-medium">Invoices Issued</p>
-              </div>
-            </div>
 
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
-              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500">
-                <CheckCircle2 className="h-6 w-6" />
+              <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
+                <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500">
+                  <CheckCircle2 className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-emerald-500">{feeStats.paidCount} Paid</p>
+                  <p className="text-xs text-muted-foreground font-medium">Collected Invoices</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-emerald-500">{feeStats.paidCount} Paid</p>
-                <p className="text-xs text-muted-foreground font-medium">Collected Invoices</p>
-              </div>
-            </div>
 
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
-              <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500">
-                <Clock className="h-6 w-6" />
+              <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
+                <div className="p-3 rounded-xl bg-amber-500/10 text-amber-500">
+                  <Clock className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-amber-500">{feeStats.pendingCount} Pending</p>
+                  <p className="text-xs text-muted-foreground font-medium">Awaiting Payment</p>
+                </div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-amber-500">{feeStats.pendingCount} Pending</p>
-                <p className="text-xs text-muted-foreground font-medium">Awaiting Payment</p>
-              </div>
-            </div>
 
-            <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
-              <div className="p-3 rounded-xl bg-purple-500/10 text-purple-500">
-                <Globe className="h-6 w-6" />
+              <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
+                <div className="p-3 rounded-xl bg-purple-500/10 text-purple-500">
+                  <Globe className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-xl font-bold text-foreground">Auto Country Currency</p>
+                  <p className="text-xs text-muted-foreground font-medium">PKR / USD / GBP / EUR</p>
+                </div>
               </div>
-              <div>
-                <p className="text-xl font-bold text-foreground">Auto Country Currency</p>
-                <p className="text-xs text-muted-foreground font-medium">PKR / USD / GBP / EUR</p>
-              </div>
-            </div>
-          </div>
+            </div> */}
 
           {/* Filter Tabs */}
           <div className="flex border-b border-border gap-2">

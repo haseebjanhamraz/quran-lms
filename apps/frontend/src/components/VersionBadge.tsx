@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Sparkles, RefreshCw } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 
 interface VersionInfo {
@@ -12,37 +11,35 @@ interface VersionInfo {
 }
 
 export default function VersionBadge({ className = '' }: { className?: string }) {
+  const [mounted, setMounted] = useState(false);
   const [backendVersion, setBackendVersion] = useState<VersionInfo | null>(null);
-  const [loading, setLoading] = useState(false);
 
   const frontendVersion = '2.3.1';
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  const fetchBackendVersion = async () => {
-    try {
-      setLoading(true);
-      const res = await apiFetch(`${API_URL}/version`);
-      if (res.ok) {
-        const data = await res.json();
-        setBackendVersion(data);
-      }
-    } catch (_) {
-      // Fallback
-      setBackendVersion({
-        version: '1.6.0',
-        buildTimestamp: new Date().toISOString(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    setMounted(true);
+    const fetchBackendVersion = async () => {
+      try {
+        const res = await apiFetch(`${API_URL}/version`);
+        if (res.ok) {
+          const data = await res.json();
+          setBackendVersion(data);
+        }
+      } catch (_) {
+        // Fallback
+        setBackendVersion({
+          version: '1.6.0',
+          buildTimestamp: new Date().toISOString(),
+        });
+      }
+    };
+
     fetchBackendVersion();
-  }, []);
+  }, [API_URL]);
 
   const formatDateTime = (isoString?: string) => {
-    if (!isoString) return new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    if (!isoString) return '—';
     try {
       const d = new Date(isoString);
       return d.toLocaleDateString('en-US', {
@@ -66,21 +63,23 @@ export default function VersionBadge({ className = '' }: { className?: string })
         <span className="bg-primary/10 text-primary px-2 py-0.5 rounded-md font-mono font-bold">
           FE v{frontendVersion}
         </span>
-        <span className="bg-sky-500/10 text-sky-500 dark:text-sky-400 px-2 py-0.5 rounded-md font-mono font-bold">
+        <span
+          className="bg-sky-500/10 text-sky-500 dark:text-sky-400 px-2 py-0.5 rounded-md font-mono font-bold"
+          suppressHydrationWarning
+        >
           BE v{backendVersion?.version || '1.6.0'}
         </span>
       </div>
 
       <div className="flex items-center gap-2 text-[10px]">
-        <span>Last Updated: <strong className="text-foreground">{formatDateTime(backendVersion?.buildTimestamp)}</strong></span>
-        <button
-          onClick={fetchBackendVersion}
-          disabled={loading}
-          className="p-1 hover:text-foreground rounded transition-colors"
-          title="Refresh version info"
-        >
-          <RefreshCw className={`h-3 w-3 ${loading ? 'animate-spin' : ''}`} />
-        </button>
+        <span>
+          Last Updated:{' '}
+          <strong className="text-foreground" suppressHydrationWarning>
+            {mounted && backendVersion?.buildTimestamp
+              ? formatDateTime(backendVersion.buildTimestamp)
+              : '—'}
+          </strong>
+        </span>
       </div>
     </div>
   );

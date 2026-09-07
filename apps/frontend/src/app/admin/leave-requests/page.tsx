@@ -248,7 +248,7 @@ export default function AdminLeaveRequestsPage() {
       </div>
 
       {/* KPI Stats Row */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <div className="rounded-3xl border border-border bg-card/80 p-5 shadow-sm">
           <p className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Total Submissions</p>
           <p className="text-3xl font-black text-foreground mt-1">{stats?.total ?? leaves.length}</p>
@@ -281,7 +281,7 @@ export default function AdminLeaveRequestsPage() {
           <p className="text-3xl font-black text-rose-400 mt-1">{stats?.rejected ?? 0}</p>
           <p className="text-[11px] text-muted-foreground mt-1">Declined requests</p>
         </div>
-      </div>
+      </div> */}
 
       {/* Filter and Table Container */}
       <div className="rounded-3xl border border-border bg-card/80 p-6 shadow-xl backdrop-blur-sm space-y-6">

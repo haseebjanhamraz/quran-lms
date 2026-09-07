@@ -1,4 +1,4 @@
-import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength, IsOptional, IsNumber, IsBoolean, IsDateString } from 'class-validator';
+import { IsEmail, IsEnum, IsNotEmpty, IsString, MinLength, IsOptional, IsNumber, IsBoolean, IsDateString, IsArray } from 'class-validator';
 import { Role } from '../../schemas';
 
 export class CreateUserDto {
@@ -66,7 +66,7 @@ export class CreateUserDto {
   classesPerWeek?: number;
 
   @IsOptional()
-  classDays?: Array<{ day: string; time: string }>;
+  classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>;
 
   @IsString()
   @IsOptional()
@@ -190,4 +190,12 @@ export class CreateUserDto {
   @IsBoolean()
   @IsOptional()
   canEditProfile?: boolean;
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  languages?: string[];
+
+  @IsOptional()
+  salaryProfile?: any;
 }

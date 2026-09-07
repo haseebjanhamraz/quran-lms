@@ -2,15 +2,14 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
-  BookUser, User, Clock, FileText, VideoOff, Loader2, XCircle,
-  Calendar, AlertTriangle, CheckCircle2, ChevronDown, ChevronUp,
-  Globe, BookOpen, Users, Sparkles, Award
+  BookUser, User, Clock, FileText, VideoOff, Loader2,
+  Calendar, ChevronDown, ChevronUp, CheckCircle2, Shield
 } from 'lucide-react';
 import { getImageUrl } from '@/utils/image';
 import { apiFetch } from '@/utils/apiFetch';
 import { getCountryByCode, getCountryByName } from '@/utils/countries';
 import { DEFAULT_TIME_SLOTS } from '@/hooks/useTimeSlots';
-import { TeacherUser, EnrollmentStatusState, WEEKDAYS } from './types';
+import { TeacherUser, WEEKDAYS } from './types';
 
 interface Step5TeacherAssignmentProps {
   teachers: TeacherUser[];
@@ -19,12 +18,6 @@ interface Step5TeacherAssignmentProps {
   setSelectedTeacherId: React.Dispatch<React.SetStateAction<string>>;
   assignTeacherLater: boolean;
   setAssignTeacherLater: React.Dispatch<React.SetStateAction<boolean>>;
-  enrollmentStatus: EnrollmentStatusState;
-  onToggleDay: (dayKey: string) => void;
-  onUpdateDayTime: (dayKey: string, newTime: string) => void;
-  bulkTime: string;
-  setBulkTime: React.Dispatch<React.SetStateAction<string>>;
-  onApplyBulkTime: () => void;
   noteToTeacher: string;
   setNoteToTeacher: React.Dispatch<React.SetStateAction<string>>;
   cameraRestricted: boolean;
@@ -62,12 +55,6 @@ export default function Step5TeacherAssignment({
   setSelectedTeacherId,
   assignTeacherLater,
   setAssignTeacherLater,
-  enrollmentStatus,
-  onToggleDay,
-  onUpdateDayTime,
-  bulkTime,
-  setBulkTime,
-  onApplyBulkTime,
   noteToTeacher,
   setNoteToTeacher,
   cameraRestricted,
@@ -141,52 +128,6 @@ export default function Step5TeacherAssignment({
     return map;
   }, [teacherSlots]);
 
-  // Conflict Detection: Check if any student requested day & time overlaps with teacher's booked slots
-  const conflicts = useMemo(() => {
-    const list: Array<{
-      day: string;
-      studentTime: string;
-      conflictingSlot: TeacherSlot;
-    }> = [];
-
-    if (!enrollmentStatus.classDays || enrollmentStatus.classDays.length === 0) {
-      return list;
-    }
-
-    enrollmentStatus.classDays.forEach((stSlot) => {
-      const dayKey = normalizeDay(stSlot.day);
-      const bookedOnDay = slotsByDay[dayKey] || [];
-
-      // Convert student time to minutes
-      const [sh, sm] = (stSlot.time || '16:00').split(':').map(Number);
-      const studentStartMins = (sh || 0) * 60 + (sm || 0);
-      const studentEndMins = studentStartMins + (enrollmentStatus.classDuration || 60);
-
-      bookedOnDay.forEach((bSlot) => {
-        const [bh, bm] = (bSlot.startTime || '00:00').split(':').map(Number);
-        const [eh, em] = (bSlot.endTime || '00:00').split(':').map(Number);
-        const bookedStartMins = (bh || 0) * 60 + (bm || 0);
-        const bookedEndMins = (eh || 0) * 60 + (em || 0);
-
-        // Check if intervals overlap
-        const isOverlap =
-          (studentStartMins >= bookedStartMins && studentStartMins < bookedEndMins) ||
-          (studentEndMins > bookedStartMins && studentEndMins <= bookedEndMins) ||
-          (studentStartMins <= bookedStartMins && studentEndMins >= bookedEndMins);
-
-        if (isOverlap) {
-          list.push({
-            day: dayKey,
-            studentTime: stSlot.time,
-            conflictingSlot: bSlot,
-          });
-        }
-      });
-    });
-
-    return list;
-  }, [enrollmentStatus.classDays, enrollmentStatus.classDuration, slotsByDay]);
-
   const teacherPhoto = selectedTeacher?.profilePicture || selectedTeacher?.avatar;
   const countryObj = selectedTeacher?.country
     ? getCountryByCode(selectedTeacher.country) || getCountryByName(selectedTeacher.country)
@@ -201,10 +142,10 @@ export default function Step5TeacherAssignment({
         </div>
         <div>
           <h3 className="text-base font-bold font-display text-foreground">
-            Step 5: Teacher Assignment &amp; Instructions
+            Step 5: Teacher Assignment &amp; Workload
           </h3>
           <p className="text-xs text-muted-foreground">
-            Assign the teacher, review their existing schedule &amp; availability, and configure class timings.
+            Assign the teacher and inspect their existing weekly timetable, workload, and availability.
           </p>
         </div>
       </div>
@@ -284,12 +225,6 @@ export default function Step5TeacherAssignment({
                   </span>
                   <span>•</span>
                   <span className="font-mono">{selectedTeacher?.email}</span>
-                  {selectedTeacher?.timezone && (
-                    <>
-                      <span>•</span>
-                      <span className="font-mono text-muted-foreground">TZ: {selectedTeacher.timezone}</span>
-                    </>
-                  )}
                 </div>
               </div>
             </div>
@@ -305,51 +240,12 @@ export default function Step5TeacherAssignment({
             </div>
           </div>
 
-          {/* Conflict Analysis Alert Banner */}
-          {loadingSchedule ? (
-            <div className="py-4 flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin text-brand" />
-              <span>Analyzing teacher schedule availability...</span>
-            </div>
-          ) : conflicts.length > 0 ? (
-            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs space-y-2 animate-fadeIn shadow-sm">
-              <div className="flex items-center gap-2 font-bold text-amber-400">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                <span>Scheduling Conflict Warning ({conflicts.length} Overlapping Slot{conflicts.length !== 1 ? 's' : ''})</span>
-              </div>
-              <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                This teacher already has scheduled classes during the requested student timing. You can adjust the days or timings below:
-              </p>
-              <div className="space-y-1 pt-1">
-                {conflicts.map((c, cIdx) => (
-                  <div key={cIdx} className="text-[11px] font-mono bg-amber-500/15 p-2 rounded-xl border border-amber-500/25 flex items-center justify-between">
-                    <span>
-                      <strong>{c.day}:</strong> Requested {c.studentTime} conflicts with{' '}
-                      <strong>{c.conflictingSlot.startTime} - {c.conflictingSlot.endTime}</strong>
-                    </span>
-                    <span className="text-[10px] bg-amber-500/20 px-2 py-0.5 rounded text-amber-200">
-                      {c.conflictingSlot.course?.title || 'Existing Session'}
-                      {c.conflictingSlot.student?.name ? ` (${c.conflictingSlot.student.name})` : ''}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs flex items-center gap-2 shadow-sm animate-fadeIn">
-              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-              <span className="font-medium">
-                Teacher is available! No scheduling conflicts found with the student&apos;s requested days &amp; timings.
-              </span>
-            </div>
-          )}
-
           {/* 7-Day Day-by-Day Current Load Preview */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
               <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5 text-brand" />
-                <span>Teacher&apos;s Current Weekly Schedule (Day-by-Day Load)</span>
+                <span>Teacher&apos;s Weekly Schedule (Day-by-Day Load)</span>
               </label>
 
               <button
@@ -366,18 +262,12 @@ export default function Step5TeacherAssignment({
               {WEEKDAYS.map((wd) => {
                 const dayKey = wd.key;
                 const slotsOnDay = slotsByDay[dayKey] || [];
-                const isAssignedToStudent = enrollmentStatus.classDays.some((d) => normalizeDay(d.day) === dayKey);
-                const hasConflict = conflicts.some((c) => c.day === dayKey);
 
                 return (
                   <div
                     key={dayKey}
                     className={`p-3 rounded-2xl border transition-all text-xs space-y-1.5 flex flex-col justify-between ${
-                      hasConflict
-                        ? 'bg-amber-500/10 border-amber-500/40 text-amber-300'
-                        : isAssignedToStudent
-                        ? 'bg-brand/10 border-brand/40 text-foreground'
-                        : slotsOnDay.length > 0
+                      slotsOnDay.length > 0
                         ? 'bg-card border-border/70 text-foreground'
                         : 'bg-muted/30 border-border/40 text-muted-foreground opacity-70'
                     }`}
@@ -386,11 +276,7 @@ export default function Step5TeacherAssignment({
                       <span className="font-bold text-[11px]">{wd.short}</span>
                       <span
                         className={`text-[9px] font-bold px-1.5 py-0.2 rounded ${
-                          hasConflict
-                            ? 'bg-amber-500/20 text-amber-300'
-                            : isAssignedToStudent
-                            ? 'bg-brand/20 text-brand'
-                            : slotsOnDay.length > 0
+                          slotsOnDay.length > 0
                             ? 'bg-muted text-foreground'
                             : 'bg-muted/40 text-muted-foreground'
                         }`}
@@ -415,12 +301,6 @@ export default function Step5TeacherAssignment({
                         <span className="text-[10px] text-muted-foreground italic">Free Day</span>
                       )}
                     </div>
-
-                    {isAssignedToStudent && (
-                      <div className="pt-1 border-t border-border/30 text-[9px] font-bold text-brand flex items-center gap-1">
-                        <span>★ New Student Day</span>
-                      </div>
-                    )}
                   </div>
                 );
               })}
@@ -452,21 +332,18 @@ export default function Step5TeacherAssignment({
                         </td>
                         {WEEKDAYS.map((wd) => {
                           const matchingSlot = (slotsByDay[wd.key] || []).find((s) => s.timeSlotIndex === tIdx);
-                          const isStudentDay = enrollmentStatus.classDays.some((d) => normalizeDay(d.day) === wd.key);
 
                           return (
                             <td key={wd.key} className="p-1.5 text-center border-r border-border last:border-0">
                               {matchingSlot ? (
                                 <div className="p-1 rounded-lg bg-brand/15 border border-brand/30 text-[9px] font-bold text-brand truncate max-w-[90px] mx-auto">
-                                  <span>{matchingSlot.course?.title || 'Booked Slot'}</span>
+                                  <span>{matchingSlot.course?.title || 'Booked'}</span>
                                   {matchingSlot.student?.name && (
                                     <span className="block text-[8px] opacity-80 font-normal truncate">
                                       {matchingSlot.student.name}
                                     </span>
                                   )}
                                 </div>
-                              ) : isStudentDay ? (
-                                <span className="text-[9px] text-emerald-400 font-bold">Open</span>
                               ) : (
                                 <span className="text-muted-foreground/30 text-[10px]">—</span>
                               )}
@@ -483,147 +360,7 @@ export default function Step5TeacherAssignment({
         </div>
       )}
 
-      {/* 3. Teacher Schedule & Timetable (Pre-populated from Step 3 & Changeable) */}
-      {!assignTeacherLater && selectedTeacherId && (
-        <div className="glass-panel rounded-3xl bg-card border border-border p-5 sm:p-6 space-y-4 shadow-sm animate-fadeIn">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border/50 pb-3">
-            <div className="flex items-center gap-2.5">
-              <Clock className="h-4 w-4 text-brand" />
-              <div>
-                <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Student Schedule for this Teacher
-                </h4>
-                <p className="text-[11px] text-muted-foreground">
-                  Pre-populated with assigned class weekdays &amp; timings. Adjust specific slot times if needed.
-                </p>
-              </div>
-            </div>
-            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap self-start sm:self-auto">
-              {enrollmentStatus.classDays.length} {enrollmentStatus.classDays.length === 1 ? 'Day' : 'Days'} / Week • {enrollmentStatus.classDuration}m
-            </span>
-          </div>
-
-          {/* Weekday Selection Pills */}
-          <div className="space-y-2">
-            <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              Class Days for this Teacher:
-            </label>
-            <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
-              {WEEKDAYS.map((wd) => {
-                const isSelected = enrollmentStatus.classDays.some((d) => d.day === wd.key);
-                const hasConflictOnDay = conflicts.some((c) => c.day === wd.key);
-
-                return (
-                  <button
-                    key={wd.key}
-                    type="button"
-                    onClick={() => onToggleDay(wd.key)}
-                    className={`p-3 rounded-2xl text-xs font-bold transition-all text-center border relative ${
-                      isSelected
-                        ? hasConflictOnDay
-                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-md ring-2 ring-amber-500/20'
-                          : 'bg-primary text-primary-foreground border-primary shadow-md scale-102'
-                        : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
-                    }`}
-                  >
-                    <div>{wd.short}</div>
-                    {hasConflictOnDay && isSelected && (
-                      <span className="absolute -top-1.5 -right-1.5 h-3.5 w-3.5 bg-amber-500 text-black text-[9px] font-extrabold rounded-full flex items-center justify-center shadow">
-                        !
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Schedule Timings Editor per Day */}
-          {enrollmentStatus.classDays.length > 0 ? (
-            <div className="space-y-3 pt-2">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                  Assigned Class Timings:
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={bulkTime}
-                    onChange={(e) => setBulkTime(e.target.value)}
-                    className="bg-background border border-border rounded-xl px-3 py-1.5 text-xs font-mono outline-none focus:border-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={onApplyBulkTime}
-                    className="px-3 py-1.5 text-xs font-bold bg-muted hover:bg-muted/80 text-foreground rounded-xl border border-border transition-colors whitespace-nowrap"
-                  >
-                    Apply to All
-                  </button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-56 overflow-y-auto pr-1">
-                {enrollmentStatus.classDays.map((slot) => {
-                  const dayObj = WEEKDAYS.find((w) => w.key === slot.day) || { label: slot.day, short: slot.day };
-                  const [h, m] = (slot.time || '16:00').split(':').map(Number);
-                  const endH = Math.floor(((h || 0) * 60 + (m || 0) + enrollmentStatus.classDuration) / 60) % 24;
-                  const endM = ((h || 0) * 60 + (m || 0) + enrollmentStatus.classDuration) % 60;
-                  const endTimeFormatted = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
-                  const conflictForSlot = conflicts.find((c) => c.day === normalizeDay(slot.day));
-
-                  return (
-                    <div
-                      key={slot.day}
-                      className={`p-3 rounded-2xl border flex items-center justify-between gap-2 shadow-sm transition-colors ${
-                        conflictForSlot
-                          ? 'border-amber-500/50 bg-amber-500/10'
-                          : 'border-border/80 bg-background/80'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-bold text-xs text-foreground">{dayObj.label}</span>
-                          {conflictForSlot && (
-                            <span className="text-[9px] font-bold text-amber-400 bg-amber-500/20 px-1.5 py-0.2 rounded">
-                              Conflict
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground font-mono">
-                          {slot.time} - {endTimeFormatted} ({enrollmentStatus.classDuration}m)
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={slot.time}
-                          onChange={(e) => onUpdateDayTime(slot.day, e.target.value)}
-                          className="bg-card border border-border focus:border-brand rounded-xl px-2.5 py-1 text-xs font-mono font-bold text-foreground outline-none shadow-inner"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => onToggleDay(slot.day)}
-                          className="p-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
-                          title="Remove Day"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ) : (
-            <div className="p-4 rounded-2xl border border-dashed border-amber-500/40 bg-amber-500/10 text-center text-xs text-amber-300">
-              No days selected. Please select at least one day for this student&apos;s schedule.
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 4. Note to Teacher */}
+      {/* 3. Note to Teacher */}
       <div className="space-y-1.5">
         <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
           <FileText className="h-3.5 w-3.5 text-brand" />
@@ -638,7 +375,7 @@ export default function Step5TeacherAssignment({
         />
       </div>
 
-      {/* 5. Admin Camera Restriction Toggle */}
+      {/* 4. Admin Camera Restriction Toggle */}
       <div className="p-4 rounded-2xl bg-card border border-border flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
           <div className="p-2.5 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 shrink-0">

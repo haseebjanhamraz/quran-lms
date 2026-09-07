@@ -71,7 +71,7 @@ export default function ScheduleEditorModal({
   const [allCourses, setAllCourses] = useState<any[]>([]);
   const [newSlotDay, setNewSlotDay] = useState<string>('Monday');
   const [newSlotStart, setNewSlotStart] = useState<string>('16:00');
-  const [newSlotDuration, setNewSlotDuration] = useState<number>(60);
+  const [newSlotDuration, setNewSlotDuration] = useState<number>(30);
   const [newSlotStudentId, setNewSlotStudentId] = useState<string>('');
   const [newSlotCourseId, setNewSlotCourseId] = useState<string>('');
 
@@ -255,7 +255,7 @@ export default function ScheduleEditorModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn overflow-y-auto">
-      <div className="glass-panel w-full max-w-2xl rounded-3xl p-6 shadow-2xl relative border border-border bg-card max-h-[90vh] flex flex-col my-auto">
+      <div className="glass-panel w-full max-w-3xl rounded-3xl p-6 shadow-2xl relative border border-border bg-card max-h-[90vh] flex flex-col my-auto">
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -439,7 +439,7 @@ export default function ScheduleEditorModal({
                   <span>Assign New Time Slot & Student</span>
                 </h4>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
                       Day of Week
@@ -479,6 +479,22 @@ export default function ScheduleEditorModal({
                       <option value={30}>30 Mins</option>
                       <option value={60}>60 Mins</option>
                       <option value={120}>120 Mins</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                      Course / Subject
+                    </label>
+                    <select
+                      value={newSlotCourseId}
+                      onChange={(e) => setNewSlotCourseId(e.target.value)}
+                      className="w-full rounded-xl border border-input bg-background px-2.5 py-1.5 text-xs"
+                    >
+                      <option value="">-- Open Course --</option>
+                      {allCourses.map((c) => (
+                        <option key={c.id || c._id} value={c.id || c._id}>{c.title}</option>
+                      ))}
                     </select>
                   </div>
 

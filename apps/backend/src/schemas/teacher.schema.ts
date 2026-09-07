@@ -49,6 +49,9 @@ export class TeacherProfile {
   @Prop()
   country?: string;
 
+  @Prop({ type: [String], default: [] })
+  languages?: string[];
+
   @Prop({ default: 'PKR' })
   currency?: string;
 

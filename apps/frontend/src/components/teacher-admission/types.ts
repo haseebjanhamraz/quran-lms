@@ -19,11 +19,12 @@ export interface TeacherPersonalInfo {
   dob: string;
   timezone: string;
   profilePicture: string;
+  languages: string[];
 }
 
 export interface TeacherQualificationsInfo {
-  specialization: string;
-  qualification: string;
+  specialization: string[];
+  qualification: string[];
   employeeId: string;
   joiningDate: string;
   bio: string;

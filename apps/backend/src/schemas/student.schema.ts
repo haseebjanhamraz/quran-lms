@@ -47,14 +47,17 @@ export class StudentProfile {
   @Prop()
   country?: string;
 
+  @Prop({ type: [String], default: [] })
+  languages?: string[];
+
   @Prop({ type: Number, default: 60 })
   classDuration?: number; // 30, 60, 120 minutes
 
   @Prop({ type: Number, default: 5 })
   classesPerWeek?: number; // 1 - 7 days
 
-  @Prop({ type: [{ day: String, time: String }], default: [] })
-  classDays?: Array<{ day: string; time: string }>;
+  @Prop({ type: [{ day: String, time: String, studentTime: String, teacherTime: String }], default: [] })
+  classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   assignedTeacher?: MongooseSchema.Types.ObjectId | string;

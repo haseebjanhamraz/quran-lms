@@ -12,6 +12,7 @@ interface AdmissionFooterProps {
   editingStudent?: any | null;
   onBack: () => void;
   onNext: () => void;
+  onSubmit: () => void;
 }
 
 export default function AdmissionFooter({
@@ -22,6 +23,7 @@ export default function AdmissionFooter({
   editingStudent,
   onBack,
   onNext,
+  onSubmit,
 }: AdmissionFooterProps) {
   return (
     <div className="shrink-0 bg-card/95 backdrop-blur-xl border-t border-border/80 px-4 sm:px-8 md:px-12 py-3.5 flex items-center justify-between shadow-lg z-20">
@@ -44,8 +46,12 @@ export default function AdmissionFooter({
 
       {step < totalSteps ? (
         <button
+          key="admission-next-btn"
           type="button"
-          onClick={onNext}
+          onClick={(e) => {
+            e.preventDefault();
+            onNext();
+          }}
           className="flex items-center gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-6 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all cursor-pointer"
         >
           <span>Continue to Step {step + 1}</span>
@@ -53,9 +59,12 @@ export default function AdmissionFooter({
         </button>
       ) : (
         <button
-          type="submit"
-          form="admission-wizard-form"
-          onClick={onNext}
+          key="admission-submit-btn"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            onSubmit();
+          }}
           disabled={submitting}
           className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground py-2.5 px-8 rounded-xl text-sm font-bold shadow-xl hover:shadow-2xl transition-all disabled:opacity-50 cursor-pointer"
         >

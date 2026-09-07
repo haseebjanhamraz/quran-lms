@@ -1,9 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Shield } from 'lucide-react';
+import { Shield, Users } from 'lucide-react';
 import { PhoneInput } from '../CountryPhoneInput';
 import { TeacherGuarantorInfo } from './types';
+import MultiSelectDropdown from '../ui/MultiSelectDropdown';
+import { PREDEFINED_RELATIONSHIPS } from '@/utils/teacher-qualifications';
 
 interface Step4GuarantorsProps {
   guarantorInfo: TeacherGuarantorInfo;
@@ -58,13 +60,17 @@ export default function Step4Guarantors({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-foreground uppercase tracking-wider">Relationship</label>
-              <input
-                type="text"
-                placeholder="e.g. Father / Brother"
-                value={guarantorInfo.g1Relationship}
-                onChange={(e) => setGuarantorInfo((prev) => ({ ...prev, g1Relationship: e.target.value }))}
-                className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-2.5 text-xs outline-none"
+              <MultiSelectDropdown
+                label="Relationship"
+                icon={Users}
+                placeholder="Select relationship or type custom..."
+                addCustomPrefix="relationship"
+                options={PREDEFINED_RELATIONSHIPS}
+                value={guarantorInfo.g1Relationship ? [guarantorInfo.g1Relationship] : []}
+                onChange={(items) =>
+                  setGuarantorInfo((prev) => ({ ...prev, g1Relationship: items[0] || '' }))
+                }
+                maxItems={1}
               />
             </div>
 
@@ -134,13 +140,17 @@ export default function Step4Guarantors({
             </div>
 
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-foreground uppercase tracking-wider">Relationship</label>
-              <input
-                type="text"
-                placeholder="e.g. Brother / Uncle"
-                value={guarantorInfo.g2Relationship}
-                onChange={(e) => setGuarantorInfo((prev) => ({ ...prev, g2Relationship: e.target.value }))}
-                className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-2.5 text-xs outline-none"
+              <MultiSelectDropdown
+                label="Relationship"
+                icon={Users}
+                placeholder="Select relationship or type custom..."
+                addCustomPrefix="relationship"
+                options={PREDEFINED_RELATIONSHIPS}
+                value={guarantorInfo.g2Relationship ? [guarantorInfo.g2Relationship] : []}
+                onChange={(items) =>
+                  setGuarantorInfo((prev) => ({ ...prev, g2Relationship: items[0] || '' }))
+                }
+                maxItems={1}
               />
             </div>
 

@@ -1,4 +1,5 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { EmailService } from '../email/email.service';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import {
@@ -38,6 +39,8 @@ const SHORT_TO_FULL_DAYS: Record<string, DayOfWeek> = {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Teacher.name) private readonly teacherModel: Model<TeacherDocument>,
@@ -49,6 +52,7 @@ export class UsersService {
     @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     private readonly cacheService: RedisCacheService,
+    private readonly emailService: EmailService,
   ) {}
 
   private async getNextStudentId(): Promise<number> {
@@ -102,9 +106,14 @@ export class UsersService {
       monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
       employeeId, bio, guarantors, phone, phoneCode, cnicOrId, canEditProfile,
-      cameraRestricted,
+      cameraRestricted, languages,
       ...baseUserDto
     } = createUserDto;
+
+    // Strict conflict check: A teacher cannot have multiple classes in the same slot
+    if (baseUserDto.role === Role.STUDENT && assignedTeacher && classDays && classDays.length > 0) {
+      await this.validateTeacherScheduleConflicts(assignedTeacher.toString(), classDays);
+    }
 
     const passwordHash = await bcrypt.hash(password, 10);
 
@@ -142,6 +151,7 @@ export class UsersService {
           phone,
           phoneCode,
           country,
+          languages: languages || [],
           classDuration: classDuration !== undefined ? Number(classDuration) : 60,
           classesPerWeek: calculatedClassesPerWeek,
           classDays: classDays || [],
@@ -165,29 +175,59 @@ export class UsersService {
           classDuration !== undefined ? Number(classDuration) : 60,
         );
       }
+
+      // Dispatch Student Admission Email via Resend
+      this.emailService.sendStudentAdmissionEmail(
+        createdUser.email,
+        createdUser.name,
+        password,
+        studentId,
+      ).catch((err) => this.logger.warn(`Failed to dispatch student admission email to ${createdUser.email}:`, err));
+
     } else if (baseUserDto.role === Role.TEACHER) {
+      const resolvedSalary = salary !== undefined
+        ? salary
+        : (createUserDto.salaryProfile?.baseSalary !== undefined
+            ? Number(createUserDto.salaryProfile.baseSalary)
+            : (createUserDto.salaryProfile?.salary !== undefined ? Number(createUserDto.salaryProfile.salary) : undefined));
+      const resolvedPayType = payType || createUserDto.salaryProfile?.payType || 'MONTHLY';
+      const resolvedHourlyRate = hourlyRate !== undefined
+        ? hourlyRate
+        : (createUserDto.salaryProfile?.hourlyRate !== undefined ? Number(createUserDto.salaryProfile.hourlyRate) : 0);
+      const resolvedCurrency = currency || createUserDto.salaryProfile?.currency || 'PKR';
+      const resolvedCountry = country || createUserDto.salaryProfile?.country || 'Pakistan';
+
       await this.teacherModel.create({
         userId: createdUser._id,
         profile: {
           qualification,
           specialization,
           joiningDate: joiningDate ? new Date(joiningDate) : new Date(),
-          salary,
-          payType: payType || 'MONTHLY',
-          hourlyRate: hourlyRate || 0,
-          country: country || 'Pakistan',
-          currency: currency || 'PKR',
+          salary: resolvedSalary,
+          payType: resolvedPayType,
+          hourlyRate: resolvedHourlyRate,
+          country: resolvedCountry,
+          currency: resolvedCurrency,
           employeeId,
           bio,
           phone,
           phoneCode,
           cnicOrId,
           gender,
+          languages: languages || [],
           dateOfBirth: finalDob ? new Date(finalDob) : undefined,
           canEditProfile: canEditProfile !== undefined ? canEditProfile : true,
           guarantors: guarantors || [],
         },
       });
+
+      // Dispatch Teacher Admission / Onboarding Email via Resend
+      this.emailService.sendTeacherAdmissionEmail(
+        createdUser.email,
+        createdUser.name,
+        password,
+        employeeId,
+      ).catch((err) => this.logger.warn(`Failed to dispatch teacher admission email to ${createdUser.email}:`, err));
     }
 
     return this.findById(createdUser._id.toString());
@@ -258,7 +298,7 @@ export class UsersService {
       monthlyFee, monthlyFeeOverride, feeWaiverPercent, customFeeNotes,
       qualification, specialization, salary, payType, hourlyRate, country, currency,
       employeeId, bio, guarantors, phone, phoneCode, cnicOrId, canEditProfile,
-      cameraRestricted,
+      cameraRestricted, languages,
       ...baseData
     } = updateUserDto;
 
@@ -299,6 +339,7 @@ export class UsersService {
       if (phone !== undefined) studentUpdate['profile.phone'] = phone;
       if (phoneCode !== undefined) studentUpdate['profile.phoneCode'] = phoneCode;
       if (country !== undefined) studentUpdate['profile.country'] = country;
+      if (languages !== undefined) studentUpdate['profile.languages'] = languages;
       if (classDuration !== undefined) studentUpdate['profile.classDuration'] = Number(classDuration);
       if (classDays !== undefined) {
         studentUpdate['profile.classDays'] = classDays;
@@ -326,6 +367,18 @@ export class UsersService {
       }
 
       if (assignedTeacher || (classDays && classDays.length > 0)) {
+        let teacherToCheck = assignedTeacher ? assignedTeacher.toString() : undefined;
+        let daysToCheck: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }> | undefined = classDays;
+        if (!teacherToCheck || !daysToCheck) {
+          const currentStudent = await this.studentModel.findOne({ userId: id }).lean();
+          if (!teacherToCheck) teacherToCheck = currentStudent?.profile?.assignedTeacher?.toString();
+          if (!daysToCheck) daysToCheck = currentStudent?.profile?.classDays;
+        }
+
+        if (teacherToCheck && daysToCheck && daysToCheck.length > 0) {
+          await this.validateTeacherScheduleConflicts(teacherToCheck, daysToCheck, id);
+        }
+
         await this.syncStudentScheduleAndEnrollments(
           id,
           assignedTeacher ? assignedTeacher.toString() : undefined,
@@ -338,17 +391,30 @@ export class UsersService {
       if (qualification !== undefined) teacherUpdate['profile.qualification'] = qualification;
       if (specialization !== undefined) teacherUpdate['profile.specialization'] = specialization;
       if (joiningDate !== undefined) teacherUpdate['profile.joiningDate'] = joiningDate ? new Date(joiningDate) : null;
-      if (salary !== undefined) teacherUpdate['profile.salary'] = salary;
-      if (payType !== undefined) teacherUpdate['profile.payType'] = payType;
-      if (hourlyRate !== undefined) teacherUpdate['profile.hourlyRate'] = hourlyRate;
-      if (country !== undefined) teacherUpdate['profile.country'] = country;
-      if (currency !== undefined) teacherUpdate['profile.currency'] = currency;
+      const resolvedSalary = salary !== undefined
+        ? salary
+        : (updateUserDto.salaryProfile?.baseSalary !== undefined
+            ? Number(updateUserDto.salaryProfile.baseSalary)
+            : (updateUserDto.salaryProfile?.salary !== undefined ? Number(updateUserDto.salaryProfile.salary) : undefined));
+      const resolvedPayType = payType !== undefined ? payType : updateUserDto.salaryProfile?.payType;
+      const resolvedHourlyRate = hourlyRate !== undefined
+        ? hourlyRate
+        : (updateUserDto.salaryProfile?.hourlyRate !== undefined ? Number(updateUserDto.salaryProfile.hourlyRate) : undefined);
+      const resolvedCurrency = currency !== undefined ? currency : updateUserDto.salaryProfile?.currency;
+      const resolvedCountry = country !== undefined ? country : updateUserDto.salaryProfile?.country;
+
+      if (resolvedSalary !== undefined) teacherUpdate['profile.salary'] = resolvedSalary;
+      if (resolvedPayType !== undefined) teacherUpdate['profile.payType'] = resolvedPayType;
+      if (resolvedHourlyRate !== undefined) teacherUpdate['profile.hourlyRate'] = resolvedHourlyRate;
+      if (resolvedCountry !== undefined) teacherUpdate['profile.country'] = resolvedCountry;
+      if (resolvedCurrency !== undefined) teacherUpdate['profile.currency'] = resolvedCurrency;
       if (employeeId !== undefined) teacherUpdate['profile.employeeId'] = employeeId;
       if (bio !== undefined) teacherUpdate['profile.bio'] = bio;
       if (phone !== undefined) teacherUpdate['profile.phone'] = phone;
       if (phoneCode !== undefined) teacherUpdate['profile.phoneCode'] = phoneCode;
       if (cnicOrId !== undefined) teacherUpdate['profile.cnicOrId'] = cnicOrId;
       if (gender !== undefined) teacherUpdate['profile.gender'] = gender;
+      if (languages !== undefined) teacherUpdate['profile.languages'] = languages;
       const finalDob = dateOfBirth !== undefined ? dateOfBirth : dob;
       if (finalDob !== undefined) teacherUpdate['profile.dateOfBirth'] = finalDob ? new Date(finalDob) : null;
       if (canEditProfile !== undefined) teacherUpdate['profile.canEditProfile'] = canEditProfile;
@@ -555,10 +621,55 @@ export class UsersService {
     return { success: true, message: 'User account permanently deleted' };
   }
 
+  private async validateTeacherScheduleConflicts(
+    teacherId?: string,
+    classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>,
+    studentUserId?: string,
+  ) {
+    if (!teacherId || !Array.isArray(classDays) || classDays.length === 0) return;
+
+    for (const slot of classDays) {
+      const fullDay = SHORT_TO_FULL_DAYS[slot.day] || (slot.day as DayOfWeek);
+      const teacherTimeStr = slot.teacherTime || slot.time || '16:00';
+      const parseTimeToMinutes = (tStr?: string): number => {
+        if (!tStr) return 16 * 60;
+        const trimmed = tStr.trim().toUpperCase();
+        const isPM = trimmed.includes('PM');
+        const isAM = trimmed.includes('AM');
+        const clean = trimmed.replace(/[A-Z]/g, '').trim();
+        const [hStr, mStr] = clean.split(':');
+        let h = parseInt(hStr, 10) || 0;
+        const m = parseInt(mStr, 10) || 0;
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        return h * 60 + m;
+      };
+      const teacherMins = parseTimeToMinutes(teacherTimeStr);
+      const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((teacherMins - 9 * 60) / 30)));
+
+      const existingSlot = await this.weeklySlotModel.findOne({
+        dayOfWeek: fullDay,
+        timeSlotIndex,
+        teacherId,
+        isActive: true,
+      });
+
+      if (
+        existingSlot &&
+        existingSlot.studentId &&
+        (!studentUserId || existingSlot.studentId.toString() !== studentUserId.toString())
+      ) {
+        throw new ConflictException(
+          `Schedule conflict: The selected teacher already has another class assigned on ${fullDay} at ${teacherTimeStr}. A teacher can only have one class at a time. Please choose an open time slot.`
+        );
+      }
+    }
+  }
+
   private async syncStudentScheduleAndEnrollments(
     studentUserId: string,
     assignedTeacherId?: string,
-    classDays?: Array<{ day: string; time: string }>,
+    classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>,
     classDuration?: number,
   ) {
     if (!assignedTeacherId) return;
@@ -590,16 +701,52 @@ export class UsersService {
 
         for (const slot of classDays) {
           const fullDay = SHORT_TO_FULL_DAYS[slot.day] || (slot.day as DayOfWeek);
-          const timeStr = slot.time || '16:00';
-          const [h, m] = timeStr.split(':').map(Number);
-          const totalMinutes = (isNaN(h) ? 16 : h) * 60 + (isNaN(m) ? 0 : m);
-          const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((totalMinutes - 9 * 60) / 30)));
+          
+          const parseTimeToMinutes = (tStr?: string): number => {
+            if (!tStr) return 16 * 60;
+            const trimmed = tStr.trim().toUpperCase();
+            const isPM = trimmed.includes('PM');
+            const isAM = trimmed.includes('AM');
+            const clean = trimmed.replace(/[A-Z]/g, '').trim();
+            const [hStr, mStr] = clean.split(':');
+            let h = parseInt(hStr, 10) || 0;
+            const m = parseInt(mStr, 10) || 0;
+            if (isPM && h < 12) h += 12;
+            if (isAM && h === 12) h = 0;
+            return h * 60 + m;
+          };
 
-          const dur = classDuration || 60;
-          const endTotal = totalMinutes + dur;
-          const endH = Math.floor(endTotal / 60) % 24;
-          const endM = endTotal % 60;
-          const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+          const minutesToHHMM = (minutes: number): string => {
+            const norm = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+            const h = Math.floor(norm / 60);
+            const m = norm % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          };
+
+          const teacherTimeStr = slot.teacherTime || slot.time || '16:00';
+          const studentTimeStr = slot.studentTime || slot.time || '16:00';
+          const teacherMins = parseTimeToMinutes(teacherTimeStr);
+          const dur = classDuration || 30;
+          const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((teacherMins - 9 * 60) / 30)));
+          const startTime = minutesToHHMM(teacherMins);
+          const endTime = minutesToHHMM(teacherMins + dur);
+
+          const existingSlot = await this.weeklySlotModel.findOne({
+            dayOfWeek: fullDay,
+            timeSlotIndex,
+            teacherId: assignedTeacherId,
+            isActive: true,
+          });
+
+          if (
+            existingSlot &&
+            existingSlot.studentId &&
+            existingSlot.studentId.toString() !== studentUserId.toString()
+          ) {
+            throw new ConflictException(
+              `Schedule conflict: The teacher already has a class assigned on ${fullDay} at ${teacherTimeStr}. A teacher can only have one class at a time.`
+            );
+          }
 
           await this.weeklySlotModel.findOneAndUpdate(
             {
@@ -611,8 +758,11 @@ export class UsersService {
               $set: {
                 dayOfWeek: fullDay,
                 timeSlotIndex,
-                startTime: timeStr,
+                startTime,
                 endTime,
+                durationMinutes: dur,
+                teacherStartTime: slot.teacherTime || teacherTimeStr,
+                studentStartTime: slot.studentTime || studentTimeStr,
                 teacherId: assignedTeacherId,
                 studentId: studentUserId,
                 ...(primaryCourseId ? { courseId: primaryCourseId } : {}),
@@ -628,7 +778,10 @@ export class UsersService {
       await this.cacheService.delByPattern('schedule:*');
       await this.cacheService.delByPattern('stats:*');
     } catch (err: any) {
-      // Non-fatal error during schedule sync
+      if (err instanceof ConflictException) {
+        throw err;
+      }
+      this.logger.warn(`Non-fatal error during schedule sync for student ${studentUserId}:`, err);
     }
   }
 }

@@ -419,7 +419,7 @@ function CourseManagementContent() {
       {activeTab === 'courses' && (
         <div className="space-y-6 animate-fadeIn">
           {/* Ribbon Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
               <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
                 <BookOpen className="h-6 w-6" />
@@ -459,7 +459,7 @@ function CourseManagementContent() {
                 <p className="text-xs text-muted-foreground font-medium">Islamic Studies</p>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Reusable Paginated & Filterable Data Table */}
           <DataTable

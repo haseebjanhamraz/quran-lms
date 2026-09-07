@@ -38,6 +38,12 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
 
+    // Sorted countries by phoneCode length descending for longest-prefix matching
+    const sortedCountries = useMemo(
+      () => [...COUNTRIES].sort((a, b) => b.phoneCode.length - a.phoneCode.length),
+      []
+    );
+
     // Identify active country
     const activeCountry = useMemo<CountryInfo>(() => {
       if (countryCode) {
@@ -49,23 +55,49 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
         if (byPhone) return byPhone;
       }
       if (value && typeof value === 'string' && value.startsWith('+')) {
-        for (const c of COUNTRIES) {
+        for (const c of sortedCountries) {
           if (value.startsWith(c.phoneCode)) {
             return c;
           }
         }
       }
       return getCountryByCode(defaultCountry) || getCountryByCode('PK') || COUNTRIES[0];
-    }, [countryCode, phoneCode, value, defaultCountry]);
+    }, [countryCode, phoneCode, value, defaultCountry, sortedCountries]);
+
+    // Helper to cleanly extract local phone number without any country dial code
+    const extractLocalDigits = (rawStr: string, activeDialCode?: string): string => {
+      if (!rawStr) return '';
+      let str = rawStr.trim();
+
+      // 1. If starts with active country dial code, strip it
+      if (activeDialCode && str.startsWith(activeDialCode)) {
+        str = str.slice(activeDialCode.length).trim();
+      }
+
+      // 2. If it still starts with '+', search and strip any known country dial code
+      if (str.startsWith('+')) {
+        for (const c of sortedCountries) {
+          if (str.startsWith(c.phoneCode)) {
+            str = str.slice(c.phoneCode.length).trim();
+            break;
+          }
+        }
+        if (str.startsWith('+')) {
+          const spaceIdx = str.indexOf(' ');
+          if (spaceIdx > 0) {
+            str = str.slice(spaceIdx + 1).trim();
+          } else {
+            str = str.replace(/^\+\d{1,4}/, '').trim();
+          }
+        }
+      }
+
+      return str;
+    };
 
     // Compute local phone number (without country dial code)
     const localNumber = useMemo(() => {
-      if (!value) return '';
-      const strVal = String(value);
-      if (activeCountry && strVal.startsWith(activeCountry.phoneCode)) {
-        return strVal.slice(activeCountry.phoneCode.length).trim();
-      }
-      return strVal;
+      return extractLocalDigits(String(value || ''), activeCountry?.phoneCode);
     }, [value, activeCountry]);
 
     // Filter country list by search query
@@ -101,13 +133,19 @@ export const PhoneInput = forwardRef<HTMLInputElement, PhoneInputProps>(
     const handleCountrySelect = (country: CountryInfo) => {
       setIsOpen(false);
       setSearchQuery('');
-      const cleanedLocal = localNumber.replace(/^0+/, ''); // strip leading zero
-      const full = cleanedLocal ? `${country.phoneCode} ${cleanedLocal}` : country.phoneCode;
-      onChange?.(full, country.phoneCode, cleanedLocal, country);
+      // Clean local number: strip any old dial code and leading zeros
+      let pureLocal = extractLocalDigits(String(value || ''), activeCountry?.phoneCode);
+      pureLocal = pureLocal.replace(/^0+/, '').trim();
+      const full = pureLocal ? `${country.phoneCode} ${pureLocal}` : country.phoneCode;
+      onChange?.(full, country.phoneCode, pureLocal, country);
     };
 
     const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const raw = e.target.value.replace(/[^0-9\s-]/g, '');
+      let raw = e.target.value.replace(/[^0-9\s-]/g, '');
+      // If user pasted a full number with country code, strip it to pure local digits
+      if (e.target.value.trim().startsWith('+')) {
+        raw = extractLocalDigits(e.target.value, activeCountry?.phoneCode);
+      }
       const cleaned = raw.trim();
       const full = cleaned ? `${activeCountry.phoneCode} ${cleaned}` : '';
       onChange?.(full, activeCountry.phoneCode, raw, activeCountry);

@@ -1,0 +1,50 @@
+export const PREDEFINED_SPECIALIZATIONS: string[] = [
+  'Nazira & Tajweed',
+  'Hifz al-Quran (Memorization)',
+  'Tafseer & Quranic Exegesis',
+  'Qira\'at (Seven / Ten Readings)',
+  'Noorani Qaida for Beginners',
+  'Islamic Studies & Fiqh',
+  'Arabic Language & Grammar',
+  'Hadith & Sunnah Studies',
+  'Quran Translation & Word-by-Word Analysis',
+  'Dua & Daily Sunnahs (Adhkar)',
+  'Seerah & Islamic History',
+  'Aqeedah & Islamic Beliefs',
+];
+
+export const PREDEFINED_QUALIFICATIONS: string[] = [
+  'Certified Hafiz-e-Quran',
+  'Certified Qari (Tajweed Specialist)',
+  'Ijazah in Hafs \'an \'Asim',
+  'Ijazah in Seven / Ten Qira\'at (Al-Asharah)',
+  'Dars-e-Nizami (Shahadat-ul-Alimiyyah / Alim Course)',
+  'Wifaq-ul-Madaris Al-Arabia Certification',
+  'BS / BA in Islamic Studies',
+  'MA / MS in Islamic Studies / Arabic',
+  'PhD in Quranic Sciences / Islamic Studies',
+  'Diploma in Classical Arabic Language',
+  'Certified Quran Educator / Teacher',
+  'Al-Azhar University Graduate / Sanad',
+  'Madinah Islamic University Graduate',
+];
+
+export const PREDEFINED_RELATIONSHIPS: string[] = [
+  'Father',
+  'Mother',
+  'Brother',
+  'Sister',
+  'Uncle',
+  'Aunt',
+  'Cousin',
+  'Spouse',
+  'Grandfather',
+  'Grandmother',
+  'Legal Guardian',
+  'Teacher / Mentor',
+  'Colleague / Peer',
+  'Friend',
+  'Neighbor',
+  'Other',
+];
+

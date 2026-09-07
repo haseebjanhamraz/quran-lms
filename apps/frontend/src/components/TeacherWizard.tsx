@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import {
-  User, Shield, GraduationCap, CreditCard, Lock, CheckCircle, AlertCircle
+  User, Shield, GraduationCap, CreditCard, Lock, CheckCircle, AlertCircle, XCircle
 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { CountryInfo, getAllCurrencies, getAllTimezones } from '@/utils/countries';
+import { getLanguagesForCountry } from '@/utils/country-languages';
 
 // Subcomponents
 import {
@@ -39,6 +40,8 @@ const STEPS: StepItem[] = [
   { num: 5, label: 'Permissions & Video', icon: Lock },
 ];
 
+const DRAFT_KEY = 'quran_lms_teacher_wizard_draft';
+
 export default function TeacherWizard({
   isOpen,
   onClose,
@@ -61,12 +64,13 @@ export default function TeacherWizard({
     dob: '',
     timezone: 'Asia/Karachi',
     profilePicture: '',
+    languages: getLanguagesForCountry('PK'),
   });
 
   // Step 2: Qualifications & Bio
   const [qualificationsInfo, setQualificationsInfo] = useState<TeacherQualificationsInfo>({
-    specialization: 'Nazira & Tajweed',
-    qualification: 'Certified Hafiz & Qari',
+    specialization: ['Nazira & Tajweed'],
+    qualification: ['Certified Hafiz & Qari'],
     employeeId: '',
     joiningDate: new Date().toISOString().split('T')[0],
     bio: '',
@@ -112,11 +116,13 @@ export default function TeacherWizard({
   const currenciesList = useMemo(() => getAllCurrencies(), []);
 
   const handleCountryChange = (country: CountryInfo) => {
+    const suggestedLangs = getLanguagesForCountry(country.code);
     setPersonalInfo((prev) => ({
       ...prev,
       country: country.code,
       phoneCode: country.phoneCode,
       timezone: country.timezone || prev.timezone,
+      languages: prev.languages && prev.languages.length > 0 ? prev.languages : suggestedLangs,
     }));
     setSalaryInfo((prev) => ({
       ...prev,
@@ -125,145 +131,348 @@ export default function TeacherWizard({
     }));
   };
 
+  // Helper to parse string or array into string[]
+  const parseStringOrArray = (val: any, defaultVal: string[]): string[] => {
+    if (!val) return defaultVal;
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      const parts = val.split(',').map((s) => s.trim()).filter(Boolean);
+      return parts.length > 0 ? parts : defaultVal;
+    }
+    return defaultVal;
+  };
+
+  // Initialize form or restore from draft
   useEffect(() => {
     if (isOpen) {
       setErrorMsg(null);
       setCompletedMessage(null);
-      setStep(1);
 
-      if (editingTeacher) {
-        setPersonalInfo({
-          name: editingTeacher.name || '',
-          preferredName: editingTeacher.preferredName || '',
-          email: editingTeacher.email || '',
-          password: '',
-          phone: editingTeacher.phone || '',
-          phoneCode: editingTeacher.phoneCode || '+92',
-          country: editingTeacher.country || 'PK',
-          cnicOrId: editingTeacher.cnicOrId || '',
-          gender: editingTeacher.gender || 'Male',
-          dob: editingTeacher.dob || editingTeacher.dateOfBirth
-            ? new Date(editingTeacher.dob || editingTeacher.dateOfBirth).toISOString().split('T')[0]
-            : '',
-          timezone: editingTeacher.timezone || 'Asia/Karachi',
-          profilePicture: editingTeacher.profilePicture || editingTeacher.avatar || '',
-        });
+      let loadedFromDraft = false;
+      try {
+        const savedDraftRaw = typeof window !== 'undefined' ? localStorage.getItem(DRAFT_KEY) : null;
+        if (savedDraftRaw) {
+          const draft = JSON.parse(savedDraftRaw);
+          if (draft && draft.isOpen) {
+            const currentEditingId = editingTeacher ? (editingTeacher.id || editingTeacher._id) : null;
+            const draftEditingId = draft.editingTeacher ? (draft.editingTeacher.id || draft.editingTeacher._id) : null;
 
-        setQualificationsInfo({
-          specialization: editingTeacher.specialization || 'Nazira & Tajweed',
-          qualification: editingTeacher.qualification || 'Certified Hafiz & Qari',
-          employeeId: editingTeacher.employeeId || '',
-          joiningDate: editingTeacher.joiningDate
-            ? new Date(editingTeacher.joiningDate).toISOString().split('T')[0]
-            : new Date().toISOString().split('T')[0],
-          bio: editingTeacher.bio || '',
-        });
+            if (currentEditingId === draftEditingId) {
+              if (draft.step) setStep(draft.step);
+              if (draft.personalInfo) setPersonalInfo(draft.personalInfo);
+              if (draft.qualificationsInfo) setQualificationsInfo(draft.qualificationsInfo);
+              if (draft.salaryInfo) setSalaryInfo(draft.salaryInfo);
+              if (draft.guarantorInfo) setGuarantorInfo(draft.guarantorInfo);
+              if (draft.canEditProfile !== undefined) setCanEditProfile(draft.canEditProfile);
+              if (draft.cameraRestricted !== undefined) setCameraRestricted(draft.cameraRestricted);
+              loadedFromDraft = true;
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Failed to restore teacher admission draft from localStorage:', e);
+      }
 
-        const sal = editingTeacher.salaryProfile || {};
-        setSalaryInfo({
-          payType: sal.payType || 'MONTHLY',
-          baseSalary: sal.baseSalary !== undefined ? String(sal.baseSalary) : '35000',
-          hourlyRate: sal.hourlyRate !== undefined ? String(sal.hourlyRate) : '1000',
-          country: sal.country || 'Pakistan',
-          currency: sal.currency || 'PKR',
-        });
+      if (!loadedFromDraft) {
+        setStep(1);
+        if (editingTeacher) {
+          setPersonalInfo({
+            name: editingTeacher.name || '',
+            preferredName: editingTeacher.preferredName || '',
+            email: editingTeacher.email || '',
+            password: '',
+            phone: editingTeacher.phone || '',
+            phoneCode: editingTeacher.phoneCode || '+92',
+            country: editingTeacher.country || 'PK',
+            cnicOrId: editingTeacher.cnicOrId || '',
+            gender: editingTeacher.gender || 'Male',
+            dob: editingTeacher.dob || editingTeacher.dateOfBirth
+              ? new Date(editingTeacher.dob || editingTeacher.dateOfBirth).toISOString().split('T')[0]
+              : '',
+            timezone: editingTeacher.timezone || 'Asia/Karachi',
+            profilePicture: editingTeacher.profilePicture || editingTeacher.avatar || '',
+            languages: editingTeacher.languages || editingTeacher.profile?.languages || getLanguagesForCountry(editingTeacher.country || 'PK'),
+          });
 
-        const guarantors = editingTeacher.guarantors || [];
-        const g1 = guarantors[0] || {};
-        const g2 = guarantors[1] || {};
+          setQualificationsInfo({
+            specialization: parseStringOrArray(
+              editingTeacher.specialization || editingTeacher.profile?.specialization,
+              ['Nazira & Tajweed']
+            ),
+            qualification: parseStringOrArray(
+              editingTeacher.qualification || editingTeacher.profile?.qualification,
+              ['Certified Hafiz & Qari']
+            ),
+            employeeId: editingTeacher.employeeId || editingTeacher.profile?.employeeId || '',
+            joiningDate: editingTeacher.joiningDate || editingTeacher.profile?.joiningDate
+              ? new Date(editingTeacher.joiningDate || editingTeacher.profile?.joiningDate).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
+            bio: editingTeacher.bio || editingTeacher.profile?.bio || '',
+          });
 
-        setGuarantorInfo({
-          g1Name: g1.name || '',
-          g1Phone: g1.phone || '',
-          g1Email: g1.email || '',
-          g1Relationship: g1.relationship || 'Father',
-          g1Cnic: g1.cnic || '',
-          g1Address: g1.address || '',
+          const sal = editingTeacher.salaryProfile || editingTeacher.profile || {};
+          setSalaryInfo({
+            payType: sal.payType || 'MONTHLY',
+            baseSalary: sal.baseSalary !== undefined ? String(sal.baseSalary) : (sal.salary !== undefined ? String(sal.salary) : '35000'),
+            hourlyRate: sal.hourlyRate !== undefined ? String(sal.hourlyRate) : '1000',
+            country: sal.country || 'Pakistan',
+            currency: sal.currency || 'PKR',
+          });
 
-          g2Name: g2.name || '',
-          g2Phone: g2.phone || '',
-          g2Email: g2.email || '',
-          g2Relationship: g2.relationship || 'Brother',
-          g2Cnic: g2.cnic || '',
-          g2Address: g2.address || '',
-        });
+          const guarantors = editingTeacher.guarantors || editingTeacher.profile?.guarantors || [];
+          const g1 = guarantors[0] || {};
+          const g2 = guarantors[1] || {};
 
-        setCanEditProfile(Boolean(editingTeacher.canEditProfile));
-        setCameraRestricted(Boolean(editingTeacher.cameraRestricted));
-      } else {
-        // Reset for new teacher
-        setPersonalInfo({
-          name: '',
-          preferredName: '',
-          email: '',
-          password: '',
-          phone: '',
-          phoneCode: '+92',
-          country: 'PK',
-          cnicOrId: '',
-          gender: 'Male',
-          dob: '',
-          timezone: 'Asia/Karachi',
-          profilePicture: '',
-        });
+          setGuarantorInfo({
+            g1Name: g1.name || '',
+            g1Phone: g1.phone || '',
+            g1Email: g1.email || '',
+            g1Relationship: g1.relationship || 'Father',
+            g1Cnic: g1.cnic || '',
+            g1Address: g1.address || '',
 
-        setQualificationsInfo({
-          specialization: 'Nazira & Tajweed',
-          qualification: 'Certified Hafiz & Qari',
-          employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
-          joiningDate: new Date().toISOString().split('T')[0],
-          bio: '',
-        });
+            g2Name: g2.name || '',
+            g2Phone: g2.phone || '',
+            g2Email: g2.email || '',
+            g2Relationship: g2.relationship || 'Brother',
+            g2Cnic: g2.cnic || '',
+            g2Address: g2.address || '',
+          });
 
-        setSalaryInfo({
-          payType: 'MONTHLY',
-          baseSalary: '35000',
-          hourlyRate: '1000',
-          country: 'Pakistan',
-          currency: 'PKR',
-        });
+          setCanEditProfile(Boolean(editingTeacher.canEditProfile || editingTeacher.profile?.canEditProfile));
+          setCameraRestricted(Boolean(editingTeacher.cameraRestricted || editingTeacher.profile?.cameraRestricted));
+        } else {
+          // Reset for new teacher
+          setPersonalInfo({
+            name: '',
+            preferredName: '',
+            email: '',
+            password: '',
+            phone: '',
+            phoneCode: '+92',
+            country: 'PK',
+            cnicOrId: '',
+            gender: 'Male',
+            dob: '',
+            timezone: 'Asia/Karachi',
+            profilePicture: '',
+            languages: getLanguagesForCountry('PK'),
+          });
 
-        setGuarantorInfo({
-          g1Name: '',
-          g1Phone: '',
-          g1Email: '',
-          g1Relationship: 'Father',
-          g1Cnic: '',
-          g1Address: '',
+          setQualificationsInfo({
+            specialization: ['Nazira & Tajweed'],
+            qualification: ['Certified Hafiz & Qari'],
+            employeeId: `EMP-${Math.floor(1000 + Math.random() * 9000)}`,
+            joiningDate: new Date().toISOString().split('T')[0],
+            bio: '',
+          });
 
-          g2Name: '',
-          g2Phone: '',
-          g2Email: '',
-          g2Relationship: 'Brother',
-          g2Cnic: '',
-          g2Address: '',
-        });
+          setSalaryInfo({
+            payType: 'MONTHLY',
+            baseSalary: '35000',
+            hourlyRate: '1000',
+            country: 'Pakistan',
+            currency: 'PKR',
+          });
 
-        setCanEditProfile(true);
-        setCameraRestricted(false);
+          setGuarantorInfo({
+            g1Name: '',
+            g1Phone: '',
+            g1Email: '',
+            g1Relationship: 'Father',
+            g1Cnic: '',
+            g1Address: '',
+
+            g2Name: '',
+            g2Phone: '',
+            g2Email: '',
+            g2Relationship: 'Brother',
+            g2Cnic: '',
+            g2Address: '',
+          });
+
+          setCanEditProfile(true);
+          setCameraRestricted(false);
+        }
       }
     }
   }, [isOpen, editingTeacher]);
 
+  // Persist form draft to localStorage across page reloads
+  useEffect(() => {
+    if (!isOpen || completedMessage) return;
+    try {
+      const draft = {
+        isOpen: true,
+        step,
+        editingTeacher: editingTeacher ? editingTeacher : null,
+        personalInfo,
+        qualificationsInfo,
+        salaryInfo,
+        guarantorInfo,
+        canEditProfile,
+        cameraRestricted,
+        savedAt: Date.now(),
+      };
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch (err) {
+      console.error('Failed to save teacher draft to localStorage:', err);
+    }
+  }, [
+    isOpen,
+    completedMessage,
+    step,
+    editingTeacher,
+    personalInfo,
+    qualificationsInfo,
+    salaryInfo,
+    guarantorInfo,
+    canEditProfile,
+    cameraRestricted,
+  ]);
+
+  const handleClose = () => {
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch (_) {}
+    onClose();
+  };
+
   if (!isOpen) return null;
+
+  // Comprehensive Step-by-Step Validation
+  const validateStep = (stepNumber: number): string | null => {
+    if (stepNumber === 1) {
+      if (!personalInfo.name.trim()) return 'Full Name is required on Step 1.';
+      if (personalInfo.name.trim().length < 2) return 'Full Name must be at least 2 characters on Step 1.';
+      if (!personalInfo.email.trim()) return 'Email Address is required on Step 1.';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(personalInfo.email.trim())) return 'Please enter a valid Email Address on Step 1.';
+      if (!editingTeacher && (!personalInfo.password || personalInfo.password.length < 6)) {
+        return 'Account Password is required for new teacher registration on Step 1 (minimum 6 characters).';
+      }
+      if (!personalInfo.country || !personalInfo.country.trim()) return 'Country is required on Step 1.';
+      if (!personalInfo.phone || !personalInfo.phone.trim()) return 'Phone Number is required on Step 1.';
+      const digits = personalInfo.phone.replace(/\D/g, '');
+      if (digits.length < 7) return 'Phone Number must contain at least 7 digits on Step 1.';
+      if (!personalInfo.languages || personalInfo.languages.length === 0) {
+        return 'Please select at least one Spoken/Teaching Language on Step 1.';
+      }
+      if (!personalInfo.gender) return 'Gender is required on Step 1.';
+      if (!personalInfo.dob) return 'Date of Birth is required on Step 1.';
+      const dobDate = new Date(personalInfo.dob);
+      if (isNaN(dobDate.getTime()) || dobDate >= new Date()) {
+        return 'Date of Birth must be a valid date in the past on Step 1.';
+      }
+      if (!personalInfo.timezone || !personalInfo.timezone.trim()) return 'Timezone is required on Step 1.';
+    } else if (stepNumber === 2) {
+      if (!qualificationsInfo.specialization || qualificationsInfo.specialization.length === 0) {
+        return 'Please select or specify at least one Specialization on Step 2.';
+      }
+      if (!qualificationsInfo.qualification || qualificationsInfo.qualification.length === 0) {
+        return 'Please select or specify at least one Degree / Qualification on Step 2.';
+      }
+      if (!qualificationsInfo.employeeId || !qualificationsInfo.employeeId.trim()) {
+        return 'Employee ID / System Code is required on Step 2.';
+      }
+      if (!qualificationsInfo.joiningDate) {
+        return 'Academy Joining Date is required on Step 2.';
+      }
+    } else if (stepNumber === 3) {
+      if (salaryInfo.payType === 'MONTHLY') {
+        if (salaryInfo.baseSalary === '' || isNaN(Number(salaryInfo.baseSalary)) || Number(salaryInfo.baseSalary) < 0) {
+          return 'Monthly Base Salary must be a valid non-negative number on Step 3.';
+        }
+      } else {
+        if (salaryInfo.hourlyRate === '' || isNaN(Number(salaryInfo.hourlyRate)) || Number(salaryInfo.hourlyRate) < 0) {
+          return 'Hourly Rate must be a valid non-negative number on Step 3.';
+        }
+      }
+      if (!salaryInfo.currency || !salaryInfo.currency.trim()) {
+        return 'Compensation Currency is required on Step 3.';
+      }
+    } else if (stepNumber === 4) {
+      if (!guarantorInfo.g1Name.trim()) {
+        return 'Primary Guarantor (#1) Name is required on Step 4.';
+      }
+      if (guarantorInfo.g1Name.trim().length < 2) {
+        return 'Primary Guarantor (#1) Name must be at least 2 characters on Step 4.';
+      }
+      if (!guarantorInfo.g1Relationship.trim()) {
+        return 'Primary Guarantor (#1) Relationship is required on Step 4.';
+      }
+      if (!guarantorInfo.g1Phone.trim()) {
+        return 'Primary Guarantor (#1) Phone Number is required on Step 4.';
+      }
+      const g1Digits = guarantorInfo.g1Phone.replace(/\D/g, '');
+      if (g1Digits.length < 7) {
+        return 'Primary Guarantor (#1) Phone Number must contain at least 7 digits on Step 4.';
+      }
+      if (guarantorInfo.g1Email && guarantorInfo.g1Email.trim()) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(guarantorInfo.g1Email.trim())) {
+          return 'Please provide a valid email address for Primary Guarantor (#1) on Step 4, or leave it blank.';
+        }
+      }
+
+      // Check secondary guarantor if any field is filled
+      const g2Filled = Boolean(
+        guarantorInfo.g2Name.trim() ||
+        guarantorInfo.g2Phone.trim() ||
+        guarantorInfo.g2Cnic.trim() ||
+        guarantorInfo.g2Email.trim()
+      );
+      if (g2Filled) {
+        if (!guarantorInfo.g2Name.trim() || guarantorInfo.g2Name.trim().length < 2) {
+          return 'Secondary Guarantor (#2) Name must be at least 2 characters on Step 4.';
+        }
+        if (!guarantorInfo.g2Relationship.trim()) {
+          return 'Secondary Guarantor (#2) Relationship is required on Step 4.';
+        }
+        if (!guarantorInfo.g2Phone.trim()) {
+          return 'Secondary Guarantor (#2) Phone Number is required on Step 4.';
+        }
+        const g2Digits = guarantorInfo.g2Phone.replace(/\D/g, '');
+        if (g2Digits.length < 7) {
+          return 'Secondary Guarantor (#2) Phone Number must contain at least 7 digits on Step 4.';
+        }
+        if (guarantorInfo.g2Email && guarantorInfo.g2Email.trim()) {
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(guarantorInfo.g2Email.trim())) {
+            return 'Please provide a valid email address for Secondary Guarantor (#2) on Step 4, or leave it blank.';
+          }
+        }
+      }
+    }
+    return null;
+  };
 
   const handleNext = () => {
     setErrorMsg(null);
-    if (step === 1) {
-      if (!personalInfo.name.trim()) {
-        setErrorMsg('Please enter the Teacher Full Name.');
-        return;
-      }
-      if (!personalInfo.email.trim()) {
-        setErrorMsg('Please enter a valid Email Address.');
-        return;
-      }
-      if (!editingTeacher && !personalInfo.password) {
-        setErrorMsg('Account Password is required for new teacher registration.');
+    const err = validateStep(step);
+    if (err) {
+      setErrorMsg(err);
+      return;
+    }
+    setStep((prev) => Math.min(prev + 1, 5));
+  };
+
+  const handleStepClick = (targetStep: number) => {
+    setErrorMsg(null);
+    if (targetStep < step) {
+      setStep(targetStep);
+      return;
+    }
+    // Validate all intervening steps before allowing skip
+    for (let s = 1; s < targetStep; s++) {
+      const err = validateStep(s);
+      if (err) {
+        setErrorMsg(err);
+        setStep(s);
         return;
       }
     }
-    setStep((prev) => Math.min(prev + 1, 5));
+    setStep(targetStep);
   };
 
   const handleBack = () => {
@@ -271,64 +480,93 @@ export default function TeacherWizard({
     setStep((prev) => Math.max(prev - 1, 1));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitting(true);
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     setErrorMsg(null);
+
+    // Guard: strictly do not allow submission unless on final step (Step 5)
+    if (step < 5) {
+      handleNext();
+      return;
+    }
+
+    // Comprehensive validation across all steps before submitting
+    for (let s = 1; s <= 5; s++) {
+      const err = validateStep(s);
+      if (err) {
+        setErrorMsg(err);
+        setStep(s);
+        return;
+      }
+    }
+
+    setSubmitting(true);
 
     try {
       const teacherPayload: any = {
-        name: personalInfo.name,
-        preferredName: personalInfo.preferredName,
-        email: personalInfo.email,
+        name: personalInfo.name.trim(),
+        preferredName: personalInfo.preferredName?.trim() || undefined,
+        email: personalInfo.email.trim(),
         role: 'TEACHER',
         gender: personalInfo.gender,
         dob: personalInfo.dob || undefined,
         dateOfBirth: personalInfo.dob || undefined,
         timezone: personalInfo.timezone,
         profilePicture: personalInfo.profilePicture || undefined,
-        phone: personalInfo.phone,
-        phoneCode: personalInfo.phoneCode,
-        cnicOrId: personalInfo.cnicOrId,
+        phone: personalInfo.phone?.trim() || undefined,
+        phoneCode: personalInfo.phoneCode || undefined,
+        cnicOrId: personalInfo.cnicOrId?.trim() || undefined,
         country: personalInfo.country,
-        specialization: qualificationsInfo.specialization,
-        qualification: qualificationsInfo.qualification,
-        employeeId: qualificationsInfo.employeeId,
-        joiningDate: qualificationsInfo.joiningDate,
-        bio: qualificationsInfo.bio,
-        canEditProfile,
-        cameraRestricted,
-        salaryProfile: {
-          payType: salaryInfo.payType,
-          baseSalary: Number(salaryInfo.baseSalary) || 0,
-          hourlyRate: Number(salaryInfo.hourlyRate) || 0,
-          currency: salaryInfo.currency,
-          country: salaryInfo.country,
-        },
+        languages: personalInfo.languages || [],
+
+        // Step 2: Qualifications
+        specialization: Array.isArray(qualificationsInfo.specialization)
+          ? qualificationsInfo.specialization.join(', ')
+          : qualificationsInfo.specialization || '',
+        qualification: Array.isArray(qualificationsInfo.qualification)
+          ? qualificationsInfo.qualification.join(', ')
+          : qualificationsInfo.qualification || '',
+        employeeId: qualificationsInfo.employeeId?.trim() || undefined,
+        joiningDate: qualificationsInfo.joiningDate || undefined,
+        bio: qualificationsInfo.bio?.trim() || undefined,
+
+        // Step 3: Salary Setup (direct top-level fields for backend DTO)
+        payType: salaryInfo.payType || 'MONTHLY',
+        salary: salaryInfo.payType === 'MONTHLY' ? (Number(salaryInfo.baseSalary) || 0) : undefined,
+        hourlyRate: salaryInfo.payType === 'HOURLY' ? (Number(salaryInfo.hourlyRate) || 0) : 0,
+        currency: salaryInfo.currency || 'PKR',
+
+        // Step 4: Guarantor Info
         guarantors: (() => {
           const list: any[] = [];
           if (guarantorInfo.g1Name.trim()) {
             list.push({
-              name: guarantorInfo.g1Name,
-              phone: guarantorInfo.g1Phone,
-              email: guarantorInfo.g1Email,
-              relationship: guarantorInfo.g1Relationship,
-              cnic: guarantorInfo.g1Cnic,
-              address: guarantorInfo.g1Address,
+              name: guarantorInfo.g1Name.trim(),
+              phone: guarantorInfo.g1Phone.trim(),
+              email: guarantorInfo.g1Email?.trim() || undefined,
+              relationship: guarantorInfo.g1Relationship?.trim() || 'Father',
+              cnic: guarantorInfo.g1Cnic?.trim() || undefined,
+              address: guarantorInfo.g1Address?.trim() || undefined,
             });
           }
           if (guarantorInfo.g2Name.trim()) {
             list.push({
-              name: guarantorInfo.g2Name,
-              phone: guarantorInfo.g2Phone,
-              email: guarantorInfo.g2Email,
-              relationship: guarantorInfo.g2Relationship,
-              cnic: guarantorInfo.g2Cnic,
-              address: guarantorInfo.g2Address,
+              name: guarantorInfo.g2Name.trim(),
+              phone: guarantorInfo.g2Phone.trim(),
+              email: guarantorInfo.g2Email?.trim() || undefined,
+              relationship: guarantorInfo.g2Relationship?.trim() || 'Brother',
+              cnic: guarantorInfo.g2Cnic?.trim() || undefined,
+              address: guarantorInfo.g2Address?.trim() || undefined,
             });
           }
           return list;
         })(),
+
+        // Step 5: Permissions
+        canEditProfile,
+        cameraRestricted,
       };
 
       if (!editingTeacher && personalInfo.password) {
@@ -351,8 +589,15 @@ export default function TeacherWizard({
 
         teacherData = await res.json();
         if (!res.ok) {
-          throw new Error(teacherData.message || 'Failed to update teacher profile.');
+          const errMsg = Array.isArray(teacherData.message)
+            ? teacherData.message.join(', ')
+            : teacherData.message || 'Failed to update teacher profile.';
+          throw new Error(errMsg);
         }
+
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch (_) {}
 
         setCompletedMessage(`Teacher ${teacherData.name} has been successfully updated.`);
       } else {
@@ -368,6 +613,10 @@ export default function TeacherWizard({
             : teacherData.message || 'Failed to register teacher.';
           throw new Error(errMsg);
         }
+
+        try {
+          localStorage.removeItem(DRAFT_KEY);
+        } catch (_) {}
 
         setCompletedMessage(`Teacher ${teacherData.name} has been successfully registered.`);
       }
@@ -386,7 +635,7 @@ export default function TeacherWizard({
           step={step}
           totalSteps={5}
           editingTeacher={editingTeacher}
-          onClose={onClose}
+          onClose={handleClose}
         />
 
         {/* 2. Top Stepper Progression Bar */}
@@ -394,7 +643,7 @@ export default function TeacherWizard({
           <TeacherStepper
             steps={STEPS}
             currentStep={step}
-            onStepClick={(sNum) => setStep(sNum)}
+            onStepClick={handleStepClick}
           />
         )}
 
@@ -425,7 +674,7 @@ export default function TeacherWizard({
                     type="button"
                     onClick={() => {
                       onSuccess();
-                      onClose();
+                      handleClose();
                     }}
                     className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-2xl text-sm font-bold shadow-xl hover:scale-105 transition-all"
                   >
@@ -434,7 +683,18 @@ export default function TeacherWizard({
                 </div>
               </div>
             ) : (
-              <form id="teacher-wizard-form" onSubmit={handleSubmit} className="space-y-6">
+              <form
+                id="teacher-wizard-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (step < 5) {
+                    handleNext();
+                  } else {
+                    handleSubmit(e);
+                  }
+                }}
+                className="space-y-6"
+              >
                 {step === 1 && (
                   <Step1PersonalDetails
                     personalInfo={personalInfo}
@@ -495,7 +755,8 @@ export default function TeacherWizard({
             editingTeacher={editingTeacher}
             onBack={handleBack}
             onNext={handleNext}
-            onClose={onClose}
+            onSubmit={handleSubmit}
+            onClose={handleClose}
           />
         )}
       </div>

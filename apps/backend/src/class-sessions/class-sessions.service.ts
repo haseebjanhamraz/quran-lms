@@ -26,9 +26,12 @@ import {
   ISLAMABAD_TIMEZONE,
   PKT_OFFSET_HOURS,
 } from '../utils/islamabad-time';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class ClassSessionsService {
+  private readonly logger = new Logger(ClassSessionsService.name);
+
   constructor(
     @InjectModel(ClassSession.name) private readonly classSessionModel: Model<ClassSessionDocument>,
     @InjectModel(Course.name) private readonly courseModel: Model<CourseDocument>,
@@ -44,6 +47,7 @@ export class ClassSessionsService {
     private readonly recordingsService: RecordingsService,
     private readonly localStorageService: LocalStorageService,
     private readonly cacheService: RedisCacheService,
+    private readonly emailService: EmailService,
   ) {}
 
   async checkTeacherConflict(
@@ -538,6 +542,27 @@ export class ClassSessionsService {
           actualStartTime: now,
         },
       });
+
+      // Dispatch informational email to student that class is now LIVE
+      try {
+        const studentIdToFind = (session.studentId as any)?._id || (session.studentId as any)?.id || session.studentId;
+        if (studentIdToFind) {
+          const studentDoc = await this.userModel.findById(studentIdToFind).select('name email').lean();
+          if (studentDoc && studentDoc.email) {
+            const courseTitle = course?.title || 'Quran Class';
+            const classTime = session.scheduledTimePKT || formatPKTTime(session.scheduledAt);
+            this.emailService.sendClassStartedEmail(
+              studentDoc.email,
+              studentDoc.name,
+              user.name,
+              courseTitle,
+              classTime,
+            ).catch((err) => this.logger.warn(`Failed to dispatch class-started email to ${studentDoc.email}:`, err));
+          }
+        }
+      } catch (emailErr) {
+        this.logger.warn('Error during class-started email dispatch:', emailErr);
+      }
     }
 
     return {

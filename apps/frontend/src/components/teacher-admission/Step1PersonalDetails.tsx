@@ -5,6 +5,8 @@ import { User } from 'lucide-react';
 import ProfilePhotoPicker from '../ProfilePhotoPicker';
 import CountrySelect from '../CountrySelect';
 import CountryPhoneInput from '../CountryPhoneInput';
+import LanguageSelector from '../ui/LanguageSelector';
+import PasswordGeneratorInput from '../ui/PasswordGeneratorInput';
 import { CountryInfo } from '@/utils/countries';
 import { TeacherPersonalInfo } from './types';
 
@@ -23,6 +25,17 @@ export default function Step1PersonalDetails({
   timezonesList,
   onCountryChange,
 }: Step1PersonalDetailsProps) {
+  const computedAge = React.useMemo(() => {
+    if (!personalInfo.dob) return null;
+    const dobDate = new Date(personalInfo.dob);
+    if (isNaN(dobDate.getTime())) return null;
+    const diff = Date.now() - dobDate.getTime();
+    if (diff < 0) return null;
+    const ageDate = new Date(diff);
+    const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+    return isNaN(age) ? null : age;
+  }, [personalInfo.dob]);
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="flex items-center justify-between pb-3 border-b border-border/40">
@@ -85,19 +98,13 @@ export default function Step1PersonalDetails({
                 />
               </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-foreground uppercase tracking-wider">
-                  Account Password *
-                </label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={personalInfo.password || ''}
-                  onChange={(e) => setPersonalInfo((prev) => ({ ...prev, password: e.target.value }))}
-                  className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
-                />
-              </div>
+              <PasswordGeneratorInput
+                label="Account Password"
+                required
+                value={personalInfo.password || ''}
+                onChange={(val) => setPersonalInfo((prev) => ({ ...prev, password: val }))}
+                placeholder="••••••••"
+              />
             </>
           )}
 
@@ -113,7 +120,7 @@ export default function Step1PersonalDetails({
           {/* Phone with dial code */}
           <div className="space-y-1.5">
             <CountryPhoneInput
-              label="Phone Number"
+              label="Phone Number *"
               countryCode={personalInfo.country}
               phoneCode={personalInfo.phoneCode}
               value={personalInfo.phone}
@@ -124,6 +131,51 @@ export default function Step1PersonalDetails({
             />
           </div>
 
+          {/* Teaching / Spoken Languages */}
+          <div className="space-y-1.5 md:col-span-2">
+            <LanguageSelector
+              label="Teaching / Spoken Languages *"
+              placeholder="Select language or type custom..."
+              value={personalInfo.languages}
+              onChange={(langs) => setPersonalInfo((prev) => ({ ...prev, languages: langs }))}
+            />
+          </div>
+
+          {/* Date of Birth */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Date of Birth *</label>
+            <div className="flex gap-2 items-center">
+              <input
+                type="date"
+                required
+                value={personalInfo.dob || ''}
+                onChange={(e) => setPersonalInfo((prev) => ({ ...prev, dob: e.target.value }))}
+                className="flex-1 bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm"
+              />
+              {computedAge !== null && (
+                <div className="bg-muted/80 px-3 py-2 rounded-xl border border-border text-xs flex flex-col justify-center items-center shrink-0">
+                  <span className="font-bold text-foreground">{computedAge} yrs</span>
+                  <span className="text-[10px] text-muted-foreground">Age</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Gender */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Gender *</label>
+            <select
+              value={personalInfo.gender}
+              onChange={(e) => setPersonalInfo((prev) => ({ ...prev, gender: e.target.value }))}
+              className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm cursor-pointer"
+            >
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {/* CNIC / Passport / National ID */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-foreground uppercase tracking-wider">CNIC / Passport / National ID</label>
             <input
@@ -141,21 +193,9 @@ export default function Step1PersonalDetails({
             />
           </div>
 
+          {/* Timezone */}
           <div className="space-y-1.5">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Gender</label>
-            <select
-              value={personalInfo.gender}
-              onChange={(e) => setPersonalInfo((prev) => ({ ...prev, gender: e.target.value }))}
-              className="w-full bg-background border border-border focus:border-brand focus:ring-2 focus:ring-brand/20 rounded-xl p-3 text-xs font-medium text-foreground outline-none transition-all shadow-sm cursor-pointer"
-            >
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Timezone (Auto-filled from Country)</label>
+            <label className="text-xs font-bold text-foreground uppercase tracking-wider">Timezone * (Auto-filled from Country)</label>
             <select
               value={personalInfo.timezone}
               onChange={(e) => setPersonalInfo((prev) => ({ ...prev, timezone: e.target.value }))}

@@ -41,6 +41,7 @@ export interface PersonalInfoState {
   timezone: string;
   profilePicture: string;
   cameraRestricted: boolean;
+  languages: string[];
 }
 
 export interface GuardianInfoState {
@@ -52,6 +53,13 @@ export interface GuardianInfoState {
   guardianEmail: string;
 }
 
+export interface ClassDaySchedule {
+  day: string;
+  studentTime: string; // e.g. '04:00 PM'
+  teacherTime: string; // e.g. '04:00 PM'
+  time?: string; // fallback / legacy support
+}
+
 export interface EnrollmentStatusState {
   enrollmentDate: string;
   status: string;
@@ -59,7 +67,7 @@ export interface EnrollmentStatusState {
   isDiscontinued: boolean;
   classDuration: number;
   classesPerWeek: number;
-  classDays: Array<{ day: string; time: string }>;
+  classDays: ClassDaySchedule[];
   tier: string;
 }
 

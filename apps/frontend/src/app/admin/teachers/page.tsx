@@ -105,6 +105,22 @@ export default function TeachersManagementPage() {
     fetchTeachers();
   }, []);
 
+  // Restore teacher admission wizard draft if page is reloaded with an open form
+  useEffect(() => {
+    try {
+      const draftRaw = typeof window !== 'undefined' ? localStorage.getItem('quran_lms_teacher_wizard_draft') : null;
+      if (draftRaw) {
+        const draft = JSON.parse(draftRaw);
+        if (draft && draft.isOpen) {
+          setIsWizardOpen(true);
+          if (draft.editingTeacher) {
+            setEditingTeacher(draft.editingTeacher);
+          }
+        }
+      }
+    } catch (_) {}
+  }, []);
+
   const handleDeleteTeacher = async (id: string) => {
     if (!confirm('Are you sure you want to delete this teacher account?')) return;
     try {
@@ -265,7 +281,16 @@ export default function TeachersManagementPage() {
       label: 'Actions',
       align: 'right',
       render: (t) => (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setScheduleEditorTeacher(t)}
+            className="h-7 px-2.5 rounded-lg flex items-center gap-1.5 text-[11px] font-semibold bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20 transition-all mr-1.5 shadow-2xs"
+            title="Assign Classes & Schedule Slots"
+          >
+            <Calendar className="h-3.5 w-3.5" />
+            <span>Assign Class</span>
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger className="h-8 w-8 rounded-lg p-0 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/80 border border-transparent hover:border-border transition-colors">
               <MoreHorizontal className="h-4 w-4" />
@@ -279,8 +304,8 @@ export default function TeachersManagementPage() {
                 <span>View Full Profile</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setScheduleEditorTeacher(t)}>
-                <Calendar className="mr-2 h-4 w-4 text-purple-500" />
-                <span>Edit Schedule & Slots</span>
+                <Calendar className="mr-2 h-4 text-left w-4 text-purple-500" />
+                <span>Assign Class &amp; Schedule Slots</span>
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setAssigningTeacher(t)}>
                 <BookOpen className="mr-2 h-4 w-4 text-brand" />
@@ -386,7 +411,7 @@ export default function TeachersManagementPage() {
       </div>
 
       {/* Ribbon Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="glass-panel p-5 rounded-2xl flex items-center gap-4 border border-border/50">
           <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500">
             <BookUser className="h-6 w-6" />
@@ -426,7 +451,7 @@ export default function TeachersManagementPage() {
             <p className="text-xs text-muted-foreground font-medium">Total Monthly Payroll</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Reusable Paginated & Filterable Data Table */}
       <DataTable
@@ -446,8 +471,21 @@ export default function TeachersManagementPage() {
       {/* TEACHER WIZARD MODAL */}
       <TeacherWizard
         isOpen={isWizardOpen}
-        onClose={() => setIsWizardOpen(false)}
-        onSuccess={() => fetchTeachers()}
+        onClose={() => {
+          try {
+            localStorage.removeItem('quran_lms_teacher_wizard_draft');
+          } catch (_) {}
+          setIsWizardOpen(false);
+          setEditingTeacher(null);
+        }}
+        onSuccess={() => {
+          try {
+            localStorage.removeItem('quran_lms_teacher_wizard_draft');
+          } catch (_) {}
+          setIsWizardOpen(false);
+          setEditingTeacher(null);
+          fetchTeachers();
+        }}
         editingTeacher={editingTeacher}
       />
 

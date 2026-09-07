@@ -78,7 +78,7 @@ export default function Step5Permissions({
           <label className="relative inline-flex items-center cursor-pointer ml-4">
             <input
               type="checkbox"
-              checked={canEditProfile}
+              checked={!canEditProfile}
               onChange={(e) => setCanEditProfile(e.target.checked)}
               className="sr-only peer"
             />
@@ -100,7 +100,19 @@ export default function Step5Permissions({
             </div>
             <div>
               <span>Specialization: </span>
-              <strong className="text-foreground">{qualificationsInfo.specialization || '—'}</strong>
+              <strong className="text-foreground">
+                {Array.isArray(qualificationsInfo.specialization)
+                  ? qualificationsInfo.specialization.join(', ') || '—'
+                  : qualificationsInfo.specialization || '—'}
+              </strong>
+            </div>
+            <div>
+              <span>Degree / Qualification: </span>
+              <strong className="text-foreground">
+                {Array.isArray(qualificationsInfo.qualification)
+                  ? qualificationsInfo.qualification.join(', ') || '—'
+                  : qualificationsInfo.qualification || '—'}
+              </strong>
             </div>
             <div>
               <span>Compensation: </span>

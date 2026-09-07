@@ -54,7 +54,7 @@ export default function Step4FeesBilling({
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-semibold text-muted-foreground uppercase">Billing Currency</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Billing Currency *</label>
             <select
               value={feeInfo.currency}
               onChange={(e) => setFeeInfo((prev) => ({ ...prev, currency: e.target.value }))}

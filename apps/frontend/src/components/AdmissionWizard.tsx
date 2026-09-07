@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { User, Shield, GraduationCap, CreditCard, BookOpen, CheckCircle, XCircle } from 'lucide-react';
+import { User, Shield, GraduationCap, CreditCard, BookOpen, Calendar, CheckCircle, XCircle } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { CountryInfo, getAllCurrencies, getAllTimezones } from '@/utils/countries';
+import { getLanguagesForCountry } from '@/utils/country-languages';
 
 // Subcomponents & Types
-import { TeacherUser, PersonalInfoState, GuardianInfoState, EnrollmentStatusState, FeeInfoState } from './admission/types';
+import { TeacherUser, PersonalInfoState, GuardianInfoState, EnrollmentStatusState, FeeInfoState, ClassDaySchedule } from './admission/types';
 import AdmissionHeader from './admission/AdmissionHeader';
 import AdmissionStepper, { StepItem } from './admission/AdmissionStepper';
 import AdmissionFooter from './admission/AdmissionFooter';
@@ -15,6 +16,7 @@ import Step2GuardianInfo from './admission/Step2GuardianInfo';
 import Step3ScheduleTier from './admission/Step3ScheduleTier';
 import Step4FeesBilling from './admission/Step4FeesBilling';
 import Step5TeacherAssignment from './admission/Step5TeacherAssignment';
+import Step6ClassSchedule from './admission/Step6ClassSchedule';
 
 interface AdmissionWizardProps {
   isOpen: boolean;
@@ -22,6 +24,14 @@ interface AdmissionWizardProps {
   onSuccess: () => void;
   editingStudent?: any | null;
 }
+
+const DEFAULT_DAYS: ClassDaySchedule[] = [
+  { day: 'Mon', studentTime: '04:00 PM', teacherTime: '04:00 PM' },
+  { day: 'Tue', studentTime: '04:00 PM', teacherTime: '04:00 PM' },
+  { day: 'Wed', studentTime: '04:00 PM', teacherTime: '04:00 PM' },
+  { day: 'Thu', studentTime: '04:00 PM', teacherTime: '04:00 PM' },
+  { day: 'Fri', studentTime: '04:00 PM', teacherTime: '04:00 PM' },
+];
 
 export default function AdmissionWizard({
   isOpen,
@@ -51,7 +61,11 @@ export default function AdmissionWizard({
     timezone: 'Asia/Karachi',
     profilePicture: '',
     cameraRestricted: false,
+    languages: getLanguagesForCountry('PK'),
   });
+
+  // Track strict schedule conflicts with teacher
+  const [hasScheduleConflicts, setHasScheduleConflicts] = useState(false);
 
   // Step 2: Guardian Info (Mandatory)
   const [guardianInfo, setGuardianInfo] = useState<GuardianInfoState>({
@@ -63,30 +77,26 @@ export default function AdmissionWizard({
     guardianEmail: '',
   });
 
-  // Step 3: Enrollment Status, Weekdays & Time Slots
+  // Step 3 & 6: Enrollment Status & Class Schedule
+  // Default class duration is 30 minutes as requested
   const [enrollmentStatus, setEnrollmentStatus] = useState<EnrollmentStatusState>({
     enrollmentDate: new Date().toISOString().split('T')[0],
     status: 'Regular',
     trialStatus: 'N/A',
     isDiscontinued: false,
-    classDuration: 60,
+    classDuration: 30,
     classesPerWeek: 5,
-    classDays: [
-      { day: 'Mon', time: '16:00' },
-      { day: 'Tue', time: '16:00' },
-      { day: 'Wed', time: '16:00' },
-      { day: 'Thu', time: '16:00' },
-      { day: 'Fri', time: '16:00' },
-    ],
+    classDays: DEFAULT_DAYS,
     tier: 'Beginner',
   });
 
-  // Quick time setting helper state
-  const [bulkTime, setBulkTime] = useState('16:00');
+  // Bulk time helpers for Step 6 (individual for student and teacher)
+  const [bulkStudentTime, setBulkStudentTime] = useState('04:00 PM');
+  const [bulkTeacherTime, setBulkTeacherTime] = useState('04:00 PM');
 
   // Step 4: Fees & Billing
   const [feeInfo, setFeeInfo] = useState<FeeInfoState>({
-    monthlyFee: '50',
+    monthlyFee: '30',
     currency: 'USD',
     feeWaiverPercent: '0',
     customFeeNotes: '',
@@ -129,8 +139,8 @@ export default function AdmissionWizard({
 
   // Compute recommended monthly fee from duration & days per week
   const calculateDefaultFee = (duration: number, days: number, currency: string) => {
-    let rateMultiplier = 10;
-    if (duration === 30) rateMultiplier = 6;
+    let rateMultiplier = 6;
+    if (duration === 60) rateMultiplier = 10;
     else if (duration === 120) rateMultiplier = 18;
 
     let baseUSD = Math.max(days, 1) * rateMultiplier;
@@ -159,11 +169,13 @@ export default function AdmissionWizard({
 
   // Handle Country selection change
   const handleCountryChange = (country: CountryInfo) => {
+    const suggestedLangs = getLanguagesForCountry(country.code);
     setPersonalInfo((prev) => ({
       ...prev,
       country: country.code,
       phoneCode: country.phoneCode,
       timezone: country.timezone || prev.timezone,
+      languages: prev.languages && prev.languages.length > 0 ? prev.languages : suggestedLangs,
     }));
     setGuardianInfo((prev) => ({
       ...prev,
@@ -198,7 +210,8 @@ export default function AdmissionWizard({
               if (draft.personalInfo) setPersonalInfo(draft.personalInfo);
               if (draft.guardianInfo) setGuardianInfo(draft.guardianInfo);
               if (draft.enrollmentStatus) setEnrollmentStatus(draft.enrollmentStatus);
-              if (draft.bulkTime) setBulkTime(draft.bulkTime);
+              if (draft.bulkStudentTime) setBulkStudentTime(draft.bulkStudentTime);
+              if (draft.bulkTeacherTime) setBulkTeacherTime(draft.bulkTeacherTime);
               if (draft.feeInfo) setFeeInfo(draft.feeInfo);
               if (draft.selectedTeacherId !== undefined) setSelectedTeacherId(draft.selectedTeacherId);
               if (draft.assignTeacherLater !== undefined) setAssignTeacherLater(draft.assignTeacherLater);
@@ -227,6 +240,7 @@ export default function AdmissionWizard({
             timezone: editingStudent.timezone || 'Asia/Karachi',
             profilePicture: editingStudent.profilePicture || '',
             cameraRestricted: editingStudent.cameraRestricted || false,
+            languages: editingStudent.languages || editingStudent.profile?.languages || getLanguagesForCountry(editingStudent.country || 'PK'),
           });
 
           setGuardianInfo({
@@ -238,15 +252,14 @@ export default function AdmissionWizard({
             guardianEmail: editingStudent.guardianEmail || '',
           });
 
-          const initialDays = editingStudent.classDays && Array.isArray(editingStudent.classDays) && editingStudent.classDays.length > 0
-            ? editingStudent.classDays
-            : [
-              { day: 'Mon', time: '16:00' },
-              { day: 'Tue', time: '16:00' },
-              { day: 'Wed', time: '16:00' },
-              { day: 'Thu', time: '16:00' },
-              { day: 'Fri', time: '16:00' },
-            ];
+          const initialDays: ClassDaySchedule[] = editingStudent.classDays && Array.isArray(editingStudent.classDays) && editingStudent.classDays.length > 0
+            ? editingStudent.classDays.map((d: any) => ({
+                day: d.day,
+                studentTime: d.studentTime || d.time || '04:00 PM',
+                teacherTime: d.teacherTime || d.time || '04:00 PM',
+                time: d.time || d.studentTime || '04:00 PM',
+              }))
+            : DEFAULT_DAYS;
 
           setEnrollmentStatus({
             enrollmentDate: editingStudent.enrollmentDate
@@ -255,14 +268,14 @@ export default function AdmissionWizard({
             status: editingStudent.studentStatus || editingStudent.status || 'Regular',
             trialStatus: editingStudent.trialStatus || 'N/A',
             isDiscontinued: editingStudent.discontinued || false,
-            classDuration: editingStudent.classDuration || 60,
+            classDuration: editingStudent.classDuration || 30,
             classesPerWeek: initialDays.length,
             classDays: initialDays,
             tier: editingStudent.tier || 'Beginner',
           });
 
           setFeeInfo({
-            monthlyFee: editingStudent.monthlyFee ? String(editingStudent.monthlyFee) : (editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '50'),
+            monthlyFee: editingStudent.monthlyFee ? String(editingStudent.monthlyFee) : (editingStudent.monthlyFeeOverride ? String(editingStudent.monthlyFeeOverride) : '30'),
             currency: editingStudent.currency || 'USD',
             feeWaiverPercent: editingStudent.feeWaiverPercent ? String(editingStudent.feeWaiverPercent) : '0',
             customFeeNotes: editingStudent.customFeeNotes || '',
@@ -275,7 +288,7 @@ export default function AdmissionWizard({
           setSelectedTeacherId(teacherId);
           setAssignTeacherLater(!teacherId);
         } else {
-          // Reset for new student
+          // Reset for new student (default duration = 30)
           setPersonalInfo({
             name: '',
             preferredName: '',
@@ -289,6 +302,7 @@ export default function AdmissionWizard({
             timezone: 'Asia/Karachi',
             profilePicture: '',
             cameraRestricted: false,
+            languages: getLanguagesForCountry('PK'),
           });
           setGuardianInfo({
             guardianType: 'Father',
@@ -303,19 +317,13 @@ export default function AdmissionWizard({
             status: 'Regular',
             trialStatus: 'N/A',
             isDiscontinued: false,
-            classDuration: 60,
+            classDuration: 30,
             classesPerWeek: 5,
-            classDays: [
-              { day: 'Mon', time: '16:00' },
-              { day: 'Tue', time: '16:00' },
-              { day: 'Wed', time: '16:00' },
-              { day: 'Thu', time: '16:00' },
-              { day: 'Fri', time: '16:00' },
-            ],
+            classDays: DEFAULT_DAYS,
             tier: 'Beginner',
           });
           setFeeInfo({
-            monthlyFee: '50',
+            monthlyFee: '30',
             currency: 'USD',
             feeWaiverPercent: '0',
             customFeeNotes: '',
@@ -324,6 +332,8 @@ export default function AdmissionWizard({
           setNoteToTeacher('');
           setSelectedTeacherId('');
           setAssignTeacherLater(false);
+          setBulkStudentTime('04:00 PM');
+          setBulkTeacherTime('04:00 PM');
         }
       }
 
@@ -342,7 +352,8 @@ export default function AdmissionWizard({
         personalInfo,
         guardianInfo,
         enrollmentStatus,
-        bulkTime,
+        bulkStudentTime,
+        bulkTeacherTime,
         feeInfo,
         selectedTeacherId,
         assignTeacherLater,
@@ -361,7 +372,8 @@ export default function AdmissionWizard({
     personalInfo,
     guardianInfo,
     enrollmentStatus,
-    bulkTime,
+    bulkStudentTime,
+    bulkTeacherTime,
     feeInfo,
     selectedTeacherId,
     assignTeacherLater,
@@ -401,15 +413,22 @@ export default function AdmissionWizard({
 
   const computedAge = useMemo(() => calculateAgeAndType(personalInfo.dob), [personalInfo.dob]);
 
-  // Weekday selection & time helper handlers
+  // Weekday selection & dual-time handlers for Step 6
   const toggleDay = (dayKey: string) => {
     setEnrollmentStatus((prev) => {
       const exists = prev.classDays.some((d) => d.day === dayKey);
-      let updatedDays;
+      let updatedDays: ClassDaySchedule[];
       if (exists) {
         updatedDays = prev.classDays.filter((d) => d.day !== dayKey);
       } else {
-        updatedDays = [...prev.classDays, { day: dayKey, time: bulkTime || '16:00' }];
+        updatedDays = [
+          ...prev.classDays,
+          {
+            day: dayKey,
+            studentTime: bulkStudentTime || '04:00 PM',
+            teacherTime: bulkTeacherTime || '04:00 PM',
+          },
+        ];
       }
       return {
         ...prev,
@@ -419,45 +438,143 @@ export default function AdmissionWizard({
     });
   };
 
-  const updateDayTime = (dayKey: string, newTime: string) => {
+  const updateDayStudentTime = (dayKey: string, newTime: string) => {
     setEnrollmentStatus((prev) => ({
       ...prev,
-      classDays: prev.classDays.map((d) => (d.day === dayKey ? { ...d, time: newTime } : d)),
+      classDays: prev.classDays.map((d) => (d.day === dayKey ? { ...d, studentTime: newTime } : d)),
     }));
   };
 
-  const applyBulkTimeToAll = () => {
-    if (!bulkTime) return;
+  const updateDayTeacherTime = (dayKey: string, newTime: string) => {
     setEnrollmentStatus((prev) => ({
       ...prev,
-      classDays: prev.classDays.map((d) => ({ ...d, time: bulkTime })),
+      classDays: prev.classDays.map((d) => (d.day === dayKey ? { ...d, teacherTime: newTime } : d)),
+    }));
+  };
+
+  const applyBulkStudentTimeToAll = () => {
+    if (!bulkStudentTime) return;
+    setEnrollmentStatus((prev) => ({
+      ...prev,
+      classDays: prev.classDays.map((d) => ({ ...d, studentTime: bulkStudentTime })),
+    }));
+  };
+
+  const applyBulkTeacherTimeToAll = () => {
+    if (!bulkTeacherTime) return;
+    setEnrollmentStatus((prev) => ({
+      ...prev,
+      classDays: prev.classDays.map((d) => ({ ...d, teacherTime: bulkTeacherTime })),
     }));
   };
 
   if (!isOpen) return null;
 
+  // Step-by-step validation function
+  const validateStep = (stepNumber: number): string | null => {
+    if (stepNumber === 1) {
+      if (!personalInfo.name.trim()) return 'Full Name is required on Step 1.';
+      if (personalInfo.name.trim().length < 2) return 'Full Name must be at least 2 characters on Step 1.';
+      if (!personalInfo.email.trim()) return 'Email Address is required on Step 1.';
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(personalInfo.email.trim())) return 'Please enter a valid Email Address on Step 1.';
+      if (!editingStudent && (!personalInfo.password || personalInfo.password.length < 6)) {
+        return 'Account Password is required for new student on Step 1 (minimum 6 characters).';
+      }
+      if (!personalInfo.country || !personalInfo.country.trim()) return 'Student Country is required on Step 1.';
+      if (!personalInfo.phone || !personalInfo.phone.trim()) return 'Student Phone Number is required on Step 1.';
+      const digits = personalInfo.phone.replace(/\D/g, '');
+      if (digits.length < 7) return 'Student Phone Number must contain at least 7 digits on Step 1.';
+      if (!personalInfo.languages || personalInfo.languages.length === 0) {
+        return 'Please select at least one Spoken/Preferred Language on Step 1.';
+      }
+      if (!personalInfo.gender) return 'Please select a Gender on Step 1.';
+      if (!personalInfo.dob) return 'Date of Birth is required on Step 1.';
+      const dobDate = new Date(personalInfo.dob);
+      if (isNaN(dobDate.getTime()) || dobDate >= new Date()) {
+        return 'Date of Birth must be a valid date in the past on Step 1.';
+      }
+      if (!personalInfo.timezone || !personalInfo.timezone.trim()) return 'Timezone is required on Step 1.';
+    } else if (stepNumber === 2) {
+      if (!guardianInfo.guardianType) return 'Guardian Relationship is required on Step 2.';
+      if (guardianInfo.guardianType === 'Other' && (!guardianInfo.guardianTypeOther || guardianInfo.guardianTypeOther.trim().length < 2)) {
+        return 'Please specify the guardian relationship on Step 2 (minimum 2 characters).';
+      }
+      if (!guardianInfo.guardianName || !guardianInfo.guardianName.trim()) return 'Guardian Full Name is required on Step 2.';
+      if (guardianInfo.guardianName.trim().length < 2) return 'Guardian Full Name must be at least 2 characters on Step 2.';
+      if (!guardianInfo.guardianPhone || !guardianInfo.guardianPhone.trim()) return 'Guardian Contact Phone is required on Step 2.';
+      const guardianDigits = guardianInfo.guardianPhone.replace(/\D/g, '');
+      if (guardianDigits.length < 7) return 'Guardian Contact Phone must contain at least 7 digits on Step 2.';
+      if (guardianInfo.guardianEmail && guardianInfo.guardianEmail.trim()) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(guardianInfo.guardianEmail.trim())) {
+          return 'Please provide a valid Guardian Email Address on Step 2, or leave it blank.';
+        }
+      }
+    } else if (stepNumber === 3) {
+      if (!enrollmentStatus.tier) return 'Student Tier / Level is required on Step 3.';
+      if (!enrollmentStatus.classDuration || ![30, 60, 120].includes(Number(enrollmentStatus.classDuration))) {
+        return 'Class Duration is required on Step 3.';
+      }
+      if (!enrollmentStatus.enrollmentDate) return 'Enrollment Start Date is required on Step 3.';
+      if (!enrollmentStatus.status) return 'Student Admission Status is required on Step 3.';
+    } else if (stepNumber === 4) {
+      if (feeInfo.monthlyFee === '' || isNaN(Number(feeInfo.monthlyFee)) || Number(feeInfo.monthlyFee) < 0) {
+        return 'Monthly Tuition Fee must be a valid non-negative number on Step 4.';
+      }
+      if (!feeInfo.currency || !feeInfo.currency.trim()) return 'Billing Currency is required on Step 4.';
+      if (feeInfo.feeWaiverPercent !== '' && (isNaN(Number(feeInfo.feeWaiverPercent)) || Number(feeInfo.feeWaiverPercent) < 0 || Number(feeInfo.feeWaiverPercent) > 100)) {
+        return 'Fee Waiver must be a percentage between 0 and 100 on Step 4.';
+      }
+    } else if (stepNumber === 5) {
+      if (!assignTeacherLater && (!selectedTeacherId || !selectedTeacherId.trim())) {
+        return 'Please select an Instructor / Teacher on Step 5, or check "Assign teacher later".';
+      }
+    } else if (stepNumber === 6) {
+      if (!enrollmentStatus.classDays || enrollmentStatus.classDays.length === 0) {
+        return 'Please select at least one active class weekday on Step 6.';
+      }
+      for (const d of enrollmentStatus.classDays) {
+        if (!d.studentTime || !d.studentTime.trim()) {
+          return `Please configure student time for ${d.day} on Step 6.`;
+        }
+        if (!d.teacherTime || !d.teacherTime.trim()) {
+          return `Please configure teacher time for ${d.day} on Step 6.`;
+        }
+      }
+      if (hasScheduleConflicts) {
+        return 'Cannot proceed: The selected teacher already has another class scheduled during one or more selected time slots. A single slot cannot be assigned to multiple students. Please resolve conflicting timings.';
+      }
+    }
+    return null;
+  };
+
   const handleNext = () => {
     setErrorMsg(null);
-    if (step === 1) {
-      if (!personalInfo.name.trim() || !personalInfo.email.trim() || (!editingStudent && !personalInfo.password)) {
-        setErrorMsg('Please complete all required fields (Name, Email, Password).');
-        return;
-      }
-    } else if (step === 2) {
-      if (!guardianInfo.guardianName.trim()) {
-        setErrorMsg('Guardian Full Name is required.');
-        return;
-      }
-      if (guardianInfo.guardianType === 'Other' && !guardianInfo.guardianTypeOther.trim()) {
-        setErrorMsg('Please specify the guardian relationship.');
-        return;
-      }
-      if (!guardianInfo.guardianPhone.trim()) {
-        setErrorMsg('Guardian Contact Phone is required.');
+    const err = validateStep(step);
+    if (err) {
+      setErrorMsg(err);
+      return;
+    }
+    setStep((prev) => Math.min(prev + 1, 6));
+  };
+
+  const handleStepClick = (targetStep: number) => {
+    setErrorMsg(null);
+    if (targetStep < step) {
+      setStep(targetStep);
+      return;
+    }
+    // Validate each step before allowing skip to targetStep
+    for (let s = 1; s < targetStep; s++) {
+      const err = validateStep(s);
+      if (err) {
+        setErrorMsg(err);
+        setStep(s);
         return;
       }
     }
-    setStep((prev) => Math.min(prev + 1, 5));
+    setStep(targetStep);
   };
 
   const handleBack = () => {
@@ -471,28 +588,20 @@ export default function AdmissionWizard({
     }
     setErrorMsg(null);
 
-    // Validate step 1 fields
-    if (!personalInfo.name.trim() || !personalInfo.email.trim() || (!editingStudent && !personalInfo.password)) {
-      setErrorMsg('Please complete all required fields on Step 1 (Name, Email, Password).');
-      setStep(1);
+    // Guard: strictly do not allow submission unless on the final step (Step 6)
+    if (step < 6) {
+      handleNext();
       return;
     }
 
-    // Validate step 2 fields
-    if (!guardianInfo.guardianName.trim()) {
-      setErrorMsg('Guardian Full Name is required on Step 2.');
-      setStep(2);
-      return;
-    }
-    if (!guardianInfo.guardianPhone.trim()) {
-      setErrorMsg('Guardian Contact Phone is required on Step 2.');
-      setStep(2);
-      return;
-    }
-    if (guardianInfo.guardianType === 'Other' && !guardianInfo.guardianTypeOther.trim()) {
-      setErrorMsg('Please specify the guardian relationship on Step 2.');
-      setStep(2);
-      return;
+    // Comprehensive validation across all steps before submitting
+    for (let s = 1; s <= 6; s++) {
+      const err = validateStep(s);
+      if (err) {
+        setErrorMsg(err);
+        setStep(s);
+        return;
+      }
     }
 
     setSubmitting(true);
@@ -512,6 +621,7 @@ export default function AdmissionWizard({
         timezone: personalInfo.timezone,
         profilePicture: personalInfo.profilePicture || undefined,
         cameraRestricted: personalInfo.cameraRestricted,
+        languages: personalInfo.languages || [],
 
         // Step 2: Guardian
         guardianType: guardianInfo.guardianType,
@@ -520,19 +630,24 @@ export default function AdmissionWizard({
         guardianPhone: guardianInfo.guardianPhone.trim(),
         guardianEmail: guardianInfo.guardianEmail?.trim() || undefined,
 
-        // Step 3: Enrollment
+        // Step 3 & 6: Enrollment & Schedule
         enrollmentDate: enrollmentStatus.enrollmentDate || undefined,
         studentStatus: enrollmentStatus.status,
         trialStatus: enrollmentStatus.trialStatus,
         discontinued: enrollmentStatus.isDiscontinued,
-        classDuration: enrollmentStatus.classDuration ? Number(enrollmentStatus.classDuration) : 60,
+        classDuration: enrollmentStatus.classDuration ? Number(enrollmentStatus.classDuration) : 30,
         classesPerWeek: enrollmentStatus.classDays.length,
-        classDays: enrollmentStatus.classDays,
+        classDays: enrollmentStatus.classDays.map((d) => ({
+          day: d.day,
+          studentTime: d.studentTime || '04:00 PM',
+          teacherTime: d.teacherTime || '04:00 PM',
+          time: d.studentTime || '04:00 PM', // legacy support
+        })),
         tier: enrollmentStatus.tier,
 
         // Step 4: Fees
-        monthlyFee: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
-        monthlyFeeOverride: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 50,
+        monthlyFee: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 30,
+        monthlyFeeOverride: feeInfo.monthlyFee ? Number(feeInfo.monthlyFee) : 30,
         currency: feeInfo.currency || 'USD',
         feeWaiverPercent: feeInfo.feeWaiverPercent ? Number(feeInfo.feeWaiverPercent) : 0,
         customFeeNotes: feeInfo.customFeeNotes?.trim() || undefined,
@@ -549,7 +664,6 @@ export default function AdmissionWizard({
       let studentData: any = null;
 
       if (editingStudent) {
-        // When editing an existing student, password and email are handled separately
         delete userPayload.password;
         delete userPayload.email;
 
@@ -599,20 +713,13 @@ export default function AdmissionWizard({
     }
   };
 
-  const handleFooterNext = () => {
-    if (step < 5) {
-      handleNext();
-    } else {
-      handleSubmit();
-    }
-  };
-
   const STEPS: StepItem[] = [
     { num: 1, label: 'Personal & Country', icon: User },
     { num: 2, label: 'Guardian Details', icon: Shield },
-    { num: 3, label: 'Schedule & Tier', icon: GraduationCap },
+    { num: 3, label: 'Tier & Enrollment', icon: GraduationCap },
     { num: 4, label: 'Fees & Billing', icon: CreditCard },
-    { num: 5, label: 'Teacher & Note', icon: BookOpen },
+    { num: 5, label: 'Teacher Assignment', icon: BookOpen },
+    { num: 6, label: 'Class Schedule', icon: Calendar },
   ];
 
   return (
@@ -621,7 +728,7 @@ export default function AdmissionWizard({
         {/* 1. Header */}
         <AdmissionHeader
           step={step}
-          totalSteps={5}
+          totalSteps={6}
           editingStudent={editingStudent}
           onClose={handleClose}
         />
@@ -631,11 +738,11 @@ export default function AdmissionWizard({
           <AdmissionStepper
             steps={STEPS}
             currentStep={step}
-            onStepClick={(sNum) => setStep(sNum)}
+            onStepClick={handleStepClick}
           />
         )}
 
-        {/* 3. Main Independent Scrollable Body with generous bottom spacing */}
+        {/* 3. Main Independent Scrollable Body */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 md:px-10 py-6 sm:py-7">
           <div className="max-w-4xl mx-auto w-full pb-12">
             {/* Error Alert */}
@@ -671,7 +778,18 @@ export default function AdmissionWizard({
                 </div>
               </div>
             ) : (
-              <form id="admission-wizard-form" onSubmit={handleSubmit} className="space-y-6">
+              <form
+                id="admission-wizard-form"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (step < 6) {
+                    handleNext();
+                  } else {
+                    handleSubmit(e);
+                  }
+                }}
+                className="space-y-6"
+              >
                 {step === 1 && (
                   <Step1PersonalInfo
                     personalInfo={personalInfo}
@@ -700,11 +818,6 @@ export default function AdmissionWizard({
                   <Step3ScheduleTier
                     enrollmentStatus={enrollmentStatus}
                     setEnrollmentStatus={setEnrollmentStatus}
-                    bulkTime={bulkTime}
-                    setBulkTime={setBulkTime}
-                    onToggleDay={toggleDay}
-                    onUpdateDayTime={updateDayTime}
-                    onApplyBulkTime={applyBulkTimeToAll}
                   />
                 )}
 
@@ -726,16 +839,29 @@ export default function AdmissionWizard({
                     setSelectedTeacherId={setSelectedTeacherId}
                     assignTeacherLater={assignTeacherLater}
                     setAssignTeacherLater={setAssignTeacherLater}
-                    enrollmentStatus={enrollmentStatus}
-                    onToggleDay={toggleDay}
-                    onUpdateDayTime={updateDayTime}
-                    bulkTime={bulkTime}
-                    setBulkTime={setBulkTime}
-                    onApplyBulkTime={applyBulkTimeToAll}
                     noteToTeacher={noteToTeacher}
                     setNoteToTeacher={setNoteToTeacher}
                     cameraRestricted={personalInfo.cameraRestricted}
                     setCameraRestricted={(val) => setPersonalInfo((prev) => ({ ...prev, cameraRestricted: val }))}
+                  />
+                )}
+
+                {step === 6 && (
+                  <Step6ClassSchedule
+                    enrollmentStatus={enrollmentStatus}
+                    setEnrollmentStatus={setEnrollmentStatus}
+                    selectedTeacherId={selectedTeacherId}
+                    teachers={teachers}
+                    onToggleDay={toggleDay}
+                    onUpdateDayStudentTime={updateDayStudentTime}
+                    onUpdateDayTeacherTime={updateDayTeacherTime}
+                    bulkStudentTime={bulkStudentTime}
+                    setBulkStudentTime={setBulkStudentTime}
+                    bulkTeacherTime={bulkTeacherTime}
+                    setBulkTeacherTime={setBulkTeacherTime}
+                    onApplyBulkStudentTime={applyBulkStudentTimeToAll}
+                    onApplyBulkTeacherTime={applyBulkTeacherTimeToAll}
+                    onConflictsChange={setHasScheduleConflicts}
                   />
                 )}
               </form>
@@ -747,12 +873,13 @@ export default function AdmissionWizard({
         {!completedMessage && (
           <AdmissionFooter
             step={step}
-            totalSteps={5}
+            totalSteps={6}
             currentStepItem={STEPS[step - 1]}
             submitting={submitting}
             editingStudent={editingStudent}
             onBack={handleBack}
-            onNext={handleFooterNext}
+            onNext={handleNext}
+            onSubmit={handleSubmit}
           />
         )}
       </div>

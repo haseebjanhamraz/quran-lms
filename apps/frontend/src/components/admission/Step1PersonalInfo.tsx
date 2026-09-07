@@ -5,6 +5,7 @@ import { User, Sparkles, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import ProfilePhotoPicker from '../ProfilePhotoPicker';
 import CountrySelect from '../CountrySelect';
 import CountryPhoneInput from '../CountryPhoneInput';
+import LanguageSelector from '../ui/LanguageSelector';
 import { PersonalInfoState } from './types';
 import { CountryInfo } from '@/utils/countries';
 
@@ -164,7 +165,7 @@ export default function Step1PersonalInfo({
         {/* Phone with Country Dial Code */}
         <div className="space-y-1">
           <CountryPhoneInput
-            label="Student Phone Number"
+            label="Student Phone Number *"
             countryCode={personalInfo.country}
             phoneCode={personalInfo.phoneCode}
             value={personalInfo.phone}
@@ -175,8 +176,18 @@ export default function Step1PersonalInfo({
           />
         </div>
 
+        {/* Spoken / Preferred Languages */}
+        <div className="space-y-1 md:col-span-2">
+          <LanguageSelector
+            label="Spoken / Preferred Languages *"
+            placeholder="Select language or type custom..."
+            value={personalInfo.languages}
+            onChange={(langs) => setPersonalInfo((prev) => ({ ...prev, languages: langs }))}
+          />
+        </div>
+
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted-foreground uppercase">Gender</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase">Gender *</label>
           <select
             value={personalInfo.gender}
             onChange={(e) => setPersonalInfo((prev) => ({ ...prev, gender: e.target.value }))}
@@ -189,7 +200,7 @@ export default function Step1PersonalInfo({
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-semibold text-muted-foreground uppercase">Date of Birth</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase">Date of Birth *</label>
           <div className="flex gap-2 items-center">
             <input
               type="date"
@@ -207,7 +218,7 @@ export default function Step1PersonalInfo({
         </div>
 
         <div className="space-y-1 md:col-span-2">
-          <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone (Auto-filled from Country)</label>
+          <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone * (Auto-filled from Country)</label>
           <select
             value={personalInfo.timezone}
             onChange={(e) => setPersonalInfo((prev) => ({ ...prev, timezone: e.target.value }))}

@@ -17,7 +17,7 @@ export default function TeacherStepper({
 }: TeacherStepperProps) {
   return (
     <div className="shrink-0 border-b border-border/60 bg-card/40 backdrop-blur-md px-6 py-3.5 z-10">
-      <div className="max-w-4xl mx-auto flex items-center justify-between">
+      <div className="max-w-7xl mx-auto flex items-center justify-between">
         {steps.map((s, idx) => {
           const Icon = s.icon;
           const isDone = currentStep > s.num;

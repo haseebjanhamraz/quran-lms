@@ -33,6 +33,7 @@ export interface TeacherUser {
   role: string;
   gender?: string;
   country?: string;
+  languages?: string[];
   phone?: string;
   phoneCode?: string;
   qualification?: string;
@@ -218,7 +219,7 @@ export default function TeacherDetailModal({
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 bg-background/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
       {/* Fullscreen Dialog Container */}
-      <div className="glass-panel w-full max-w-5xl h-[92vh] max-h-[920px] rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col my-auto overflow-hidden bg-card/95">
+      <div className="glass-panel w-full max-w-7xl h-[92vh] max-h-[920px] rounded-3xl p-6 sm:p-8 shadow-2xl relative border border-border flex flex-col my-auto overflow-hidden bg-card/95">
 
         {/* Top Floating Glow Backdrop */}
         <div className="absolute top-0 right-1/4 w-96 h-96 bg-brand/10 rounded-full blur-3xl pointer-events-none" />
@@ -493,6 +494,20 @@ export default function TeacherDetailModal({
                     <span className="text-muted-foreground font-medium">Gender:</span>
                     <span className="font-semibold text-foreground">{teacher.gender || 'Not specified'}</span>
                   </div>
+                  <div className="flex justify-between py-1 border-b border-border/30 items-center">
+                    <span className="text-muted-foreground font-medium">Languages:</span>
+                    <span className="font-semibold text-foreground flex flex-wrap gap-1 justify-end max-w-[60%]">
+                      {teacher.languages && teacher.languages.length > 0 ? (
+                        teacher.languages.map((l) => (
+                          <span key={l} className="px-2 py-0.5 rounded-md bg-primary/10 text-primary border border-primary/20 text-[11px]">
+                            {l}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-muted-foreground italic">Not specified</span>
+                      )}
+                    </span>
+                  </div>
                   <div className="flex justify-between py-1 border-b border-border/30">
                     <span className="text-muted-foreground font-medium">Timezone Region:</span>
                     <span className="font-mono font-semibold text-foreground">{teacher.timezone || 'UTC'}</span>
@@ -582,6 +597,7 @@ export default function TeacherDetailModal({
                 specialization={teacher.specialization || 'Tajweed & Quranic Studies'}
                 coursesCount={courses.length}
                 studentsCount={uniqueStudents.length}
+                totalClasses={(teacher as any).totalClasses || (teacher as any).teacherProfile?.profile?.totalClasses}
               />
             </div>
           )}
