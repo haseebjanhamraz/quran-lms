@@ -11,13 +11,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const pathname = usePathname();
 
+  const isViewer = pathname?.includes('/materials/view/');
+
   useEffect(() => {
-    if (!loading && (!user || (user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN'))) {
+    if (loading) return;
+    if (!user) {
+      router.replace('/login');
+      return;
+    }
+    if (!isViewer && user.role !== 'SUPER_ADMIN' && user.role !== 'ADMIN') {
       router.replace('/login');
     }
-  }, [user, loading, router]);
-
-  const isViewer = pathname?.includes('/materials/view/');
+  }, [user, loading, router, isViewer]);
 
   if (isViewer) {
     if (loading) {

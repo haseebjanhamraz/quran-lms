@@ -831,4 +831,128 @@ export class UsersService {
       this.logger.warn(`Non-fatal error during schedule sync for student ${studentUserId}:`, err);
     }
   }
+
+  async findTeacherStudents(teacherId: string) {
+    const teacherFilter: any[] = [teacherId];
+    if (Types.ObjectId.isValid(teacherId)) {
+      teacherFilter.push(new Types.ObjectId(teacherId));
+    }
+
+    // 1. Find all student profiles where assignedTeacher matches
+    const studentProfiles = await this.studentModel
+      .find({
+        'profile.assignedTeacher': { $in: teacherFilter },
+      })
+      .populate({
+        path: 'userId',
+        model: 'User',
+        select: 'id name preferredName profilePicture status',
+      })
+      .lean();
+
+    // 2. Also find all class sessions with this teacher
+    const sessions = await this.classSessionModel
+      .find({ teacherId: { $in: teacherFilter } })
+      .populate('course', 'title type')
+      .populate('student', 'id name preferredName profilePicture status studentId')
+      .sort({ scheduledAt: 1 })
+      .lean();
+
+    const studentMap = new Map<string, any>();
+
+    for (const sp of studentProfiles) {
+      const u = sp.userId as any;
+      if (!u) continue;
+      const sId = (u.id || u._id).toString();
+      studentMap.set(sId, {
+        id: sId,
+        _id: sId,
+        name: u.name,
+        preferredName: u.preferredName || u.name,
+        profilePicture: u.profilePicture,
+        status: u.status,
+        studentId: sp.studentId,
+        languages: sp.profile?.languages && sp.profile.languages.length > 0 ? sp.profile.languages : ['English'],
+        classDays: sp.profile?.classDays || [],
+        classDuration: sp.profile?.classDuration || 30,
+        classesPerWeek: sp.profile?.classesPerWeek || 0,
+        tier: sp.profile?.tier || 'Beginner',
+        courseTitle: '',
+        todaySession: null,
+        nextSession: null,
+        totalCompletedSessions: 0,
+        totalSessionsCount: 0,
+      });
+    }
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    for (const sess of (sessions as any[])) {
+      const s = sess.student;
+      if (!s) continue;
+      const sId = (s.id || s._id).toString();
+
+      if (!studentMap.has(sId)) {
+        const studentDoc = await this.studentModel.findOne({ userId: sId }).lean();
+        studentMap.set(sId, {
+          id: sId,
+          _id: sId,
+          name: s.name,
+          preferredName: s.preferredName || s.name,
+          profilePicture: s.profilePicture,
+          status: s.status,
+          studentId: s.studentId || studentDoc?.studentId,
+          languages: studentDoc?.profile?.languages && studentDoc.profile.languages.length > 0 ? studentDoc.profile.languages : ['English'],
+          classDays: studentDoc?.profile?.classDays || [],
+          classDuration: sess.durationMinutes || studentDoc?.profile?.classDuration || 30,
+          classesPerWeek: studentDoc?.profile?.classesPerWeek || 0,
+          tier: studentDoc?.profile?.tier || 'Beginner',
+          courseTitle: (sess.course as any)?.title || 'Quran Studies',
+          todaySession: null,
+          nextSession: null,
+          totalCompletedSessions: 0,
+          totalSessionsCount: 0,
+        });
+      }
+
+      const entry = studentMap.get(sId);
+      entry.totalSessionsCount += 1;
+
+      if (!entry.courseTitle && sess.course) {
+        entry.courseTitle = (sess.course as any).title;
+      }
+
+      const sessDate = new Date(sess.scheduledAt);
+      const isToday = sessDate >= startOfToday && sessDate <= endOfToday;
+
+      if (sess.status === 'COMPLETED') {
+        entry.totalCompletedSessions += 1;
+      }
+
+      const sessionObj = {
+        id: (sess._id || sess.id).toString(),
+        scheduledAt: sess.scheduledAt,
+        durationMinutes: sess.durationMinutes,
+        status: sess.status,
+        livekitRoomId: sess.livekitRoomId,
+        courseTitle: (sess.course as any)?.title || entry.courseTitle,
+      };
+
+      if (isToday) {
+        if (!entry.todaySession || sess.status === 'LIVE' || (entry.todaySession.status !== 'LIVE' && sess.status === 'SCHEDULED')) {
+          entry.todaySession = sessionObj;
+        }
+      }
+
+      if (sessDate >= now && sess.status !== 'COMPLETED' && sess.status !== 'CANCELLED') {
+        if (!entry.nextSession || new Date(entry.nextSession.scheduledAt) > sessDate) {
+          entry.nextSession = sessionObj;
+        }
+      }
+    }
+
+    return Array.from(studentMap.values());
+  }
 }

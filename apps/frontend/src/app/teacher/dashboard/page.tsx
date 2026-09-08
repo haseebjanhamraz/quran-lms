@@ -23,6 +23,7 @@ import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useUrlState } from '@/hooks/useUrlState';
 import Navbar from '@/components/Navbar';
+import MaterialsManager from '@/components/materials/MaterialsManager';
 
 // Interfaces
 interface SessionItem {
@@ -30,8 +31,18 @@ interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'ACTIVATED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   livekitRoomId?: string;
+  student?: {
+    id?: string;
+    _id?: string;
+    name?: string;
+    preferredName?: string;
+    email?: string;
+    timezone?: string;
+    studentId?: string | number;
+    profilePicture?: string;
+  };
   recording?: { filePath: string | null; status: string } | null;
 }
 
@@ -42,11 +53,37 @@ interface Course {
   _count?: { enrollments: number; classSessions: number };
 }
 
-interface StudentRecord {
+export interface StudentRecord {
   id: string;
+  _id?: string;
   name: string;
-  email: string;
+  preferredName?: string;
+  profilePicture?: string;
+  studentId?: string | number;
+  languages?: string[];
   courseTitle: string;
+  classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>;
+  classDuration?: number;
+  classesPerWeek?: number;
+  tier?: string;
+  todaySession?: {
+    id: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    status: 'SCHEDULED' | 'ACTIVATED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
+    livekitRoomId?: string;
+    courseTitle?: string;
+  } | null;
+  nextSession?: {
+    id: string;
+    scheduledAt: string;
+    durationMinutes: number;
+    status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+    livekitRoomId?: string;
+    courseTitle?: string;
+  } | null;
+  totalCompletedSessions?: number;
+  totalSessionsCount?: number;
 }
 
 interface TeacherStats {
@@ -66,7 +103,7 @@ interface TeacherStats {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-const TABS = ['Dashboard', 'Schedule', 'My Courses', 'My Students', 'Class Recordings'] as const;
+const TABS = ['Dashboard', 'Schedule', 'My Courses', 'My Students', 'Course Materials', 'Class Recordings'] as const;
 type TabType = (typeof TABS)[number];
 
 export default function TeacherDashboard() {
@@ -199,30 +236,19 @@ export default function TeacherDashboard() {
     if (!user?.id) return;
     setStudentsLoading(true);
     try {
-      const coursesRes = await apiFetch(`${API_URL}/courses/teacher/${user.id}`);
-      if (coursesRes.ok) {
-        const coursesData = await coursesRes.json();
-        const roster: StudentRecord[] = [];
-
-        for (const c of coursesData) {
-          const detailRes = await apiFetch(`${API_URL}/courses/${c.id}`);
-          if (detailRes.ok) {
-            const detailData = await detailRes.json();
-            if (detailData.enrollments) {
-              detailData.enrollments.forEach((enroll: any) => {
-                roster.push({
-                  id: enroll.student?.id || enroll.student?._id,
-                  name: enroll.student?.name || 'Enrolled Student',
-                  email: enroll.student?.email || '',
-                  courseTitle: c.title,
-                });
-              });
-            }
-          }
+      const res = await apiFetch(`${API_URL}/users/teacher/students`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setStudents(data);
+          return;
         }
-        setStudents(roster);
       }
-    } catch (_) {
+      // Fallback if needed
+      setStudents([]);
+    } catch (err) {
+      console.error('Error fetching teacher students:', err);
+      setStudents([]);
     } finally {
       setStudentsLoading(false);
     }
@@ -328,6 +354,7 @@ export default function TeacherDashboard() {
 
     fetchStats();
     fetchSessions();
+    fetchStudents();
     fetchLeaves();
     fetchLeaveBalance();
     fetchReviews();
@@ -337,7 +364,7 @@ export default function TeacherDashboard() {
     } else if (activeTab === 'My Students') {
       fetchStudents();
     }
-  }, [user, authLoading, activeTab, fetchStats, fetchSessions, fetchLeaves, fetchLeaveBalance, fetchReviews, fetchCourses, fetchStudents, router]);
+  }, [user, authLoading, activeTab, fetchStats, fetchSessions, fetchStudents, fetchLeaves, fetchLeaveBalance, fetchReviews, fetchCourses, router]);
 
   // Periodic polling for recording upload status updates (every 5 seconds)
   useEffect(() => {
@@ -436,15 +463,28 @@ export default function TeacherDashboard() {
 
         {/* 4. My Students Tab */}
         {activeTab === 'My Students' && (
-          <>
-            <StudentsTab
-              students={students}
-              studentsLoading={studentsLoading}
-            />
-          </>
+          <StudentsTab
+            students={students}
+            studentsLoading={studentsLoading}
+            sessions={sessions}
+            handleStartClass={handleStartClass}
+            handleActivateClass={handleActivateClass}
+            startingId={startingId}
+            onNavigateSchedule={() => setActiveTab('Schedule')}
+            onRefreshStudents={fetchStudents}
+          />
         )}
 
-        {/* 5. Class Recordings Tab */}
+        {/* 5. Course Materials Tab */}
+        {activeTab === 'Course Materials' && (
+          <MaterialsManager
+            userRole="TEACHER"
+            title="Teaching Materials & Curriculum Guides"
+            subtitle="Access, preview, and upload curriculum PDFs, tajweed manuals, and student study guides."
+          />
+        )}
+
+        {/* 6. Class Recordings Tab */}
         {activeTab === 'Class Recordings' && (
           <>
             <RecordingsTab

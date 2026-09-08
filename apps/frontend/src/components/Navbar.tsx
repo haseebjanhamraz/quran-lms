@@ -103,16 +103,14 @@ const ADMIN_PRIMARY_NAV: NavItemConfig[] = [
   { label: 'Courses', icon: BookOpen, href: '/admin/courses', permission: 'courses.read' },
   { label: 'Materials (PDF)', icon: FileText, href: '/admin/materials' },
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule', permission: 'schedule.read' },
-  { label: 'HR & Finance', icon: Briefcase, href: '/admin/hr', permission: 'hr.read' },
+  { label: 'Finances', icon: Briefcase, href: '/admin/hr', permission: 'hr.read' },
 ];
 
 const ADMIN_MORE_NAV: NavItemConfig[] = [
   { label: 'Leave Requests', icon: PlaneTakeoff, href: '/admin/leave-requests', permission: 'leave.read' },
-  { label: 'Fees Collection', icon: CreditCard, href: '/admin/hr?tab=fees', permission: 'fees.read' },
   { label: 'Users & Accounts', icon: Users, href: '/admin/users', permission: 'users.read' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments', permission: 'enrollments.read' },
   { label: 'Supervisor Assignments', icon: ShieldCheck, href: '/admin/supervisor-assignments', permission: 'supervisors.read' },
-  { label: 'AI Quality Reports', icon: Sparkles, href: '/admin/reports', permission: 'reports.read' },
   { label: 'Audit Logs', icon: Activity, href: '/admin/audit-logs', permission: 'audit-logs.read' },
   { label: 'Feedback & Complaints', icon: Clock, href: '/admin/feedback', permission: 'feedback.read' },
   { label: 'Roles & Permissions', icon: Shield, href: '/admin/roles-permissions' },
@@ -128,11 +126,12 @@ const HR_PRIMARY_NAV: NavItemConfig[] = [
 ];
 
 const TEACHER_DEFAULT_TABS: NavItemConfig[] = [
-  { key: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { key: 'Schedule', label: 'Schedule', icon: Calendar },
-  { key: 'My Courses', label: 'My Courses', icon: BookOpen },
-  { key: 'My Students', label: 'My Students', icon: GraduationCap },
-  { key: 'Class Recordings', label: 'Class Recordings', icon: Video },
+  { key: 'Dashboard', label: 'Dashboard', icon: LayoutDashboard, href: '/teacher/dashboard?tab=Dashboard' },
+  { key: 'Schedule', label: 'Schedule', icon: Calendar, href: '/teacher/dashboard?tab=Schedule' },
+  { key: 'My Courses', label: 'My Courses', icon: BookOpen, href: '/teacher/dashboard?tab=My+Courses' },
+  { key: 'My Students', label: 'My Students', icon: GraduationCap, href: '/teacher/dashboard?tab=My+Students' },
+  { key: 'Course Materials', label: 'Course Materials', icon: FileText, href: '/teacher/materials' },
+  { key: 'Class Recordings', label: 'Class Recordings', icon: Video, href: '/teacher/dashboard?tab=Class+Recordings' },
 ];
 
 const STUDENT_DEFAULT_TABS: NavItemConfig[] = [

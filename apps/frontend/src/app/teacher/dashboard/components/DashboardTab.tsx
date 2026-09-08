@@ -64,16 +64,23 @@ export default function DashboardTab({
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  const isSameDay = (isoDate: string, targetDateStr: string) => {
+    try {
+      const d = new Date(isoDate);
+      const isoYMD = d.toISOString().split('T')[0];
+      if (isoYMD === targetDateStr) return true;
+      const localYMD = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (localYMD === targetDateStr) return true;
+      const pktYMD = d.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
+      return pktYMD === targetDateStr;
+    } catch (_) {
+      return false;
+    }
+  };
+
   const daySessions = useMemo(() => {
     return sessions
-      .filter((s) => {
-        try {
-          const sDate = new Date(s.scheduledAt).toISOString().split('T')[0];
-          return sDate === selectedDate;
-        } catch (_) {
-          return false;
-        }
-      })
+      .filter((s) => isSameDay(s.scheduledAt, selectedDate))
       .filter((s) => {
         if (!searchQuery.trim()) return true;
         const q = searchQuery.toLowerCase();
@@ -84,16 +91,18 @@ export default function DashboardTab({
       .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
   }, [sessions, selectedDate, searchQuery]);
 
-  const handleSetToday = () => setSelectedDate(new Date().toISOString().split('T')[0]);
+  const handleSetToday = () => {
+    setSelectedDate(todayStr);
+  };
   const handleSetYesterday = () => {
     const d = new Date();
     d.setDate(d.getDate() - 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }));
   };
   const handleSetTomorrow = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
-    setSelectedDate(d.toISOString().split('T')[0]);
+    setSelectedDate(d.toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' }));
   };
 
   const handleOpenHistory = async (session: any) => {
@@ -224,7 +233,7 @@ export default function DashboardTab({
                 type="button"
                 onClick={handleSetToday}
                 className={`px-2.5 py-1 text-[11px] font-bold rounded-lg transition-colors ${
-                  selectedDate === new Date().toISOString().split('T')[0]
+                  selectedDate === todayStr
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted hover:bg-muted/80 text-foreground'
                 }`}
@@ -286,21 +295,21 @@ export default function DashboardTab({
               </thead>
               <tbody className="divide-y divide-border/40">
                 {daySessions.map((session, idx) => {
-                  const studentCandidates: Array<{ name: string; email?: string }> = [];
+                  const studentCandidates: Array<{ name: string }> = [];
                   if (session.student?.name) {
-                    studentCandidates.push({ name: session.student.name, email: session.student.email });
+                    studentCandidates.push({ name: session.student.name });
                   }
                   if (Array.isArray((session as any).students)) {
                     (session as any).students.forEach((st: any) => {
                       if (st?.name && !studentCandidates.some(e => e.name === st.name)) {
-                        studentCandidates.push({ name: st.name, email: st.email });
+                        studentCandidates.push({ name: st.name });
                       }
                     });
                   }
                   if (Array.isArray((session as any).enrolledStudents)) {
                     (session as any).enrolledStudents.forEach((st: any) => {
                       if (st?.name && !studentCandidates.some(e => e.name === st.name)) {
-                        studentCandidates.push({ name: st.name, email: st.email });
+                        studentCandidates.push({ name: st.name });
                       }
                     });
                   }
@@ -341,9 +350,6 @@ export default function DashboardTab({
                                 </div>
                                 <div>
                                   <p className="font-bold text-foreground text-xs leading-tight">{st.name}</p>
-                                  {st.email && (
-                                    <p className="text-[10px] text-muted-foreground">{st.email}</p>
-                                  )}
                                 </div>
                               </div>
                             ))}

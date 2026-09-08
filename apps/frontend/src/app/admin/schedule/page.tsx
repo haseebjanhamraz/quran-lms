@@ -24,7 +24,7 @@ export default function ScheduleManagement() {
   const [activeFilter, setActiveFilter] = useUrlState<string | null>('filter', null);
   const [teachers, setTeachers] = useState<TeacherItem[]>(DEFAULT_TEACHERS);
   const [gridAssignments, setGridAssignments] = useState<Record<string, SlotAssignment>>({});
-  const [, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const clientIdRef = useRef<string>(Math.random().toString(36).substring(7));
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
@@ -130,6 +130,7 @@ export default function ScheduleManagement() {
           gridAssignments={gridAssignments}
           teachers={teachers}
           activeFilter={activeFilter}
+          loading={loading}
         />
       ) : (
         <DailyScheduleView
@@ -139,6 +140,7 @@ export default function ScheduleManagement() {
           timeSlots={timeSlots}
           allowDragDrop={false}
           onDropSlot={async () => { }}
+          loading={loading}
         />
       )}
     </div>

@@ -124,6 +124,13 @@ export class UsersController {
     return this.usersService.findByRole(roleEnum);
   }
 
+  @Get('teacher/students')
+  @Roles(Role.TEACHER, Role.ADMIN, Role.SUPER_ADMIN)
+  async getTeacherStudents(@CurrentUser() user: any) {
+    const teacherId = (user?.id || user?._id || user?.userId)?.toString();
+    return this.usersService.findTeacherStudents(teacherId);
+  }
+
   @Post()
   @Roles(Role.ADMIN)
   async create(@Body() createUserDto: CreateUserDto) {

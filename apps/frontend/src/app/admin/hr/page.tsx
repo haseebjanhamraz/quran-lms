@@ -386,7 +386,7 @@ function HRManagementContent() {
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
             <Briefcase className="h-8 w-8 text-brand" />
-            <span>HR & Financial Operations Management</span>
+            <span>Financial Operations Management</span>
           </h1>
           <p className="text-muted-foreground mt-1">Manage staff payroll, teacher cash disbursements, student fees collection, and individual student fee profiles.</p>
         </div>

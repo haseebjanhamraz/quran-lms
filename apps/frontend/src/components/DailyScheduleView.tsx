@@ -99,6 +99,7 @@ interface DailyScheduleViewProps {
   onStartClass?: (sessionId: string) => void;
   onJoinClass?: (sessionId: string) => void;
   onReschedule?: (session: any) => void;
+  loading?: boolean;
 }
 
 export default function DailyScheduleView({
@@ -115,6 +116,7 @@ export default function DailyScheduleView({
   onStartClass,
   onJoinClass,
   onReschedule,
+  loading: externalLoading,
 }: DailyScheduleViewProps) {
   const { timeSlots: hookTimeSlots } = useTimeSlots();
   const timeSlots = customTimeSlots || hookTimeSlots || DEFAULT_TIME_SLOTS;
@@ -573,7 +575,7 @@ export default function DailyScheduleView({
       </div>
 
       {/* ─── Schedule Content Area ─── */}
-      {loadingData ? (
+      {(externalLoading !== undefined ? externalLoading : loadingData) ? (
         <div className="glass-panel rounded-2xl py-20 flex flex-col items-center justify-center gap-3 border border-border/60 shadow-md">
           <RefreshCw className="w-8 h-8 text-brand animate-spin" />
           <p className="text-sm text-muted-foreground font-medium">Loading your timetable schedule...</p>

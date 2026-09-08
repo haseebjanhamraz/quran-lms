@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { Clock, User, AlertCircle } from 'lucide-react';
+import { Clock, User, AlertCircle, Loader2 } from 'lucide-react';
 import { DAYS, TeacherItem, SlotAssignment, getTeacherColor } from './types';
 
 interface WeeklyScheduleGridProps {
@@ -9,6 +9,7 @@ interface WeeklyScheduleGridProps {
   gridAssignments: Record<string, SlotAssignment>;
   teachers: TeacherItem[];
   activeFilter: string | null;
+  loading?: boolean;
 }
 
 export default function WeeklyScheduleGrid({
@@ -16,6 +17,7 @@ export default function WeeklyScheduleGrid({
   gridAssignments,
   teachers,
   activeFilter,
+  loading = false,
 }: WeeklyScheduleGridProps) {
   // Only include time slots that have at least one assigned class (removes empty schedule rows)
   const assignedSlotsList = useMemo(() => {
@@ -47,6 +49,20 @@ export default function WeeklyScheduleGrid({
     });
     return count;
   };
+
+  if (loading) {
+    return (
+      <div className="glass-panel rounded-2xl p-16 text-center border border-border/60 shadow-md space-y-4 animate-fadeIn">
+        <div className="flex flex-col items-center justify-center gap-3">
+          <Loader2 className="w-10 h-10 text-primary animate-spin" />
+          <h4 className="font-semibold text-base text-foreground">Loading Master Schedule &amp; Timetable...</h4>
+          <p className="text-xs text-muted-foreground max-w-md mx-auto">
+            Retrieving assigned weekly classes, teacher slots, and student timetable timings.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   if (assignedSlotsList.length === 0) {
     return (

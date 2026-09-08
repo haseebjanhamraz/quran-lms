@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
 import { UpdateClassSessionDto } from './dto/update-class-session.dto';
@@ -288,10 +288,139 @@ export class ClassSessionsService {
     }
   }
 
+  async ensureTeacherRecurringSessions(teacherId: string, targetDate = new Date()) {
+    try {
+      const teacherFilter: any[] = [teacherId];
+      if (Types.ObjectId.isValid(teacherId)) {
+        teacherFilter.push(new Types.ObjectId(teacherId));
+      }
+
+      const studentModel = this.userModel.db.model('Student');
+      const students = await studentModel
+        .find({ 'profile.assignedTeacher': { $in: teacherFilter } })
+        .lean();
+      if (!students || students.length === 0) return;
+
+      const course = await this.courseModel
+        .findOne({
+          $or: [{ teacherId: { $in: teacherFilter } }, { teacherIds: { $in: teacherFilter } }],
+        })
+        .lean();
+
+      const dayMap: Record<string, number> = {
+        Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+        Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+      };
+
+      const base = new Date(targetDate);
+      base.setHours(0, 0, 0, 0);
+
+      let createdCount = 0;
+
+      // Ensure recurring sessions for [-2 days .. +7 days] from current date
+      for (let offset = -2; offset <= 7; offset++) {
+        const d = new Date(base);
+        d.setDate(d.getDate() + offset);
+        const dayNum = d.getDay();
+
+        for (const st of (students as any[])) {
+          const classDays = st.profile?.classDays;
+          if (!Array.isArray(classDays) || classDays.length === 0) continue;
+
+          const matchingSlot = classDays.find((cd: any) => dayMap[cd.day] === dayNum);
+          if (!matchingSlot) continue;
+
+          let hours = 16;
+          let minutes = 0;
+          const timeStr = matchingSlot.teacherTime || matchingSlot.time || '16:00';
+          const trimmed = timeStr.trim().toUpperCase();
+          const isPM = trimmed.includes('PM');
+          const isAM = trimmed.includes('AM');
+          const clean = trimmed.replace(/[A-Z]/g, '').trim();
+          const parts = clean.split(':').map(Number);
+          if (parts.length >= 1 && !isNaN(parts[0])) {
+            hours = parts[0];
+            minutes = parts.length > 1 && !isNaN(parts[1]) ? parts[1] : 0;
+            if (isPM && hours < 12) hours += 12;
+            if (isAM && hours === 12) hours = 0;
+            if (!isPM && !isAM && hours >= 1 && hours <= 6) {
+              hours += 12;
+            }
+          }
+
+          const scheduledAt = new Date(d);
+          scheduledAt.setHours(hours, minutes, 0, 0);
+
+          const studentUserId = st.userId?.toString();
+          if (!studentUserId) continue;
+
+          const windowStart = new Date(scheduledAt.getTime() - 15 * 60 * 1000);
+          const windowEnd = new Date(scheduledAt.getTime() + 15 * 60 * 1000);
+
+          const existing = await this.classSessionModel.findOne({
+            teacherId: { $in: teacherFilter },
+            studentId: studentUserId,
+            scheduledAt: { $gte: windowStart, $lte: windowEnd },
+          });
+
+          if (!existing) {
+            const now = new Date();
+            let status = ClassStatus.SCHEDULED;
+            const dur = st.profile?.classDuration || 30;
+            const sessionEnd = new Date(scheduledAt.getTime() + dur * 60 * 1000);
+
+            if (sessionEnd < now) {
+              status = ClassStatus.COMPLETED;
+            } else if (scheduledAt <= now && now <= sessionEnd) {
+              status = ClassStatus.LIVE;
+            }
+
+            let courseId: any = course?._id;
+            if (!courseId) {
+              const enroll = await this.enrollmentModel.findOne({ studentId: studentUserId }).lean();
+              if (enroll) courseId = enroll.courseId;
+            }
+            if (!courseId) {
+              const anyCourse = await this.courseModel.findOne().lean();
+              if (anyCourse) courseId = anyCourse._id;
+            }
+
+            if (courseId) {
+              await this.classSessionModel.create({
+                courseId,
+                teacherId: teacherFilter[0],
+                studentId: studentUserId,
+                scheduledAt,
+                durationMinutes: dur,
+                status,
+                timezone: ISLAMABAD_TIMEZONE,
+                scheduledTimePKT: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+              });
+              createdCount++;
+            }
+          }
+        }
+      }
+
+      if (createdCount > 0) {
+        await this.cacheService.del(`sessions:calendar:teacher:${teacherId}`);
+      }
+    } catch (err) {
+      this.logger.error('Error ensuring recurring teacher sessions:', err);
+    }
+  }
+
   async findTeacherCalendar(teacherId: string) {
+    await this.ensureTeacherRecurringSessions(teacherId);
+
     const cacheKey = `sessions:calendar:teacher:${teacherId}`;
     return this.cacheService.getOrSet(cacheKey, async () => {
-      return this.classSessionModel.find({ teacherId })
+      const teacherFilter: any[] = [teacherId];
+      if (Types.ObjectId.isValid(teacherId)) {
+        teacherFilter.push(new Types.ObjectId(teacherId));
+      }
+
+      return this.classSessionModel.find({ teacherId: { $in: teacherFilter } })
         .populate('course', 'title type')
         .populate('student', 'id name preferredName email timezone studentId profilePicture')
         .populate('attendances')
