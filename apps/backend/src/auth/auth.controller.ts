@@ -27,13 +27,14 @@ export class AuthController {
 
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
     // Set Access Token cookie (HttpOnly)
     response.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      maxAge: loginDto.rememberMe ? thirtyDaysMs : 15 * 60 * 1000,
+      maxAge: loginDto.rememberMe ? thirtyDaysMs : sevenDaysMs,
       path: '/',
     });
 
@@ -42,13 +43,14 @@ export class AuthController {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      maxAge: loginDto.rememberMe ? thirtyDaysMs : 7 * 24 * 60 * 60 * 1000,
+      maxAge: loginDto.rememberMe ? thirtyDaysMs : thirtyDaysMs,
       path: '/',
     });
 
     return {
       message: 'Login successful',
       user: userData,
+      accessToken,
     };
   }
 
@@ -66,18 +68,20 @@ export class AuthController {
     const { accessToken, user, isLongLived } = await this.authService.refresh(refreshToken);
     const isProd = this.configService.get<string>('NODE_ENV') === 'production';
     const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
 
     response.cookie('access_token', accessToken, {
       httpOnly: true,
       secure: isProd,
       sameSite: 'lax',
-      maxAge: isLongLived ? thirtyDaysMs : 15 * 60 * 1000,
+      maxAge: isLongLived ? thirtyDaysMs : sevenDaysMs,
       path: '/',
     });
 
     return {
       message: 'Token refreshed successfully',
       user,
+      accessToken,
     };
   }
 

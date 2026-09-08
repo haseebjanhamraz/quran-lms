@@ -52,17 +52,17 @@ export class AuthService {
       accountStatus: user.accountStatus || 'ACTIVE',
     };
 
-    const accessExpiry = rememberMe ? '30d' : (this.configService.getOrThrow<string>('JWT_EXPIRY') as any);
-    const refreshExpiry = rememberMe ? '30d' : (this.configService.getOrThrow<string>('JWT_REFRESH_EXPIRY') as any);
+    const accessExpiry = rememberMe ? '30d' : (this.configService.get<string>('JWT_EXPIRY') || '7d');
+    const refreshExpiry = rememberMe ? '30d' : (this.configService.get<string>('JWT_REFRESH_EXPIRY') || '30d');
     
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-      expiresIn: accessExpiry,
+      expiresIn: accessExpiry as any,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
       secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
-      expiresIn: refreshExpiry,
+      expiresIn: refreshExpiry as any,
     });
 
     // Log the user login event
@@ -104,11 +104,11 @@ export class AuthService {
       };
 
       const isLongLived = Boolean(payload.exp && payload.iat && (payload.exp - payload.iat > 8 * 24 * 60 * 60));
-      const accessExpiry = isLongLived ? '30d' : (this.configService.getOrThrow<string>('JWT_EXPIRY') as any);
+      const accessExpiry = isLongLived ? '30d' : (this.configService.get<string>('JWT_EXPIRY') || '7d');
 
       const newAccessToken = this.jwtService.sign(newPayload, {
         secret: this.configService.getOrThrow<string>('JWT_SECRET'),
-        expiresIn: accessExpiry,
+        expiresIn: accessExpiry as any,
       });
 
       return {

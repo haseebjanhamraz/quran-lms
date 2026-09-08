@@ -12,7 +12,9 @@ export default function Home() {
   useEffect(() => {
     if (!loading) {
       if (user) {
-        router.replace(`/${user.role.toLowerCase()}/dashboard`);
+        const roleLower = user.role.toLowerCase();
+        const prefix = roleLower === 'super_admin' ? 'admin' : roleLower;
+        router.replace(`/${prefix}/dashboard`);
       } else {
         router.replace('/login');
       }

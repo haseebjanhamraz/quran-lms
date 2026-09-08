@@ -54,19 +54,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  const updateUserState = (newUser: User | null) => {
+    setUser(newUser);
+    if (typeof window !== 'undefined') {
+      try {
+        if (newUser) {
+          localStorage.setItem('quran_lms_auth_user', JSON.stringify(newUser));
+        } else {
+          localStorage.removeItem('quran_lms_auth_user');
+          localStorage.removeItem('quran_lms_access_token');
+        }
+      } catch (_) {}
+    }
+  };
+
   const checkAuth = async () => {
     try {
       const res = await apiFetch(`${API_URL}/auth/me`);
 
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
-      } else {
-        setUser(null);
+        if (data?.user) {
+          updateUserState(data.user);
+        }
+      } else if (res.status === 401) {
+        updateUserState(null);
       }
     } catch (err) {
       console.error('Error during auth check:', err);
-      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -82,7 +97,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
+        if (data?.user) {
+          updateUserState(data.user);
+        }
+        if (data?.accessToken && typeof window !== 'undefined') {
+          localStorage.setItem('quran_lms_access_token', data.accessToken);
+        }
       }
     } catch (err) {
       console.error('Error refreshing token:', err);
@@ -90,11 +110,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const cached = localStorage.getItem('quran_lms_auth_user');
+        if (cached) {
+          setUser(JSON.parse(cached));
+        }
+      } catch (_) {}
+    }
+
     checkAuth();
 
     const handleUserRefreshed = (e: any) => {
       if (e.detail) {
-        setUser(e.detail);
+        updateUserState(e.detail);
       }
     };
     window.addEventListener('auth:user-refreshed', handleUserRefreshed);
@@ -117,7 +146,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(data.message || 'Login failed');
       }
 
-      setUser(data.user);
+      updateUserState(data.user);
+      if (data.accessToken && typeof window !== 'undefined') {
+        localStorage.setItem('quran_lms_access_token', data.accessToken);
+      }
+
       const redirectPath =
         data.user.role === 'SUPER_ADMIN' || data.user.role === 'ADMIN'
           ? '/admin/dashboard'
@@ -139,7 +172,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('Error during logout:', err);
     } finally {
-      setUser(null);
+      updateUserState(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('quran_lms_access_token');
+        localStorage.removeItem('quran_lms_auth_user');
+      }
       router.push('/login');
     }
   };

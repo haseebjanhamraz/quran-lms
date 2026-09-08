@@ -36,8 +36,15 @@ async function bootstrap() {
   if (!fs.existsSync(avatarsPath)) {
     fs.mkdirSync(avatarsPath, { recursive: true });
   }
-  app.use('/uploads', express.static(uploadsPath));
-  app.use('/api/v1/uploads', express.static(uploadsPath));
+  const staticOptions = {
+    setHeaders: (res: any) => {
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', '*');
+    },
+  };
+  app.use('/uploads', express.static(uploadsPath, staticOptions));
+  app.use('/api/v1/uploads', express.static(uploadsPath, staticOptions));
 
   // Global prefixes and settings
   app.setGlobalPrefix('api/v1');

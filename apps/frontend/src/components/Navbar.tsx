@@ -209,11 +209,31 @@ export default function Navbar({
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [flaggedCount, setFlaggedCount] = useState(0);
+  const [isMounted, setIsMounted] = useState(false);
 
   const moreRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  const activeRole = (user?.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : (user?.role || propRole || 'STUDENT')).toUpperCase();
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const roleFromPath = useMemo(() => {
+    if (!pathname) return undefined;
+    if (pathname.startsWith('/admin')) return 'ADMIN';
+    if (pathname.startsWith('/teacher')) return 'TEACHER';
+    if (pathname.startsWith('/student')) return 'STUDENT';
+    if (pathname.startsWith('/hr')) return 'HR';
+    if (pathname.startsWith('/supervisor')) return 'SUPERVISOR';
+    if (pathname.startsWith('/reviewer')) return 'REVIEWER';
+    return undefined;
+  }, [pathname]);
+
+  const activeRole = (
+    user?.role === 'SUPER_ADMIN'
+      ? 'SUPER_ADMIN'
+      : (user?.role || propRole || roleFromPath || 'ADMIN')
+  ).toUpperCase();
   const displayPortalTitle = portalTitle || getRolePortalTitle(activeRole);
 
   // Close dropdowns on outside click
@@ -273,17 +293,17 @@ export default function Navbar({
 
     if (activeRole === 'ADMIN' || activeRole === 'SUPER_ADMIN') {
       const visiblePrimary = ADMIN_PRIMARY_NAV.filter(
-        (item) => !item.permission || !hasPermission || hasPermission(item.permission)
+        (item) => !isMounted || !item.permission || !hasPermission || hasPermission(item.permission)
       );
       const visibleMore = ADMIN_MORE_NAV.filter(
-        (item) => !item.permission || !hasPermission || hasPermission(item.permission)
+        (item) => !isMounted || !item.permission || !hasPermission || hasPermission(item.permission)
       );
       return { primaryNavItems: visiblePrimary, moreNavItems: visibleMore, isTabMode: false };
     }
 
     if (activeRole === 'HR' || activeRole === 'HR_MANAGER' || activeRole === 'FINANCE') {
       const visiblePrimary = HR_PRIMARY_NAV.filter(
-        (item) => !item.permission || !hasPermission || hasPermission(item.permission)
+        (item) => !isMounted || !item.permission || !hasPermission || hasPermission(item.permission)
       );
       return { primaryNavItems: visiblePrimary, moreNavItems: [], isTabMode: false };
     }
@@ -302,7 +322,7 @@ export default function Navbar({
 
     // Default to student tabs
     return { primaryNavItems: STUDENT_DEFAULT_TABS, moreNavItems: [], isTabMode: Boolean(onTabChange) };
-  }, [activeRole, customTabs, onTabChange, hasPermission]);
+  }, [activeRole, customTabs, onTabChange, hasPermission, isMounted]);
 
   const allMobileNavItems = [...primaryNavItems, ...moreNavItems];
 
@@ -455,14 +475,14 @@ export default function Navbar({
                   activeRole
                 )}`}
               >
-                {user ? getInitials(user.name, activeRole.slice(0, 2)) : 'AQ'}
+                {isMounted && user ? getInitials(user.name, activeRole.slice(0, 2)) : activeRole.slice(0, 2)}
               </div>
               <div className="hidden lg:block text-left max-w-[120px] truncate">
                 <p className="text-xs font-bold text-foreground leading-tight truncate">
-                  {user?.name || displayPortalTitle}
+                  {isMounted && user?.name ? user.name : displayPortalTitle}
                 </p>
                 <p className="text-[10px] text-muted-foreground leading-tight uppercase font-mono truncate">
-                  {user?.role || activeRole}
+                  {isMounted && user?.role ? user.role : activeRole}
                 </p>
               </div>
               <ChevronDown size={13} className="hidden lg:block text-muted-foreground" />
