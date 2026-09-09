@@ -154,7 +154,7 @@ interface ReviewHistoryItem {
   };
 }
 
-export default function ReviewerDashboardPage() {
+function ReviewerDashboardContent() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
@@ -456,5 +456,19 @@ export default function ReviewerDashboardPage() {
           </div>
         </main>
     </div>
+  );
+}
+
+export default function ReviewerDashboardPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-background">
+          <Loader2 className="animate-spin text-primary" size={32} />
+        </div>
+      }
+    >
+      <ReviewerDashboardContent />
+    </React.Suspense>
   );
 }

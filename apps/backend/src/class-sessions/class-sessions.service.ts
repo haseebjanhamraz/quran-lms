@@ -25,6 +25,7 @@ import {
   getPKTDateParts,
   ISLAMABAD_TIMEZONE,
   PKT_OFFSET_HOURS,
+  parsePKTDateAndTimeToUTC,
 } from '../utils/islamabad-time';
 import { EmailService } from '../email/email.service';
 
@@ -167,10 +168,17 @@ export class ClassSessionsService {
     return session;
   }
 
-  async update(id: string, updateClassSessionDto: UpdateClassSessionDto) {
+  async update(id: string, updateClassSessionDto: UpdateClassSessionDto, user?: any) {
     const session = await this.classSessionModel.findById(id);
     if (!session) {
       throw new NotFoundException('Class session not found');
+    }
+
+    if (user && user.role === Role.TEACHER) {
+      const assignedTeacherId = (session.teacherId as any)?._id?.toString() || session.teacherId?.toString();
+      if (assignedTeacherId !== user.id) {
+        throw new ForbiddenException('You are not authorized to update another teacher\'s class session.');
+      }
     }
 
     const newScheduledAt = updateClassSessionDto.scheduledAt
@@ -330,26 +338,8 @@ export class ClassSessionsService {
           const matchingSlot = classDays.find((cd: any) => dayMap[cd.day] === dayNum);
           if (!matchingSlot) continue;
 
-          let hours = 16;
-          let minutes = 0;
           const timeStr = matchingSlot.teacherTime || matchingSlot.time || '16:00';
-          const trimmed = timeStr.trim().toUpperCase();
-          const isPM = trimmed.includes('PM');
-          const isAM = trimmed.includes('AM');
-          const clean = trimmed.replace(/[A-Z]/g, '').trim();
-          const parts = clean.split(':').map(Number);
-          if (parts.length >= 1 && !isNaN(parts[0])) {
-            hours = parts[0];
-            minutes = parts.length > 1 && !isNaN(parts[1]) ? parts[1] : 0;
-            if (isPM && hours < 12) hours += 12;
-            if (isAM && hours === 12) hours = 0;
-            if (!isPM && !isAM && hours >= 1 && hours <= 6) {
-              hours += 12;
-            }
-          }
-
-          const scheduledAt = new Date(d);
-          scheduledAt.setHours(hours, minutes, 0, 0);
+          const scheduledAt = parsePKTDateAndTimeToUTC(d, timeStr);
 
           const studentUserId = st.userId?.toString();
           if (!studentUserId) continue;
@@ -369,10 +359,14 @@ export class ClassSessionsService {
             const dur = st.profile?.classDuration || 30;
             const sessionEnd = new Date(scheduledAt.getTime() + dur * 60 * 1000);
 
-            if (sessionEnd < now) {
-              status = ClassStatus.COMPLETED;
-            } else if (scheduledAt <= now && now <= sessionEnd) {
+            if (scheduledAt <= now && now <= sessionEnd) {
               status = ClassStatus.LIVE;
+            } else if (sessionEnd < now) {
+              if (offset < 0 || now.getTime() > sessionEnd.getTime() + 2 * 60 * 60 * 1000) {
+                status = ClassStatus.COMPLETED;
+              } else {
+                status = ClassStatus.SCHEDULED;
+              }
             }
 
             let courseId: any = course?._id;
@@ -394,7 +388,7 @@ export class ClassSessionsService {
                 durationMinutes: dur,
                 status,
                 timezone: ISLAMABAD_TIMEZONE,
-                scheduledTimePKT: `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`,
+                scheduledTimePKT: formatPKTTime(scheduledAt),
               });
               createdCount++;
             }
@@ -420,13 +414,18 @@ export class ClassSessionsService {
         teacherFilter.push(new Types.ObjectId(teacherId));
       }
 
-      return this.classSessionModel.find({ teacherId: { $in: teacherFilter } })
+      const docs = await this.classSessionModel.find({ teacherId: { $in: teacherFilter } })
         .populate('course', 'title type')
         .populate('student', 'id name preferredName email timezone studentId profilePicture')
         .populate('attendances')
         .populate('recording')
         .sort({ scheduledAt: 1 })
         .lean();
+
+      return docs.map((s: any) => ({
+        ...s,
+        id: s._id?.toString() || s.id,
+      }));
     }, 30);
   }
 
@@ -441,7 +440,7 @@ export class ClassSessionsService {
         orConditions.push({ courseId: { $in: courseIds } });
       }
 
-      return this.classSessionModel.find({
+      const docs = await this.classSessionModel.find({
         $or: orConditions,
       })
         .populate('course', 'title type')
@@ -449,6 +448,11 @@ export class ClassSessionsService {
         .populate('recording')
         .sort({ scheduledAt: 1 })
         .lean();
+
+      return docs.map((s: any) => ({
+        ...s,
+        id: s._id?.toString() || s.id,
+      }));
     }, 30);
   }
 
@@ -470,13 +474,18 @@ export class ClassSessionsService {
         return [];
       }
 
-      return this.classSessionModel.find(query)
+      const docs = await this.classSessionModel.find(query)
         .populate('course', 'title type')
         .populate('teacher', 'id name email profilePicture')
         .populate('student', 'id name preferredName email timezone studentId profilePicture')
         .populate('recording')
         .sort({ scheduledAt: 1 })
         .lean();
+
+      return docs.map((s: any) => ({
+        ...s,
+        id: s._id?.toString() || s.id,
+      }));
     }, 30);
   }
 

@@ -156,7 +156,7 @@ interface ReviewHistoryItem {
   };
 }
 
-export default function SupervisorDashboardPage() {
+function SupervisorDashboardContent() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
@@ -457,5 +457,19 @@ export default function SupervisorDashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function SupervisorDashboardPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-background">
+          <Loader2 className="animate-spin text-primary" size={32} />
+        </div>
+      }
+    >
+      <SupervisorDashboardContent />
+    </React.Suspense>
   );
 }

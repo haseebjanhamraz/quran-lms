@@ -22,6 +22,45 @@ const themeScript = `
   })();
 `;
 
+const devToolsFixScript = `
+  (function() {
+    if (typeof window === 'undefined') return;
+    var isSuppressed = function(msg) {
+      return typeof msg === 'string' && (
+        msg.indexOf("Cannot read properties of undefined (reading 'startTime')") !== -1 ||
+        msg.indexOf("reportAllChanges") !== -1
+      );
+    };
+
+    var prevOnError = window.onerror;
+    window.onerror = function(message, source, lineno, colno, error) {
+      if (isSuppressed(message) || (error && error.message && isSuppressed(error.message))) {
+        return true;
+      }
+      if (typeof prevOnError === 'function') {
+        return prevOnError.apply(this, arguments);
+      }
+      return false;
+    };
+
+    window.addEventListener('error', function(event) {
+      if (event && (isSuppressed(event.message) || (event.error && isSuppressed(event.error.message)))) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
+
+    window.addEventListener('unhandledrejection', function(event) {
+      var reason = event && event.reason;
+      var msg = reason && (reason.message || String(reason));
+      if (isSuppressed(msg)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    }, true);
+  })();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,6 +69,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: devToolsFixScript }} />
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

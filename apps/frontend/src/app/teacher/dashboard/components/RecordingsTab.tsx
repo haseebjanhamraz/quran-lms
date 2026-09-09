@@ -9,7 +9,7 @@ interface SessionItem {
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'ACTIVATED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   livekitRoomId?: string;
   recording?: { filePath: string | null; status: string } | null;
 }

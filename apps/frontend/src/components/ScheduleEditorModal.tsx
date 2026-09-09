@@ -38,9 +38,50 @@ const STANDARD_TIMES = [
   '20:00', '20:30', '21:00', '21:30', '22:00'
 ];
 
+function to24HourTime(timeStr: string): string {
+  if (!timeStr) return '16:00';
+  const trimmed = String(timeStr).trim();
+
+  // 24-hour match: HH:mm or H:mm
+  const match24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24) {
+    const h = parseInt(match24[1], 10);
+    const m = parseInt(match24[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+  }
+
+  // 12-hour match: HH:mm AM/PM or H:mm AM/PM
+  const match12 = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
+  if (match12) {
+    let h = parseInt(match12[1], 10);
+    const m = parseInt(match12[2], 10);
+    const period = match12[3]?.toUpperCase();
+
+    if (period === 'PM' && h < 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  }
+
+  return '16:00';
+}
+
+function formatTo12Hour(time24: string): string {
+  if (!time24) return '';
+  const clean = to24HourTime(time24);
+  const [hStr, mStr] = clean.split(':');
+  const h = parseInt(hStr, 10);
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const displayH = h % 12 || 12;
+  return `${String(displayH).padStart(2, '0')}:${mStr} ${ampm}`;
+}
+
 function calculateEndTime(startTime: string, durationMinutes: number): string {
   if (!startTime) return '';
-  const [h, m] = startTime.split(':').map(Number);
+  const time24 = to24HourTime(startTime);
+  const [h, m] = time24.split(':').map(Number);
   const total = h * 60 + m + (durationMinutes || 60);
   const endH = Math.floor(total / 60) % 24;
   const endM = total % 60;
@@ -84,7 +125,11 @@ export default function ScheduleEditorModal({
     if (mode === 'student') {
       setClassDuration(entity.classDuration || entity.profile?.classDuration || 60);
       const days = entity.classDays || entity.profile?.classDays || [];
-      setClassDays(Array.isArray(days) ? [...days] : []);
+      const normalizedDays = (Array.isArray(days) ? days : []).map((d: any) => ({
+        day: d.day || 'Mon',
+        time: to24HourTime(d.time || d.studentTime || d.teacherTime || '16:00'),
+      }));
+      setClassDays(normalizedDays);
       const teacherId = entity.assignedTeacher?._id || entity.assignedTeacher?.id || entity.assignedTeacher || entity.profile?.assignedTeacher || '';
       setAssignedTeacherId(typeof teacherId === 'string' ? teacherId : teacherId?.id || '');
 
@@ -139,19 +184,21 @@ export default function ScheduleEditorModal({
     if (existing) {
       setClassDays(classDays.filter((d) => d.day !== dayShort));
     } else {
-      setClassDays([...classDays, { day: dayShort, time: bulkTime }]);
+      setClassDays([...classDays, { day: dayShort, time: to24HourTime(bulkTime) }]);
     }
   };
 
   const handleTimeChange = (dayShort: string, newTime: string) => {
+    const cleanTime = to24HourTime(newTime);
     setClassDays(
-      classDays.map((d) => (d.day === dayShort ? { ...d, time: newTime } : d))
+      classDays.map((d) => (d.day === dayShort ? { ...d, time: cleanTime } : d))
     );
   };
 
   const handleApplyBulkTime = () => {
-    setClassDays(classDays.map((d) => ({ ...d, time: bulkTime })));
-    toast.info(`Applied ${bulkTime} to all ${classDays.length} selected days.`);
+    const cleanBulk = to24HourTime(bulkTime);
+    setClassDays(classDays.map((d) => ({ ...d, time: cleanBulk })));
+    toast.info(`Applied ${formatTo12Hour(cleanBulk)} to all ${classDays.length} selected days.`);
   };
 
   // Save student schedule
@@ -160,12 +207,23 @@ export default function ScheduleEditorModal({
     setSaving(true);
     try {
       const studentId = entity.id || entity._id;
+      const formattedClassDays = classDays.map((cd) => {
+        const time24 = to24HourTime(cd.time);
+        const time12 = formatTo12Hour(time24);
+        return {
+          day: cd.day,
+          time: time24,
+          studentTime: time12,
+          teacherTime: time12,
+        };
+      });
+
       const res = await apiFetch(`${API_URL}/users/${studentId}`, {
         method: 'PUT',
         body: JSON.stringify({
           classDuration: Number(classDuration),
-          classesPerWeek: classDays.length,
-          classDays,
+          classesPerWeek: formattedClassDays.length,
+          classDays: formattedClassDays,
           assignedTeacher: assignedTeacherId || null,
         }),
       });
@@ -227,7 +285,8 @@ export default function ScheduleEditorModal({
 
   // Teacher mode: Delete Slot
   const handleDeleteTeacherSlot = async (slot: any) => {
-    if (!confirm(`Remove slot for ${slot.dayOfWeek} (${slot.startTime} - ${slot.endTime})?`)) return;
+    if (!slot) return;
+    if (!confirm(`Remove slot for ${slot.dayOfWeek || 'selected day'} (${slot.startTime || ''} - ${slot.endTime || ''})?`)) return;
 
     setSaving(true);
     try {
@@ -347,7 +406,7 @@ export default function ScheduleEditorModal({
                     <div className="flex items-center gap-1.5 text-xs">
                       <input
                         type="time"
-                        value={bulkTime}
+                        value={to24HourTime(bulkTime)}
                         onChange={(e) => setBulkTime(e.target.value)}
                         className="rounded-lg border border-input bg-background px-2 py-0.5 text-xs"
                       />
@@ -394,7 +453,8 @@ export default function ScheduleEditorModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     {classDays.map((d) => {
                       const fullDay = WEEKDAYS.find((w) => w.short === d.day)?.label || d.day;
-                      const endTime = calculateEndTime(d.time, classDuration);
+                      const time24 = to24HourTime(d.time);
+                      const endTime = calculateEndTime(time24, classDuration);
                       return (
                         <div
                           key={d.day}
@@ -407,14 +467,14 @@ export default function ScheduleEditorModal({
                             <div>
                               <p className="text-xs font-bold text-foreground leading-none">{fullDay}</p>
                               <p className="text-[10px] text-muted-foreground mt-0.5">
-                                {d.time} &rarr; {endTime}
+                                {formatTo12Hour(time24)} &rarr; {formatTo12Hour(endTime)}
                               </p>
                             </div>
                           </div>
 
                           <input
                             type="time"
-                            value={d.time}
+                            value={time24}
                             onChange={(e) => handleTimeChange(d.day, e.target.value)}
                             className="rounded-lg border border-input bg-background px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-primary"
                           />
@@ -461,7 +521,7 @@ export default function ScheduleEditorModal({
                     </label>
                     <input
                       type="time"
-                      value={newSlotStart}
+                      value={to24HourTime(newSlotStart)}
                       onChange={(e) => setNewSlotStart(e.target.value)}
                       className="w-full rounded-xl border border-input bg-background px-2.5 py-1.5 text-xs"
                     />
@@ -550,20 +610,20 @@ export default function ScheduleEditorModal({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1">
                     {teacherScheduleSlots.map((slot, idx) => (
                       <div
-                        key={slot.id || `${slot.dayOfWeek}-${slot.startTime}-${idx}`}
+                        key={slot?.id || `${slot?.dayOfWeek}-${slot?.startTime}-${idx}`}
                         className="p-2.5 rounded-xl bg-card border border-border flex items-center justify-between shadow-xs"
                       >
                         <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5">
+                           <div className="flex items-center gap-1.5">
                             <span className="px-1.5 py-0.5 rounded-md bg-primary/10 text-primary text-[10px] font-bold">
-                              {slot.dayOfWeek}
+                              {slot?.dayOfWeek || '—'}
                             </span>
                             <span className="text-xs font-semibold text-foreground">
-                              {slot.startTime} - {slot.endTime}
+                              {slot?.startTime || '—'} - {slot?.endTime || '—'}
                             </span>
                           </div>
                           <p className="text-[11px] text-muted-foreground">
-                            {slot.student?.name ? (
+                            {slot?.student?.name ? (
                               <span>Student: <strong className="text-foreground">{slot.student.name}</strong></span>
                             ) : (
                               <span className="italic">Open / Unassigned</span>

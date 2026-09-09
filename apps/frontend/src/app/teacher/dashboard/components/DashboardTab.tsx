@@ -12,6 +12,8 @@ interface DashboardTabProps {
   user: any;
   stats: any;
   sessions: any[];
+  sessionsLoading?: boolean;
+  loading?: boolean;
   courses: any[];
   students: any[];
   recentReviews: any[];
@@ -40,11 +42,14 @@ function formatPKTTimeRange(isoDate: string, durationMinutes: number): string {
 export default function DashboardTab({
   user,
   sessions,
+  sessionsLoading,
+  loading,
   handleStartClass,
   handleActivateClass,
   onOpenInstantModal,
   canStartInstantClass = true,
 }: DashboardTabProps) {
+  const isLoading = loading ?? sessionsLoading ?? false;
   const todayStr = useMemo(() => {
     return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Karachi' });
   }, []);
@@ -259,7 +264,7 @@ export default function DashboardTab({
               className="rounded-xl border border-border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-primary w-48 sm:w-56"
             />
             <span className="text-xs font-mono font-bold px-3 py-1.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shrink-0">
-              {daySessions.length} {daySessions.length === 1 ? 'Class' : 'Classes'}
+              {isLoading ? 'Loading...' : `${daySessions.length} ${daySessions.length === 1 ? 'Class' : 'Classes'}`}
             </span>
           </div>
         </div>
@@ -267,7 +272,64 @@ export default function DashboardTab({
 
       {/* 3. Classes Schedule Table matching reference */}
       <div className="rounded-2xl border border-border/80 bg-card overflow-hidden shadow-sm">
-        {daySessions.length === 0 ? (
+        {isLoading ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border/80 bg-muted/40">
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] w-12 text-center">#</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Class Timing (PKT)</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Duration</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Student</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px]">Course</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">History</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Leave</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Advance</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {[1, 2, 3, 4, 5].map((item) => (
+                  <tr key={item} className="animate-pulse">
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-4 w-4 bg-muted/80 rounded mx-auto" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-6 w-32 bg-muted/80 rounded-lg" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-5 w-16 bg-muted/70 rounded" />
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-full bg-muted/80 shrink-0" />
+                        <div className="space-y-1">
+                          <div className="h-4 w-28 bg-muted/90 rounded" />
+                          <div className="h-3 w-16 bg-muted/60 rounded" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-4 px-4">
+                      <div className="h-6 w-28 bg-muted/80 rounded-lg" />
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-6 w-16 bg-muted/60 rounded mx-auto" />
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-6 w-20 bg-muted/80 rounded-full mx-auto" />
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-6 w-14 bg-muted/60 rounded mx-auto" />
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-8 w-28 bg-muted/80 rounded-xl mx-auto" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : daySessions.length === 0 ? (
           <div className="py-20 text-center space-y-3">
             <div className="h-14 w-14 rounded-full bg-muted/60 flex items-center justify-center mx-auto text-muted-foreground">
               <Calendar className="h-7 w-7 opacity-60" />

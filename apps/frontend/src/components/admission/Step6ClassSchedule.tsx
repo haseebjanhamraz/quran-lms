@@ -260,8 +260,9 @@ export default function Step6ClassSchedule({
       const teacherEndMins = teacherStartMins + (enrollmentStatus.classDuration || 30);
 
       bookedOnDay.forEach((bSlot) => {
-        const bookedStartMins = timeToMinutes(bSlot.startTime || '00:00');
-        const bookedEndMins = timeToMinutes(bSlot.endTime || '00:00');
+        if (!bSlot) return;
+        const bookedStartMins = timeToMinutes(bSlot?.startTime || '00:00');
+        const bookedEndMins = timeToMinutes(bSlot?.endTime || '00:00');
 
         const isOverlap =
           (teacherStartMins >= bookedStartMins && teacherStartMins < bookedEndMins) ||
@@ -502,12 +503,12 @@ export default function Step6ClassSchedule({
                   </div>
 
                   {/* Conflict detail if any */}
-                  {conflictForSlot && (
+                  {conflictForSlot && conflictForSlot.conflictingSlot && (
                     <div className="text-[11px] font-mono text-amber-300 bg-amber-500/15 p-2 rounded-xl border border-amber-500/25 flex items-center gap-1.5">
                       <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
                       <span>
-                        Teacher has booked slot: {conflictForSlot.conflictingSlot.startTime} - {conflictForSlot.conflictingSlot.endTime}
-                        {conflictForSlot.conflictingSlot.student?.name ? ` (${conflictForSlot.conflictingSlot.student.name})` : ''}
+                        Teacher has booked slot: {conflictForSlot.conflictingSlot?.startTime || '—'} - {conflictForSlot.conflictingSlot?.endTime || '—'}
+                        {conflictForSlot.conflictingSlot?.student?.name ? ` (${conflictForSlot.conflictingSlot.student.name})` : ''}
                       </span>
                     </div>
                   )}

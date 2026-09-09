@@ -106,7 +106,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1
 const TABS = ['Dashboard', 'Schedule', 'My Courses', 'My Students', 'Course Materials', 'Class Recordings'] as const;
 type TabType = (typeof TABS)[number];
 
-export default function TeacherDashboard() {
+function TeacherDashboardContent() {
   const { user, logout, loading: authLoading, hasPermission } = useAuth();
   const router = useRouter();
 
@@ -281,6 +281,7 @@ export default function TeacherDashboard() {
       if (msg.event === 'schedule_update') {
         fetchSessions();
         fetchStats();
+        fetchStudents();
       }
     },
   });
@@ -419,6 +420,7 @@ export default function TeacherDashboard() {
             user={user}
             stats={stats}
             sessions={sessions}
+            sessionsLoading={sessionsLoading}
             courses={courses}
             students={students}
             recentReviews={recentReviews}
@@ -505,5 +507,19 @@ export default function TeacherDashboard() {
         onStartInstantClass={handleStartInstantClass}
       />
     </div>
+  );
+}
+
+export default function TeacherDashboard() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-background">
+          <Loader2 className="animate-spin text-primary" size={32} />
+        </div>
+      }
+    >
+      <TeacherDashboardContent />
+    </React.Suspense>
   );
 }

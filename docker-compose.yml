@@ -9,7 +9,7 @@ services:
       - redis_data:/data
 
   livekit:
-    image: livekit/livekit-server:v1.9.0
+    image: livekit/livekit-server:latest
     container_name: quran-lms-livekit
     restart: always
     command: --config /etc/livekit.yaml

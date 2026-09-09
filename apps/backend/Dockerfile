@@ -63,6 +63,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
 
 RUN mkdir -p /app/recordings /app/temp-transcripts /app/uploads/avatars /app/uploads/materials \
+  && chmod -R 777 /app/recordings /app/temp-transcripts \
   && chown -R nestjs:nodejs /app
 
 USER nestjs

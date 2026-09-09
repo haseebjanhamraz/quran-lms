@@ -31,20 +31,22 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-  const fetchUpcoming = useCallback(async () => {
+  const fetchUpcoming = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial) {
+        setLoading(true);
+      }
       const res = await apiFetch(`${API_URL}/class-sessions/calendar`);
       if (res.ok) {
         const sessions: SessionItem[] = await res.json();
         if (Array.isArray(sessions)) {
           const now = new Date().getTime();
-          const live = sessions.find((s) => s.status === 'LIVE');
-          if (live) {
-            setUpcomingSession(live);
+          const liveOrActive = sessions.find((s) => s.status === 'LIVE' || s.status === 'ACTIVATED');
+          if (liveOrActive) {
+            setUpcomingSession(liveOrActive);
           } else {
             const scheduled = sessions
-              .filter((s) => s.status === 'SCHEDULED' && new Date(s.scheduledAt).getTime() >= now - 15 * 60 * 1000)
+              .filter((s) => (s.status === 'SCHEDULED' || s.status === 'ACTIVATED') && (new Date(s.scheduledAt).getTime() + (s.durationMinutes || 30) * 60000 + 45 * 60000) >= now)
               .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
             setUpcomingSession(scheduled[0] || null);
           }
@@ -58,8 +60,8 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
   }, [API_URL]);
 
   useEffect(() => {
-    fetchUpcoming();
-    const interval = setInterval(fetchUpcoming, 30000);
+    fetchUpcoming(true);
+    const interval = setInterval(() => fetchUpcoming(false), 30000);
     return () => clearInterval(interval);
   }, [fetchUpcoming]);
 
@@ -99,16 +101,62 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
     return () => clearInterval(timer);
   }, [upcomingSession]);
 
-  if (loading || !upcomingSession) return null;
+  // Render loading skeleton while fetching upcoming session
+  if (loading) {
+    return (
+      <div
+        className={`relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-r from-card/80 via-card/40 to-muted/20 p-4 sm:p-5 shadow-lg backdrop-blur-xs transition-all ${className}`}
+      >
+        {/* Subtle background glow effect */}
+        <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl pointer-events-none animate-pulse" />
+
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-center gap-3.5 w-full sm:w-auto">
+            {/* Pulsing Icon Box Skeleton */}
+            <div className="h-12 w-12 shrink-0 rounded-2xl bg-muted/80 border border-border/60 animate-pulse flex items-center justify-center">
+              <Clock className="h-6 w-6 text-muted-foreground/30 animate-pulse" />
+            </div>
+
+            <div className="space-y-2 flex-1 sm:flex-initial">
+              {/* Badges Row Skeleton */}
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-32 rounded-full bg-muted/80 animate-pulse" />
+                <div className="h-4 w-20 rounded bg-muted/60 animate-pulse" />
+              </div>
+
+              {/* Course Title Skeleton */}
+              <div className="h-5 w-48 sm:w-64 rounded-md bg-muted/90 animate-pulse" />
+
+              {/* Date & Countdown Skeleton */}
+              <div className="flex items-center gap-2">
+                <div className="h-3.5 w-36 sm:w-44 rounded bg-muted/60 animate-pulse" />
+                <span className="text-muted-foreground/30 text-xs">•</span>
+                <div className="h-3.5 w-24 sm:w-28 rounded bg-muted/70 animate-pulse" />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Button Skeleton */}
+          <div className="self-end sm:self-center shrink-0 w-full sm:w-auto flex flex-col items-end sm:items-center gap-1.5">
+            <div className="h-10 w-36 sm:w-44 rounded-xl bg-muted/80 animate-pulse" />
+            <div className="h-3 w-20 rounded bg-muted/40 animate-pulse hidden sm:block" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!upcomingSession) return null;
 
   const sessionId = upcomingSession.id || upcomingSession._id;
   const isLive = upcomingSession.status === 'LIVE';
+  const isActivated = upcomingSession.status === 'ACTIVATED';
   const courseTitle = upcomingSession.course?.title || 'Quranic Studies';
   const courseType = upcomingSession.course?.type || 'STANDARD';
 
-  // Only allow joining when the session is LIVE or current time has reached scheduledAt
+  // Only allow joining when the session is LIVE, ACTIVATED, or current time has reached scheduledAt
   const scheduledMs = new Date(upcomingSession.scheduledAt).getTime();
-  const canJoin = isLive || Date.now() >= scheduledMs;
+  const canJoin = isLive || isActivated || Date.now() >= scheduledMs;
 
   return (
     <div className={`relative overflow-hidden rounded-2xl border p-4 sm:p-5 shadow-xl transition-all ${
@@ -145,10 +193,12 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
               <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border shadow-sm ${
                 isLive
                   ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 animate-pulse'
+                  : isActivated
+                  ? 'bg-amber-500/20 text-amber-400 border-amber-500/40 animate-pulse'
                   : 'bg-brand/15 text-brand border-brand/30'
               }`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${isLive ? 'bg-blue-400 animate-ping' : 'bg-brand'}`} />
-                {isLive ? 'LIVE NOW' : 'NEXT UPCOMING CLASS'}
+                <span className={`h-1.5 w-1.5 rounded-full ${isLive ? 'bg-blue-400 animate-ping' : isActivated ? 'bg-amber-400 animate-ping' : 'bg-brand'}`} />
+                {isLive ? 'LIVE NOW' : isActivated ? 'ACTIVATED & READY' : 'NEXT UPCOMING CLASS'}
               </span>
 
               <span className="text-[10px] font-semibold text-muted-foreground uppercase px-2 py-0.5 rounded bg-muted/60 border border-border">
@@ -184,12 +234,14 @@ export default function UpcomingClassBanner({ userRole = 'STUDENT', userId, clas
               canJoin
                 ? isLive
                   ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-500/30 animate-bounce hover:scale-105 active:scale-95 cursor-pointer'
+                  : isActivated
+                  ? 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-500/30 animate-pulse hover:scale-105 active:scale-95 cursor-pointer'
                   : 'bg-brand hover:bg-brand/90 text-brand-foreground shadow-brand/20 hover:scale-105 active:scale-95 cursor-pointer'
                 : 'bg-muted/60 text-muted-foreground border border-border cursor-not-allowed opacity-60'
             }`}
           >
             {isLive ? <MonitorPlay size={16} /> : <PlayCircle size={16} />}
-            <span>{isLive ? 'Enter Live Classroom' : canJoin ? 'Join Session' : 'Not Yet Open'}</span>
+            <span>{isLive ? 'Enter Live Classroom' : isActivated ? 'Start / Enter Classroom' : canJoin ? 'Join Session' : 'Not Yet Open'}</span>
           </button>
           {!canJoin && (
             <span className="text-[10px] text-muted-foreground font-mono text-center">

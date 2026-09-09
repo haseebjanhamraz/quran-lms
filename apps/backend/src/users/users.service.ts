@@ -1,5 +1,6 @@
-import { ConflictException, Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, BadRequestException, Logger, Optional, Inject, forwardRef } from '@nestjs/common';
 import { EmailService } from '../email/email.service';
+import { ScheduleGateway } from '../schedule/schedule.gateway';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import {
@@ -18,6 +19,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { RedisCacheService } from '../cache/redis-cache.service';
+import { parsePKTDateAndTimeToUTC, formatPKTTime } from '../utils/islamabad-time';
 import * as bcrypt from 'bcrypt';
 
 const SHORT_TO_FULL_DAYS: Record<string, DayOfWeek> = {
@@ -53,6 +55,7 @@ export class UsersService {
     @InjectModel(Enrollment.name) private readonly enrollmentModel: Model<EnrollmentDocument>,
     private readonly cacheService: RedisCacheService,
     private readonly emailService: EmailService,
+    @Optional() @Inject(forwardRef(() => ScheduleGateway)) private readonly scheduleGateway?: ScheduleGateway,
   ) {}
 
   private async getNextStudentId(): Promise<number> {
@@ -376,6 +379,11 @@ export class UsersService {
       if (customFeeNotes !== undefined) studentUpdate['profile.customFeeNotes'] = customFeeNotes;
       if (currency !== undefined) studentUpdate['profile.currency'] = currency;
 
+      const currentStudent = await this.studentModel.findOne({ userId: id }).lean();
+      const previousTeacherId = currentStudent?.profile?.assignedTeacher
+        ? (currentStudent.profile.assignedTeacher.toString() || (currentStudent.profile.assignedTeacher as any)._id?.toString())
+        : undefined;
+
       if (Object.keys(studentUpdate).length > 0) {
         await this.studentModel.findOneAndUpdate(
           { userId: id },
@@ -384,14 +392,18 @@ export class UsersService {
         );
       }
 
-      if (assignedTeacher || (classDays && classDays.length > 0)) {
-        let teacherToCheck = assignedTeacher ? assignedTeacher.toString() : undefined;
-        let daysToCheck: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }> | undefined = classDays;
-        if (!teacherToCheck || !daysToCheck) {
-          const currentStudent = await this.studentModel.findOne({ userId: id }).lean();
-          if (!teacherToCheck) teacherToCheck = currentStudent?.profile?.assignedTeacher?.toString();
-          if (!daysToCheck) daysToCheck = currentStudent?.profile?.classDays;
-        }
+      if (assignedTeacher !== undefined || classDays !== undefined || classDuration !== undefined) {
+        const teacherToCheck = assignedTeacher !== undefined
+          ? (assignedTeacher ? assignedTeacher.toString() : undefined)
+          : previousTeacherId;
+
+        const daysToCheck = classDays !== undefined
+          ? classDays
+          : (currentStudent?.profile?.classDays as Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }> | undefined);
+
+        const durationToCheck = classDuration !== undefined
+          ? Number(classDuration)
+          : (currentStudent?.profile?.classDuration || 30);
 
         if (teacherToCheck && daysToCheck && daysToCheck.length > 0) {
           await this.validateTeacherScheduleConflicts(teacherToCheck, daysToCheck, id);
@@ -399,9 +411,10 @@ export class UsersService {
 
         await this.syncStudentScheduleAndEnrollments(
           id,
-          assignedTeacher ? assignedTeacher.toString() : undefined,
-          classDays,
-          classDuration !== undefined ? Number(classDuration) : undefined,
+          teacherToCheck,
+          daysToCheck,
+          durationToCheck,
+          previousTeacherId,
         );
       }
     } else if (user.role === Role.TEACHER) {
@@ -665,6 +678,11 @@ export class UsersService {
     await this.notificationModel.deleteMany({ userId: id });
     await this.userModel.findByIdAndDelete(id);
 
+    await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('stats:*');
+    await this.cacheService.delByPattern('sessions:*');
+    this.scheduleGateway?.broadcastScheduleUpdate('hard_delete_user', { userId: id });
+
     return { success: true, message: 'User account permanently deleted' };
   }
 
@@ -718,112 +736,228 @@ export class UsersService {
     assignedTeacherId?: string,
     classDays?: Array<{ day: string; time?: string; studentTime?: string; teacherTime?: string }>,
     classDuration?: number,
+    previousTeacherId?: string,
   ) {
-    if (!assignedTeacherId) return;
-
     try {
-      // 1. Find teacher's courses
-      const teacherCourses = await this.courseModel.find({
-        $or: [{ teacherId: assignedTeacherId }, { teacherIds: assignedTeacherId }],
+      const studentFilter: any[] = [studentUserId];
+      if (Types.ObjectId.isValid(studentUserId)) {
+        studentFilter.push(new Types.ObjectId(studentUserId));
+      }
+
+      // 1. Clean up existing WeeklyScheduleSlots for this student
+      await this.weeklySlotModel.deleteMany({
+        studentId: { $in: studentFilter },
       });
 
-      // 2. Auto-enroll student in teacher's primary course if not enrolled
-      if (teacherCourses.length > 0) {
-        const primaryCourse = teacherCourses[0];
-        const existingEnrollment = await this.enrollmentModel.findOne({
+      // 2. Clean up upcoming SCHEDULED class sessions for this student (keep COMPLETED, LIVE, CANCELLED intact)
+      const now = new Date();
+      await this.classSessionModel.deleteMany({
+        studentId: { $in: studentFilter },
+        status: ClassStatus.SCHEDULED,
+        scheduledAt: { $gte: now },
+      });
+
+      // If no teacher is assigned or no schedule days provided, finalize cleanup & notify
+      if (!assignedTeacherId || !Array.isArray(classDays) || classDays.length === 0) {
+        await this.cacheService.delByPattern('schedule:*');
+        await this.cacheService.delByPattern('stats:*');
+        await this.cacheService.delByPattern('sessions:*');
+        if (previousTeacherId) {
+          await this.cacheService.del(`sessions:calendar:teacher:${previousTeacherId}`);
+          await this.cacheService.del(`schedule:grid:teacher:${previousTeacherId}`);
+          this.scheduleGateway?.sendToUser(previousTeacherId, 'schedule_update', {
+            studentId: studentUserId,
+            previousTeacherId,
+          });
+        }
+        this.scheduleGateway?.broadcastScheduleUpdate('sync_schedule', {
           studentId: studentUserId,
-          courseId: primaryCourse._id,
+          teacherId: assignedTeacherId,
+          previousTeacherId,
+        });
+        return;
+      }
+
+      const teacherFilter: any[] = [assignedTeacherId];
+      if (Types.ObjectId.isValid(assignedTeacherId)) {
+        teacherFilter.push(new Types.ObjectId(assignedTeacherId));
+      }
+
+      // 3. Find teacher's courses
+      const teacherCourses = await this.courseModel.find({
+        $or: [{ teacherId: { $in: teacherFilter } }, { teacherIds: { $in: teacherFilter } }],
+      });
+
+      let primaryCourseId: any = teacherCourses.length > 0 ? teacherCourses[0]._id : undefined;
+      if (!primaryCourseId) {
+        const enroll = await this.enrollmentModel.findOne({ studentId: { $in: studentFilter } }).lean();
+        if (enroll) primaryCourseId = enroll.courseId;
+      }
+      if (!primaryCourseId) {
+        const anyCourse = await this.courseModel.findOne().lean();
+        if (anyCourse) primaryCourseId = anyCourse._id;
+      }
+
+      // 4. Auto-enroll student in teacher's course if not enrolled
+      if (primaryCourseId) {
+        const existingEnrollment = await this.enrollmentModel.findOne({
+          studentId: { $in: studentFilter },
+          courseId: primaryCourseId,
         });
         if (!existingEnrollment) {
           await this.enrollmentModel.create({
             studentId: studentUserId,
-            courseId: primaryCourse._id,
+            courseId: primaryCourseId,
           });
         }
       }
 
-      // 3. Sync WeeklyScheduleSlots for classDays
-      if (Array.isArray(classDays) && classDays.length > 0) {
-        const primaryCourseId = teacherCourses.length > 0 ? teacherCourses[0]._id : undefined;
+      // 5. Parse helper functions
+      const parseTimeToMinutes = (tStr?: string): number => {
+        if (!tStr) return 16 * 60;
+        const trimmed = tStr.trim().toUpperCase();
+        const isPM = trimmed.includes('PM');
+        const isAM = trimmed.includes('AM');
+        const clean = trimmed.replace(/[A-Z]/g, '').trim();
+        const [hStr, mStr] = clean.split(':');
+        let h = parseInt(hStr, 10) || 0;
+        const m = parseInt(mStr, 10) || 0;
+        if (isPM && h < 12) h += 12;
+        if (isAM && h === 12) h = 0;
+        if (!isPM && !isAM && h >= 1 && h <= 6) h += 12;
+        return h * 60 + m;
+      };
 
-        for (const slot of classDays) {
-          const fullDay = SHORT_TO_FULL_DAYS[slot.day] || (slot.day as DayOfWeek);
-          
-          const parseTimeToMinutes = (tStr?: string): number => {
-            if (!tStr) return 16 * 60;
-            const trimmed = tStr.trim().toUpperCase();
-            const isPM = trimmed.includes('PM');
-            const isAM = trimmed.includes('AM');
-            const clean = trimmed.replace(/[A-Z]/g, '').trim();
-            const [hStr, mStr] = clean.split(':');
-            let h = parseInt(hStr, 10) || 0;
-            const m = parseInt(mStr, 10) || 0;
-            if (isPM && h < 12) h += 12;
-            if (isAM && h === 12) h = 0;
-            return h * 60 + m;
-          };
+      const minutesToHHMM = (minutes: number): string => {
+        const norm = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
+        const h = Math.floor(norm / 60);
+        const m = norm % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+      };
 
-          const minutesToHHMM = (minutes: number): string => {
-            const norm = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60);
-            const h = Math.floor(norm / 60);
-            const m = norm % 60;
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-          };
+      const dur = classDuration || 30;
 
-          const teacherTimeStr = slot.teacherTime || slot.time || '16:00';
-          const studentTimeStr = slot.studentTime || slot.time || '16:00';
-          const teacherMins = parseTimeToMinutes(teacherTimeStr);
-          const dur = classDuration || 30;
-          const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((teacherMins - 9 * 60) / 30)));
-          const startTime = minutesToHHMM(teacherMins);
-          const endTime = minutesToHHMM(teacherMins + dur);
+      // 6. Sync WeeklyScheduleSlots for new classDays
+      for (const slot of classDays) {
+        const fullDay = SHORT_TO_FULL_DAYS[slot.day] || (slot.day as DayOfWeek);
+        const teacherTimeStr = slot.teacherTime || slot.time || '16:00';
+        const studentTimeStr = slot.studentTime || slot.time || '16:00';
+        const teacherMins = parseTimeToMinutes(teacherTimeStr);
+        const timeSlotIndex = Math.max(0, Math.min(47, Math.floor((teacherMins - 9 * 60) / 30)));
+        const startTime = minutesToHHMM(teacherMins);
+        const endTime = minutesToHHMM(teacherMins + dur);
 
-          const existingSlot = await this.weeklySlotModel.findOne({
+        await this.weeklySlotModel.findOneAndUpdate(
+          {
             dayOfWeek: fullDay,
             timeSlotIndex,
             teacherId: assignedTeacherId,
-            isActive: true,
-          });
-
-          if (
-            existingSlot &&
-            existingSlot.studentId &&
-            existingSlot.studentId.toString() !== studentUserId.toString()
-          ) {
-            throw new ConflictException(
-              `Schedule conflict: The teacher already has a class assigned on ${fullDay} at ${teacherTimeStr}. A teacher can only have one class at a time.`
-            );
-          }
-
-          await this.weeklySlotModel.findOneAndUpdate(
-            {
+          },
+          {
+            $set: {
               dayOfWeek: fullDay,
               timeSlotIndex,
+              startTime,
+              endTime,
+              durationMinutes: dur,
+              teacherStartTime: slot.teacherTime || teacherTimeStr,
+              studentStartTime: slot.studentTime || studentTimeStr,
               teacherId: assignedTeacherId,
+              studentId: studentUserId,
+              ...(primaryCourseId ? { courseId: primaryCourseId } : {}),
+              isRecurring: true,
+              isActive: true,
             },
-            {
-              $set: {
-                dayOfWeek: fullDay,
-                timeSlotIndex,
-                startTime,
-                endTime,
-                durationMinutes: dur,
-                teacherStartTime: slot.teacherTime || teacherTimeStr,
-                studentStartTime: slot.studentTime || studentTimeStr,
-                teacherId: assignedTeacherId,
-                studentId: studentUserId,
-                ...(primaryCourseId ? { courseId: primaryCourseId } : {}),
-                isRecurring: true,
-                isActive: true,
-              },
-            },
-            { upsert: true, new: true },
-          );
+          },
+          { upsert: true, new: true },
+        );
+      }
+
+      // 7. Generate upcoming ClassSessions for the current week window (0 to 7 days ahead)
+      const dayMap: Record<string, number> = {
+        Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
+        Sunday: 0, Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5, Saturday: 6,
+      };
+
+      const baseDate = new Date();
+      baseDate.setHours(0, 0, 0, 0);
+
+      for (let offset = 0; offset <= 7; offset++) {
+        const d = new Date(baseDate);
+        d.setDate(d.getDate() + offset);
+        const dayNum = d.getDay();
+
+        const matchingSlot = classDays.find((cd) => dayMap[cd.day] === dayNum);
+        if (!matchingSlot) continue;
+
+        const teacherTimeStr = matchingSlot.teacherTime || matchingSlot.time || '16:00';
+        const scheduledAt = parsePKTDateAndTimeToUTC(d, teacherTimeStr);
+        const sessionEnd = new Date(scheduledAt.getTime() + dur * 60 * 1000);
+
+        if (sessionEnd.getTime() + 2 * 60 * 60 * 1000 > now.getTime()) {
+          const windowStart = new Date(scheduledAt.getTime() - 15 * 60 * 1000);
+          const windowEnd = new Date(scheduledAt.getTime() + 15 * 60 * 1000);
+
+          const existingSession = await this.classSessionModel.findOne({
+            teacherId: { $in: teacherFilter },
+            studentId: { $in: studentFilter },
+            scheduledAt: { $gte: windowStart, $lte: windowEnd },
+          });
+
+          if (!existingSession && primaryCourseId) {
+            let status = ClassStatus.SCHEDULED;
+            if (scheduledAt <= now && now <= sessionEnd) {
+              status = ClassStatus.LIVE;
+            }
+
+            await this.classSessionModel.create({
+              courseId: primaryCourseId,
+              teacherId: assignedTeacherId,
+              studentId: studentUserId,
+              scheduledAt,
+              durationMinutes: dur,
+              status,
+              timezone: 'Asia/Karachi',
+              scheduledTimePKT: formatPKTTime(scheduledAt),
+            });
+          }
         }
       }
 
+      // 8. Invalidate Redis Caches
       await this.cacheService.delByPattern('schedule:*');
       await this.cacheService.delByPattern('stats:*');
+      await this.cacheService.delByPattern('sessions:*');
+      if (assignedTeacherId) {
+        await this.cacheService.del(`sessions:calendar:teacher:${assignedTeacherId}`);
+        await this.cacheService.del(`schedule:grid:teacher:${assignedTeacherId}`);
+      }
+      if (previousTeacherId && previousTeacherId !== assignedTeacherId) {
+        await this.cacheService.del(`sessions:calendar:teacher:${previousTeacherId}`);
+        await this.cacheService.del(`schedule:grid:teacher:${previousTeacherId}`);
+      }
+      await this.cacheService.del(`sessions:calendar:student:${studentUserId}`);
+      await this.cacheService.del('schedule:grid:admin');
+
+      // 9. Real-time WebSocket Broadcast
+      this.scheduleGateway?.broadcastScheduleUpdate('sync_schedule', {
+        studentId: studentUserId,
+        teacherId: assignedTeacherId,
+        previousTeacherId,
+      });
+
+      if (assignedTeacherId) {
+        this.scheduleGateway?.sendToUser(assignedTeacherId, 'schedule_update', {
+          studentId: studentUserId,
+          teacherId: assignedTeacherId,
+        });
+      }
+      if (previousTeacherId && previousTeacherId !== assignedTeacherId) {
+        this.scheduleGateway?.sendToUser(previousTeacherId, 'schedule_update', {
+          studentId: studentUserId,
+          previousTeacherId,
+        });
+      }
     } catch (err: any) {
       if (err instanceof ConflictException) {
         throw err;

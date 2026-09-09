@@ -49,3 +49,71 @@ export const TEACHER_COLORS = [
 export function getTeacherColor(index: number): string {
   return TEACHER_COLORS[index % TEACHER_COLORS.length];
 }
+
+/**
+ * Matches a schedule slot against activeFilter, supporting:
+ * - Real MongoDB teacher ID / _id
+ * - Teacher name (case-insensitive substring or exact)
+ * - 1-based index (e.g. filter=2 matches 2nd teacher in array)
+ * - 0-based index
+ */
+export function matchTeacherFilter(
+  slotData: SlotAssignment | undefined,
+  activeFilter: string | null,
+  teachers: TeacherItem[],
+): boolean {
+  if (!slotData) return false;
+  if (!activeFilter) return true;
+
+  const f = activeFilter.trim();
+  const fLower = f.toLowerCase();
+
+  const slotTeacherId = (slotData.teacherId || (slotData.teacher as any)?.id || (slotData.teacher as any)?._id)?.toString();
+  const slotTeacherName = slotData.teacher?.name?.trim().toLowerCase();
+
+  // Direct match by ID
+  if (slotTeacherId && (slotTeacherId === f || slotTeacherId.toLowerCase() === fLower)) {
+    return true;
+  }
+  // Direct match by name
+  if (slotTeacherName && (slotTeacherName === fLower || slotTeacherName.includes(fLower))) {
+    return true;
+  }
+
+  // Check if activeFilter is a numeric index (1, 2, 3...) or matches a teacher in the array
+  let matchedTeacher: TeacherItem | undefined;
+
+  const num = Number(f);
+  if (!isNaN(num) && num > 0 && num <= teachers.length) {
+    // 1-based index (e.g., '2' -> 2nd teacher)
+    matchedTeacher = teachers[num - 1];
+  } else if (!isNaN(num) && num >= 0 && num < teachers.length) {
+    // 0-based index
+    matchedTeacher = teachers[num];
+  }
+
+  if (!matchedTeacher) {
+    matchedTeacher = teachers.find(
+      (t, idx) =>
+        t.id === f ||
+        (t as any)._id === f ||
+        t.name?.trim().toLowerCase() === fLower ||
+        String(idx + 1) === f ||
+        String(idx) === f,
+    );
+  }
+
+  if (matchedTeacher) {
+    const tId = (matchedTeacher.id || (matchedTeacher as any)._id)?.toString();
+    const tName = matchedTeacher.name?.trim().toLowerCase();
+
+    if (slotTeacherId && tId && (slotTeacherId === tId || slotTeacherId.toLowerCase() === tId.toLowerCase())) {
+      return true;
+    }
+    if (slotTeacherName && tName && (slotTeacherName === tName || slotTeacherName.includes(tName) || tName.includes(slotTeacherName))) {
+      return true;
+    }
+  }
+
+  return false;
+}

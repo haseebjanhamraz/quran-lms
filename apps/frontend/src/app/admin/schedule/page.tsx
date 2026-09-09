@@ -11,6 +11,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useUrlState } from '@/hooks/useUrlState';
+import { Loader2 } from 'lucide-react';
 
 // Subcomponents
 import { TeacherItem, SlotAssignment, DEFAULT_TEACHERS } from './components/types';
@@ -18,7 +19,7 @@ import ScheduleHeader from './components/ScheduleHeader';
 import TeachersFilterBar from './components/TeachersFilterBar';
 import WeeklyScheduleGrid from './components/WeeklyScheduleGrid';
 
-export default function ScheduleManagement() {
+function ScheduleManagementContent() {
   const { timeSlots, refetch: refetchTimeSlots } = useTimeSlots();
   const [view, setView] = useUrlState<'weekly' | 'daily'>('view', 'weekly');
   const [activeFilter, setActiveFilter] = useUrlState<string | null>('filter', null);
@@ -49,13 +50,25 @@ export default function ScheduleManagement() {
       try {
         const teachersRes = await apiFetch(`${API_URL}/schedule/teachers`);
         if (teachersRes.ok) {
-          loadedTeachers = await teachersRes.json();
+          const raw = await teachersRes.json();
+          loadedTeachers = Array.isArray(raw)
+            ? raw.map((u: any, idx: number) => ({
+                id: (u.id || u._id)?.toString() || String(idx + 1),
+                name: u.name,
+                email: u.email,
+                assignedDaysCount: u.assignedDaysCount,
+              }))
+            : [];
         } else {
           const usersRes = await apiFetch(`${API_URL}/users/role/TEACHER`);
           if (usersRes.ok) {
             const rawUsers = await usersRes.json();
             loadedTeachers = Array.isArray(rawUsers)
-              ? rawUsers.map((u: any) => ({ id: u._id || u.id, name: u.name, email: u.email }))
+              ? rawUsers.map((u: any, idx: number) => ({
+                  id: (u._id || u.id)?.toString() || String(idx + 1),
+                  name: u.name,
+                  email: u.email,
+                }))
               : [];
           }
         }
@@ -63,6 +76,15 @@ export default function ScheduleManagement() {
 
       if (loadedTeachers.length > 0) {
         setTeachers(loadedTeachers);
+
+        // If activeFilter was an index (e.g., '1', '2', '3'), seamlessly resolve to real teacher ID
+        if (activeFilter && !isNaN(Number(activeFilter))) {
+          const num = Number(activeFilter);
+          const target = loadedTeachers[num - 1] || loadedTeachers[num];
+          if (target?.id && target.id !== activeFilter) {
+            setActiveFilter(target.id);
+          }
+        }
       }
 
       // 2. Fetch grid slots
@@ -136,6 +158,8 @@ export default function ScheduleManagement() {
         <DailyScheduleView
           role="ADMIN"
           teachers={teachers}
+          activeFilter={activeFilter}
+          onSelectTeacher={(tId) => setActiveFilter(tId)}
           gridAssignments={gridAssignments}
           timeSlots={timeSlots}
           allowDragDrop={false}
@@ -144,5 +168,19 @@ export default function ScheduleManagement() {
         />
       )}
     </div>
+  );
+}
+
+export default function ScheduleManagement() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-64 items-center justify-center">
+          <Loader2 className="animate-spin text-brand" size={32} />
+        </div>
+      }
+    >
+      <ScheduleManagementContent />
+    </React.Suspense>
   );
 }

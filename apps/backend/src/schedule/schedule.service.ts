@@ -75,10 +75,13 @@ export class ScheduleService {
     });
 
     const result = teachers.map((t) => {
-      const teacherObj = t.toObject();
+      const teacherObj = t.toObject({ virtuals: true });
+      const strId = t._id.toString();
       return {
         ...teacherObj,
-        assignedDaysCount: slotCountMap[t._id.toString()] || 0,
+        id: strId,
+        _id: strId,
+        assignedDaysCount: slotCountMap[strId] || 0,
       };
     });
 
@@ -131,8 +134,15 @@ export class ScheduleService {
     });
 
     const result = rawSlots.map((slotDoc) => {
-      const slot: any = slotDoc.toObject();
+      const slot: any = slotDoc.toObject({ virtuals: true });
       const tId = slot.teacherId ? slot.teacherId.toString() : (slot.teacher?._id || slot.teacher?.id)?.toString();
+      if (tId) {
+        slot.teacherId = tId;
+        if (slot.teacher) {
+          slot.teacher.id = (slot.teacher.id || slot.teacher._id)?.toString() || tId;
+          slot.teacher._id = (slot.teacher._id || slot.teacher.id)?.toString() || tId;
+        }
+      }
 
       // 1. Resolve course assigned to teacher if missing
       if (!slot.course && tId && teacherCourseMap[tId]) {

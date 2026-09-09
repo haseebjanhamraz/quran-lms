@@ -44,13 +44,21 @@ export default function TeachersFilterBar({
 
         {teachers.map((teacher, idx) => {
           const colorClass = getTeacherColor(idx);
-          const isSelected = activeFilter === teacher.id || activeFilter === teacher.name;
+          const teacherIdStr = (teacher.id || (teacher as any)._id)?.toString();
+          const isSelected =
+            Boolean(activeFilter) &&
+            (activeFilter === teacherIdStr ||
+              activeFilter?.toLowerCase() === teacher.name.toLowerCase() ||
+              activeFilter === String(idx + 1) ||
+              activeFilter === String(idx));
+
+          const targetIdToSelect = teacherIdStr || String(idx + 1);
 
           return (
             <button
-              key={teacher.id}
+              key={teacher.id || idx}
               type="button"
-              onClick={() => onSelectTeacher(isSelected ? null : teacher.id)}
+              onClick={() => onSelectTeacher(isSelected ? null : targetIdToSelect)}
               className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border shadow-sm hover:shadow-md transition-all cursor-pointer ${colorClass} ${
                 isSelected ? 'ring-2 ring-primary ring-offset-2 ring-offset-background scale-105' : 'opacity-85 hover:opacity-100'
               }`}

@@ -89,9 +89,12 @@ export class ClassSessionsController {
 
   @Put(':id')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
-  @RequirePermissions('schedule.update')
-  async update(@Param('id') id: string, @Body() updateClassSessionDto: UpdateClassSessionDto) {
-    return this.classSessionsService.update(id, updateClassSessionDto);
+  async update(
+    @Param('id') id: string,
+    @Body() updateClassSessionDto: UpdateClassSessionDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.update(id, updateClassSessionDto, user);
   }
 
   @Delete(':id')

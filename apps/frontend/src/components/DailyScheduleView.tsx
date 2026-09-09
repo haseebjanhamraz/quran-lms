@@ -19,6 +19,7 @@ import {
 } from '@/utils/islamabadTime';
 import IslamabadClock from '@/components/IslamabadClock';
 import { useUrlState } from '@/hooks/useUrlState';
+import { matchTeacherFilter } from '@/app/admin/schedule/components/types';
 
 export interface TeacherItem {
   id: string;
@@ -90,6 +91,8 @@ interface DailyScheduleViewProps {
   teacherId?: string;
   studentId?: string;
   teachers?: TeacherItem[];
+  activeFilter?: string | null;
+  onSelectTeacher?: (id: string | null) => void;
   gridAssignments?: Record<string, SlotAssignment>;
   sessions?: SessionItem[];
   timeSlots?: string[];
@@ -107,6 +110,8 @@ export default function DailyScheduleView({
   teacherId,
   studentId,
   teachers = [],
+  activeFilter,
+  onSelectTeacher,
   gridAssignments: initialGridAssignments,
   sessions: initialSessions,
   timeSlots: customTimeSlots,
@@ -127,6 +132,9 @@ export default function DailyScheduleView({
   const [searchQuery, setSearchQuery] = useUrlState<string>('q', '');
   const [selectedTeacherFilter, setSelectedTeacherFilter] = useUrlState<string>('teacher', teacherId || '');
   const [displayLayout, setDisplayLayout] = useUrlState<'cards' | 'table'>('layout', 'cards');
+
+  // Effective teacher filter: prioritize activeFilter passed from parent TeachersFilterBar
+  const effectiveTeacherFilter = activeFilter !== undefined ? activeFilter : (selectedTeacherFilter || teacherId || '');
 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
@@ -339,9 +347,10 @@ export default function DailyScheduleView({
         }
       }
 
-      // Selected Teacher Dropdown filter (Admin view)
-      if (selectedTeacherFilter) {
-        if (assTeacherId !== selectedTeacherFilter && assignment?.teacher?.id !== selectedTeacherFilter && assignment?.teacher?.name !== selectedTeacherFilter) {
+      // Teacher filter (Admin Teachers & Slot Allocations bar or dropdown)
+      if (effectiveTeacherFilter) {
+        const slotDataToMatch = assignment || (session ? { teacherId: session.teacherId, teacher: session.teacher } : undefined);
+        if (!matchTeacherFilter(slotDataToMatch as any, effectiveTeacherFilter, teachers)) {
           return false;
         }
       }
@@ -367,36 +376,52 @@ export default function DailyScheduleView({
 
       return true;
     });
-  }, [dailySlots, teacherId, studentId, role, displayLayout, selectedTeacherFilter, searchQuery, teacherCourseMap]);
+  }, [dailySlots, teacherId, studentId, role, displayLayout, effectiveTeacherFilter, teachers, searchQuery, teacherCourseMap]);
 
-  // Count assigned slots for each day accurately
+  // Count assigned slots for each day accurately (scoped by effective teacher filter if active)
   const daySlotCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     DAYS.forEach((day) => {
       let count = 0;
       timeSlots.forEach((timeSlot, idx) => {
         const slotKey = `${day}-${idx}`;
-        const hasGridSlot = Boolean(gridAssignments[slotKey]);
-        const hasSession = (daySessionsMap[day] || []).some((s) => {
+        const assignment = gridAssignments[slotKey];
+        const relatedSession = (daySessionsMap[day] || []).find((s) => {
           try {
             const sDate = new Date(s.scheduledAt);
+            const { hours: sHours, minutes: sMinutes } = getPKTHourAndMinute(sDate);
             const [startStr] = timeSlot.split(' - ');
             const [startH, startM] = startStr.split(':').map(Number);
-            return sDate.getHours() === startH && Math.abs(sDate.getMinutes() - startM) < 15;
+            return sHours === startH && Math.abs(sMinutes - startM) < 15;
           } catch (_) {
             return false;
           }
         });
 
-        if (hasGridSlot || hasSession) {
-          count++;
+        if (!assignment && !relatedSession) return;
+
+        // Teacher filter matching
+        if (effectiveTeacherFilter) {
+          const slotToMatch = assignment || (relatedSession ? { teacherId: relatedSession.teacherId, teacher: relatedSession.teacher } : undefined);
+          if (!matchTeacherFilter(slotToMatch as any, effectiveTeacherFilter, teachers)) {
+            return;
+          }
         }
+
+        if (teacherId) {
+          const tIdStr = teacherId.toString();
+          const assTId = (assignment?.teacherId || (assignment?.teacher as any)?.id || (assignment?.teacher as any)?._id)?.toString();
+          const sessTId = (relatedSession?.teacherId || relatedSession?.teacher?.id)?.toString();
+          if (assTId !== tIdStr && sessTId !== tIdStr) return;
+        }
+
+        count++;
       });
 
       counts[day] = count;
     });
     return counts;
-  }, [gridAssignments, daySessionsMap, timeSlots]);
+  }, [gridAssignments, daySessionsMap, timeSlots, effectiveTeacherFilter, teachers, teacherId]);
 
   // Total classes scheduled for student across the entire week
   const totalWeeklyClasses = useMemo(() => {
@@ -521,8 +546,23 @@ export default function DailyScheduleView({
             {role === 'ADMIN' && teachers.length > 0 && (
               <div className="relative min-w-[180px]">
                 <select
-                  value={selectedTeacherFilter}
-                  onChange={(e) => setSelectedTeacherFilter(e.target.value)}
+                  value={
+                    teachers.find(
+                      (t, idx) =>
+                        t.id === effectiveTeacherFilter ||
+                        (t as any)._id === effectiveTeacherFilter ||
+                        t.name?.toLowerCase() === effectiveTeacherFilter?.toLowerCase() ||
+                        String(idx + 1) === effectiveTeacherFilter ||
+                        String(idx) === effectiveTeacherFilter
+                    )?.id || effectiveTeacherFilter || ''
+                  }
+                  onChange={(e) => {
+                    const newVal = e.target.value;
+                    setSelectedTeacherFilter(newVal);
+                    if (onSelectTeacher) {
+                      onSelectTeacher(newVal || null);
+                    }
+                  }}
                   className="w-full bg-card border border-border rounded-xl px-3 py-1.5 text-xs text-foreground font-semibold focus:outline-none focus:ring-2 focus:ring-brand/50 transition-all cursor-pointer"
                 >
                   <option value="">All Teachers ({teachers.length})</option>
@@ -756,7 +796,15 @@ export default function DailyScheduleView({
                 ) : (
                   filteredSlots.map(({ timeSlotIndex, timeSlot, assignment, session }, rowIndex) => {
                     const isDragOver = dragOverIndex === timeSlotIndex;
-                    const teacherIndex = teachers.findIndex((t) => t.id === assignment?.teacherId);
+                    const teacherIndex = teachers.findIndex(
+                      (t) =>
+                        t.id === assignment?.teacherId ||
+                        (t as any)._id === assignment?.teacherId ||
+                        t.id === (assignment?.teacher as any)?.id ||
+                        t.id === (assignment?.teacher as any)?._id ||
+                        t.name?.toLowerCase() === assignment?.teacher?.name?.toLowerCase() ||
+                        t.name?.toLowerCase() === session?.teacher?.name?.toLowerCase(),
+                    );
                     const colorClass = getTeacherColor(teacherIndex >= 0 ? teacherIndex : timeSlotIndex);
 
                     const assTeacherId = assignment

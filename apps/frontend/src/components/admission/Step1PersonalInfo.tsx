@@ -177,7 +177,7 @@ export default function Step1PersonalInfo({
         </div>
 
         {/* Spoken / Preferred Languages */}
-        <div className="space-y-1 md:col-span-2">
+        <div className="space-y-">
           <LanguageSelector
             label="Spoken / Preferred Languages *"
             placeholder="Select language or type custom..."
@@ -217,7 +217,7 @@ export default function Step1PersonalInfo({
           </div>
         </div>
 
-        <div className="space-y-1 md:col-span-2">
+        <div className="space-y-1">
           <label className="text-xs font-semibold text-muted-foreground uppercase">Timezone * (Auto-filled from Country)</label>
           <select
             value={personalInfo.timezone}

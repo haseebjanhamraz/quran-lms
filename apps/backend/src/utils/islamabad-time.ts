@@ -118,7 +118,7 @@ export function formatPKTISO(date: Date = new Date()): string {
 }
 
 /**
- * Converts a dayOfWeek ('Monday'..'Sunday') and time ('HH:MM') in PKT
+ * Converts a dayOfWeek ('Monday'..'Sunday') and time ('HH:MM' or 'HH:MM AM/PM') in PKT
  * for the current/target week into an exact UTC Date object stored in MongoDB.
  */
 export function parsePKTDayAndTimeToDate(
@@ -126,12 +126,18 @@ export function parsePKTDayAndTimeToDate(
   timeStr: string,
   targetWeekRefDate: Date = new Date(),
 ): Date {
-  const fullDay = SHORT_DAY_TO_FULL[dayOfWeek] || 'Monday';
-  const [hStr, mStr] = (timeStr || '09:00').split(':');
-  const targetHour = parseInt(hStr, 10) || 0;
+  const fullDay = SHORT_DAY_TO_FULL[dayOfWeek] || (dayOfWeek as DayName) || 'Monday';
+  const trimmed = (timeStr || '09:00').trim().toUpperCase();
+  const isPM = trimmed.includes('PM');
+  const isAM = trimmed.includes('AM');
+  const clean = trimmed.replace(/[A-Z]/g, '').trim();
+  const [hStr, mStr] = clean.split(':');
+  let targetHour = parseInt(hStr, 10) || 0;
   const targetMinute = parseInt(mStr, 10) || 0;
+  if (isPM && targetHour < 12) targetHour += 12;
+  if (isAM && targetHour === 12) targetHour = 0;
 
-  // Find target week's Monday in PKT
+  // Find target week's day in PKT
   const refParts = getPKTDateParts(targetWeekRefDate);
   const dayIndexMap: Record<DayName, number> = {
     Monday: 0,
@@ -147,16 +153,31 @@ export function parsePKTDayAndTimeToDate(
   const targetDayIdx = dayIndexMap[fullDay as DayName] ?? 0;
   const dayDiff = targetDayIdx - currentDayIdx;
 
-  // Construct UTC equivalent of (refDate in PKT + dayDiff days + targetHour:targetMinute PKT)
-  // Since PKT is UTC+5, target UTC time is (Target PKT Hour - 5) UTC
-  const d = new Date(targetWeekRefDate);
-  // Using Date.UTC to avoid local server timezone interference
   const baseUtcYear = refParts.year;
   const baseUtcMonth = refParts.month - 1; // 0-indexed
   const baseUtcDay = refParts.day + dayDiff;
 
   const utcDate = new Date(Date.UTC(baseUtcYear, baseUtcMonth, baseUtcDay, targetHour - PKT_OFFSET_HOURS, targetMinute, 0, 0));
   return utcDate;
+}
+
+/**
+ * Converts a specific date in PKT and a time string ('HH:MM' or 'HH:MM AM/PM')
+ * into the exact UTC Date object stored in MongoDB.
+ */
+export function parsePKTDateAndTimeToUTC(dateInPKT: Date, timeStr: string): Date {
+  const parts = getPKTDateParts(dateInPKT);
+  const trimmed = (timeStr || '09:00').trim().toUpperCase();
+  const isPM = trimmed.includes('PM');
+  const isAM = trimmed.includes('AM');
+  const clean = trimmed.replace(/[A-Z]/g, '').trim();
+  const [hStr, mStr] = clean.split(':');
+  let targetHour = parseInt(hStr, 10) || 0;
+  const targetMinute = parseInt(mStr, 10) || 0;
+  if (isPM && targetHour < 12) targetHour += 12;
+  if (isAM && targetHour === 12) targetHour = 0;
+
+  return new Date(Date.UTC(parts.year, parts.month - 1, parts.day, targetHour - PKT_OFFSET_HOURS, targetMinute, 0, 0));
 }
 
 /**

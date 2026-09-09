@@ -32,6 +32,7 @@ import {
 
 interface SessionItem {
   id: string;
+  _id?: string;
   course: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
@@ -41,6 +42,7 @@ interface SessionItem {
 
 interface Course {
   id: string;
+  _id?: string;
   title: string;
   type: string;
   teacher?: { name: string };
@@ -102,7 +104,7 @@ function CourseTypeBadge({ type }: { type: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function StudentDashboard() {
+function StudentDashboardContent() {
   const { user, loading: authLoading, logout } = useAuth();
   const router = useRouter();
 
@@ -124,11 +126,35 @@ export default function StudentDashboard() {
 
       if (sRes.ok) {
         const sData = await sRes.json();
-        setSessions(Array.isArray(sData) ? sData : sData.data ?? []);
+        const rawSessions: any[] = Array.isArray(sData) ? sData : sData.data ?? [];
+        const seenIds = new Set<string>();
+        const normalizedSessions: SessionItem[] = [];
+        for (let i = 0; i < rawSessions.length; i++) {
+          const s = rawSessions[i];
+          const rawId = s.id || s._id || `session-${i}-${s.scheduledAt || Date.now()}`;
+          const id = typeof rawId === 'string' ? rawId : String(rawId);
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            normalizedSessions.push({ ...s, id });
+          }
+        }
+        setSessions(normalizedSessions);
       }
       if (cRes.ok) {
         const cData = await cRes.json();
-        setCourses(Array.isArray(cData) ? cData : cData.data ?? []);
+        const rawCourses: any[] = Array.isArray(cData) ? cData : cData.data ?? [];
+        const seenIds = new Set<string>();
+        const normalizedCourses: Course[] = [];
+        for (let i = 0; i < rawCourses.length; i++) {
+          const c = rawCourses[i];
+          const rawId = c.id || c._id || `course-${i}-${c.title || Date.now()}`;
+          const id = typeof rawId === 'string' ? rawId : String(rawId);
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            normalizedCourses.push({ ...c, id });
+          }
+        }
+        setCourses(normalizedCourses);
       }
       if (stRes.ok) {
         const stData = await stRes.json();
@@ -146,7 +172,19 @@ export default function StudentDashboard() {
       const sRes = await fetch(`${API_URL}/class-sessions/calendar`, { credentials: 'include' });
       if (sRes.ok) {
         const sData = await sRes.json();
-        setSessions(Array.isArray(sData) ? sData : sData.data ?? []);
+        const rawSessions: any[] = Array.isArray(sData) ? sData : sData.data ?? [];
+        const seenIds = new Set<string>();
+        const normalizedSessions: SessionItem[] = [];
+        for (let i = 0; i < rawSessions.length; i++) {
+          const s = rawSessions[i];
+          const rawId = s.id || s._id || `session-${i}-${s.scheduledAt || Date.now()}`;
+          const id = typeof rawId === 'string' ? rawId : String(rawId);
+          if (!seenIds.has(id)) {
+            seenIds.add(id);
+            normalizedSessions.push({ ...s, id });
+          }
+        }
+        setSessions(normalizedSessions);
       }
     } catch (_) { }
   };
@@ -306,58 +344,61 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="flex flex-col gap-3">
-                  {upcomingSessions.map((session) => (
-                    <div key={session.id} className="rounded-xl border border-border bg-background/50 p-4 flex flex-wrap items-center justify-between gap-4">
-                      <div className="flex items-center gap-3.5 min-w-0">
-                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${session.status === 'LIVE'
-                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
-                          : 'bg-blue-500/15 border-blue-500/30 text-blue-500'
-                          }`}>
-                          {session.status === 'LIVE' ? <PlayCircle className="w-5 h-5" /> : <Video className="w-5 h-5" />}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-foreground text-sm truncate">
-                            {session.course.title}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-2 mt-1">
-                            <CourseTypeBadge type={session.course.type} />
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(session.scheduledAt)} · {formatTime(session.scheduledAt)}
-                            </span>
+                  {upcomingSessions.map((session, idx) => {
+                    const sessionId = session.id || session._id || `upcoming-session-${idx}`;
+                    return (
+                      <div key={sessionId} className="rounded-xl border border-border bg-background/50 p-4 flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 border ${session.status === 'LIVE'
+                            ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-500'
+                            : 'bg-blue-500/15 border-blue-500/30 text-blue-500'
+                            }`}>
+                            {session.status === 'LIVE' ? <PlayCircle className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                           </div>
-                        </div>
-                      </div>
-                      <div className="shrink-0">
-                        {session.status === 'LIVE' ? (
-                          <div className="flex items-center gap-2">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <button
-                              className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all shadow-md"
-                              onClick={() => router.push(`/classroom/${session.id}`)}
-                            >
-                              <PlayCircle className="w-4 h-4" /> Join Now
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-end gap-1.5">
-                            <span className="inline-block bg-blue-500/15 border border-blue-500/30 rounded-full px-3 py-0.5 text-xs text-blue-500 font-semibold">
-                              Upcoming
-                            </span>
-                            <p className="text-xs text-muted-foreground font-mono">
-                              {getCountdown(session.scheduledAt)}
+                          <div className="min-w-0">
+                            <p className="font-semibold text-foreground text-sm truncate">
+                              {session.course.title}
                             </p>
-                            <button
-                              onClick={() => setSelectedRescheduleSession(session)}
-                              className="mt-1 text-[11px] font-semibold text-brand hover:underline flex items-center gap-1"
-                            >
-                              <Calendar size={12} />
-                              <span>Request Advance Class</span>
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                              <CourseTypeBadge type={session.course.type} />
+                              <span className="text-xs text-muted-foreground">
+                                {formatDate(session.scheduledAt)} · {formatTime(session.scheduledAt)}
+                              </span>
+                            </div>
                           </div>
-                        )}
+                        </div>
+                        <div className="shrink-0">
+                          {session.status === 'LIVE' ? (
+                            <div className="flex items-center gap-2">
+                              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                              <button
+                                className="flex items-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all shadow-md"
+                                onClick={() => router.push(`/classroom/${sessionId}`)}
+                              >
+                                <PlayCircle className="w-4 h-4" /> Join Now
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col items-end gap-1.5">
+                              <span className="inline-block bg-blue-500/15 border border-blue-500/30 rounded-full px-3 py-0.5 text-xs text-blue-500 font-semibold">
+                                Upcoming
+                              </span>
+                              <p className="text-xs text-muted-foreground font-mono">
+                                {getCountdown(session.scheduledAt)}
+                              </p>
+                              <button
+                                onClick={() => setSelectedRescheduleSession(session)}
+                                className="mt-1 text-[11px] font-semibold text-brand hover:underline flex items-center gap-1"
+                              >
+                                <Calendar size={12} />
+                                <span>Request Advance Class</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -381,22 +422,25 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {courses.map((course) => (
-                    <div key={course.id} className="rounded-xl border border-border bg-background/50 p-5 flex flex-col justify-between hover:border-brand/40 transition-all shadow-sm">
-                      <div className="mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-brand/15 border border-brand/30 flex items-center justify-center mb-3">
-                          <BookOpen className="w-5 h-5 text-brand" />
+                  {courses.map((course, idx) => {
+                    const courseId = course.id || course._id || `enrolled-course-${idx}`;
+                    return (
+                      <div key={courseId} className="rounded-xl border border-border bg-background/50 p-5 flex flex-col justify-between hover:border-brand/40 transition-all shadow-sm">
+                        <div className="mb-4">
+                          <div className="w-10 h-10 rounded-xl bg-brand/15 border border-brand/30 flex items-center justify-center mb-3">
+                            <BookOpen className="w-5 h-5 text-brand" />
+                          </div>
+                          <h3 className="font-bold text-foreground text-sm leading-snug mb-1">
+                            {course.title}
+                          </h3>
+                          {course.teacher && <p className="text-xs text-muted-foreground">{course.teacher.name}</p>}
                         </div>
-                        <h3 className="font-bold text-foreground text-sm leading-snug mb-1">
-                          {course.title}
-                        </h3>
-                        {course.teacher && <p className="text-xs text-muted-foreground">{course.teacher.name}</p>}
+                        <div className="flex items-center justify-between mt-auto">
+                          <CourseTypeBadge type={course.type} />
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between mt-auto">
-                        <CourseTypeBadge type={course.type} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </section>
@@ -427,49 +471,52 @@ export default function StudentDashboard() {
               </div>
             ) : (
               <div className="flex flex-col gap-3">
-                {completedSessions.map((session) => (
-                  <div key={session.id} className="rounded-xl border border-border bg-background/50 p-4 flex flex-col gap-3">
-                    <div className="flex items-center justify-between flex-wrap gap-2">
-                      <div>
-                        <p className="font-semibold text-foreground text-sm mb-1">{session.course.title}</p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <CourseTypeBadge type={session.course.type} />
-                          <span className="text-xs text-muted-foreground">
-                            {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)}
-                          </span>
+                {completedSessions.map((session, idx) => {
+                  const sessionId = session.id || session._id || `completed-session-${idx}`;
+                  return (
+                    <div key={sessionId} className="rounded-xl border border-border bg-background/50 p-4 flex flex-col gap-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <p className="font-semibold text-foreground text-sm mb-1">{session.course.title}</p>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <CourseTypeBadge type={session.course.type} />
+                            <span className="text-xs text-muted-foreground">
+                              {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)}
+                            </span>
+                          </div>
                         </div>
+                        <span className="bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                          <CheckCircle className="w-3.5 h-3.5" /> Attended
+                        </span>
                       </div>
-                      <span className="bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                        <CheckCircle className="w-3.5 h-3.5" /> Attended
-                      </span>
-                    </div>
 
-                    {/* Recording section */}
-                    <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs">
-                      <span className="text-muted-foreground">
-                        Recording:{' '}
-                        <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
-                          {session.recording?.status || 'PROCESSING'}
+                      {/* Recording section */}
+                      <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs">
+                        <span className="text-muted-foreground">
+                          Recording:{' '}
+                          <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                            {session.recording?.status || 'PROCESSING'}
+                          </span>
                         </span>
-                      </span>
-                      {session.recording?.status === 'READY' ? (
-                        <button
-                          onClick={() => {
-                            const previewUrl = `${API_URL}/recordings/${session.id}/stream`;
-                            setActiveVideoUrl(previewUrl);
-                          }}
-                          className="bg-brand hover:bg-brand/90 text-brand-foreground font-semibold px-3.5 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5"
-                        >
-                          <PlayCircle className="w-3.5 h-3.5" /> Watch Recording
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground italic">
-                          Processing upload...
-                        </span>
-                      )}
+                        {session.recording?.status === 'READY' ? (
+                          <button
+                            onClick={() => {
+                              const previewUrl = `${API_URL}/recordings/${sessionId}/stream`;
+                              setActiveVideoUrl(previewUrl);
+                            }}
+                            className="bg-brand hover:bg-brand/90 text-brand-foreground font-semibold px-3.5 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5"
+                          >
+                            <PlayCircle className="w-3.5 h-3.5" /> Watch Recording
+                          </button>
+                        ) : (
+                          <span className="text-muted-foreground italic">
+                            Processing upload...
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -496,5 +543,19 @@ export default function StudentDashboard() {
         </footer>
       </main>
     </div>
+  );
+}
+
+export default function StudentDashboard() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex h-screen w-screen items-center justify-center bg-background">
+          <Loader2 className="animate-spin text-primary" size={32} />
+        </div>
+      }
+    >
+      <StudentDashboardContent />
+    </React.Suspense>
   );
 }

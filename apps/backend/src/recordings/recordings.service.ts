@@ -11,6 +11,7 @@ import { Recording, RecordingDocument, RecordingStatus, ClassSession, ClassSessi
 export class RecordingsService {
   private readonly logger = new Logger(RecordingsService.name);
   private egressClient: EgressClient;
+  private readonly startingRecordings = new Set<string>();
 
   constructor(
     @InjectModel(Recording.name) private readonly recordingModel: Model<RecordingDocument>,
@@ -25,6 +26,11 @@ export class RecordingsService {
   }
 
   async startRoomRecording(sessionId: string) {
+    if (this.startingRecordings.has(sessionId)) {
+      this.logger.log(`Recording already initiating for session ${sessionId}. Skipping duplicate egress start.`);
+      return { egressId: 'already-initiating' };
+    }
+
     const session = await this.classSessionModel.findById(sessionId);
     if (session && session.status === ClassStatus.FROZEN) {
       this.logger.log(`Class session ${sessionId} is FROZEN (no student joined). Skipping room recording.`);
@@ -37,6 +43,7 @@ export class RecordingsService {
       return { egressId: 'already-running' };
     }
 
+    this.startingRecordings.add(sessionId);
     const roomName = `room-${sessionId}`;
     this.logger.log(`Pre-creating LiveKit room and starting Composite Egress for room: ${roomName}`);
 
@@ -93,6 +100,8 @@ export class RecordingsService {
         { upsert: true, new: true },
       );
       return { egressId: 'mock-egress-id' };
+    } finally {
+      this.startingRecordings.delete(sessionId);
     }
   }
 

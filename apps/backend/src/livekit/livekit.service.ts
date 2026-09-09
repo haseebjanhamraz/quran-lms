@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { RecordingsService } from '../recordings/recordings.service';
 import { ConfigService } from '@nestjs/config';
 import { RoomServiceClient } from 'livekit-server-sdk';
@@ -104,7 +104,10 @@ export class LivekitService {
   }
 
   private async handleParticipantJoined(sessionId: string, participant: any) {
-    const userId = participant.identity;
+    const userId = participant?.identity;
+    if (!userId || userId.startsWith('EG_') || !Types.ObjectId.isValid(userId)) {
+      return;
+    }
     this.logger.log(`Participant joined: user=${userId}, room=${sessionId}`);
 
     try {
@@ -128,7 +131,9 @@ export class LivekitService {
   private async handleTrackPublished(sessionId: string, event: any) {
     const participant = event.participant;
     const userId = participant?.identity;
-    if (!userId) return;
+    if (!userId || userId.startsWith('EG_') || !Types.ObjectId.isValid(userId)) {
+      return;
+    }
 
     this.logger.log(`Track published by user=${userId} in session=${sessionId}`);
 
@@ -193,7 +198,10 @@ export class LivekitService {
   }
 
   private async handleParticipantLeft(sessionId: string, participant: any) {
-    const userId = participant.identity;
+    const userId = participant?.identity;
+    if (!userId || userId.startsWith('EG_') || !Types.ObjectId.isValid(userId)) {
+      return;
+    }
     this.logger.log(`Participant left: user=${userId}, room=${sessionId}`);
 
     try {

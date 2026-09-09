@@ -35,6 +35,7 @@ import { RedisCacheModule } from './cache/redis-cache.module';
 import { SystemSettingsModule } from './system-settings/system-settings.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { MaterialsModule } from './materials/materials.module';
+import { DatabaseAdminModule } from './database-admin/database-admin.module';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
 
@@ -98,6 +99,7 @@ import * as path from 'path';
     RedisCacheModule,
     SystemSettingsModule,
     MaterialsModule,
+    DatabaseAdminModule,
   ],
   controllers: [AppController],
   providers: [

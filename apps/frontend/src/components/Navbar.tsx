@@ -101,7 +101,7 @@ const ADMIN_PRIMARY_NAV: NavItemConfig[] = [
   { label: 'Students', icon: GraduationCap, href: '/admin/students', permission: 'students.read' },
   { label: 'Teachers', icon: BookUser, href: '/admin/teachers', permission: 'teachers.read' },
   { label: 'Courses', icon: BookOpen, href: '/admin/courses', permission: 'courses.read' },
-  { label: 'Materials (PDF)', icon: FileText, href: '/admin/materials' },
+  { label: 'Material', icon: FileText, href: '/admin/materials' },
   { label: 'Schedule', icon: Calendar, href: '/admin/schedule', permission: 'schedule.read' },
   { label: 'Finances', icon: Briefcase, href: '/admin/hr', permission: 'hr.read' },
 ];

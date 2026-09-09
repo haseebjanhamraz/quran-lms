@@ -19,8 +19,7 @@ turn:
 webhook:
   api_key: devkey
   urls:
-    - http://nestjs:4000/api/v1/livekit/webhook
-    - http://quran-lms-nestjs:4000/api/v1/livekit/webhook
+    - http://nestjs:5000/api/v1/livekit/webhook
 
 
 

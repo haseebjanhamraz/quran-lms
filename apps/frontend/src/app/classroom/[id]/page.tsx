@@ -11,9 +11,11 @@ import {
   useTracks,
   useLocalParticipant,
   useRoomContext,
+  useIsSpeaking,
+  StartAudio,
 } from '@livekit/components-react';
 import { Track, MediaDeviceFailure } from 'livekit-client';
-import { Loader2, AlertCircle, Mic, MicOff, Video, VideoOff, ScreenShare, LogOut, ShieldAlert } from 'lucide-react';
+import { Loader2, AlertCircle, Mic, MicOff, Video, VideoOff, ScreenShare, LogOut, ShieldAlert, Volume2 } from 'lucide-react';
 import '@livekit/components-styles';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getImageUrl } from '@/utils/image';
@@ -108,6 +110,10 @@ export default function ClassroomPage() {
       }}
       className="relative flex flex-col min-h-screen bg-background text-foreground overflow-hidden animate-fadeIn"
     >
+      <StartAudio
+        label="🔊 Audio playback is paused by browser policy — Click here to enable classroom audio"
+        className="w-full bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-b border-amber-500/30 text-xs py-2 px-4 text-center font-medium cursor-pointer transition-colors flex items-center justify-center gap-2 z-50"
+      />
       <ClassroomHeader roomName={tokenInfo.roomName} sessionInfo={sessionInfo} />
 
       {/* Dynamic Video Layout */}
@@ -222,14 +228,16 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
 function VideoGrid() {
   const { user } = useAuth();
   const { id: sessionId } = useParams() as { id: string };
+  const room = useRoomContext();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
+  // Subscribed tracks only for stability
   const tracks = useTracks(
     [
       { source: Track.Source.Camera, withPlaceholder: true },
       { source: Track.Source.ScreenShare, withPlaceholder: false },
     ],
-    { onlySubscribed: false },
+    { onlySubscribed: true },
   );
 
   const handleMuteParticipant = async (participant: any) => {
@@ -264,6 +272,30 @@ function VideoGrid() {
     }
   };
 
+  const handleStopScreenShare = async () => {
+    if (room?.localParticipant) {
+      try {
+        await room.localParticipant.setScreenShareEnabled(false);
+      } catch (e) {
+        console.error('Failed to stop screen share:', e);
+      }
+    }
+  };
+
+  const screenShareTrack = useMemo(() => {
+    return tracks.find(
+      (t) =>
+        t.source === Track.Source.ScreenShare &&
+        t.publication &&
+        !t.publication.isMuted &&
+        (t.participant.isLocal || t.publication.track || t.publication.isSubscribed)
+    );
+  }, [tracks]);
+
+  const cameraTracks = useMemo(() => {
+    return tracks.filter((t) => t.source === Track.Source.Camera);
+  }, [tracks]);
+
   if (tracks.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-card/25 rounded-2xl border border-border/40">
@@ -273,92 +305,79 @@ function VideoGrid() {
     );
   }
 
-  const screenShareTrack = tracks.find((t) => t.source === Track.Source.ScreenShare && t.publication);
-  const cameraTracks = tracks.filter((t) => t.source === Track.Source.Camera);
-
-  // ─── Screen Share Active: Full-screen share + small avatar bubbles ───
+  // ─── Screen Share Active: Main Stage + Persistent Side Rail ───
   if (screenShareTrack) {
-    return (
-      <div className="relative flex-1 w-full h-full bg-slate-950 rounded-2xl overflow-hidden border border-border/40">
-        {/* Screen share occupies the entire area */}
-        <VideoTrack
-          trackRef={screenShareTrack as any}
-          className="w-full h-full bg-black object-contain"
-        />
+    const isLocalPresenter = screenShareTrack.participant.isLocal;
+    const presenterName = screenShareTrack.participant.name || (isLocalPresenter ? 'You' : 'Presenter');
 
-        {/* "Screen Shared" badge */}
-        <div className="absolute top-4 left-4 z-20 bg-blue-500/80 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-md flex items-center gap-1.5">
-          <ScreenShare className="h-3 w-3" />
-          Screen Shared
+    return (
+      <div className="relative flex-1 w-full h-full flex flex-col md:flex-row gap-4 overflow-hidden">
+        {/* Main Stage: Screen Share */}
+        <div className="flex-1 min-w-0 h-full flex flex-col bg-slate-950 rounded-2xl overflow-hidden border border-border/40 shadow-xl relative">
+          {/* Screen Share Header Bar */}
+          <div className="absolute top-3 left-3 right-3 z-20 flex items-center justify-between pointer-events-none">
+            <div className="bg-slate-900/90 backdrop-blur-md text-white border border-slate-700/70 px-3 py-1.5 rounded-xl text-xs font-semibold shadow-lg flex items-center gap-2 pointer-events-auto">
+              <span className="flex h-2 w-2 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+              </span>
+              <ScreenShare className="h-3.5 w-3.5 text-blue-400" />
+              <span>
+                {isLocalPresenter ? 'You are presenting your screen' : `${presenterName} is presenting`}
+              </span>
+            </div>
+
+            {isLocalPresenter && (
+              <button
+                onClick={handleStopScreenShare}
+                className="bg-red-500/90 hover:bg-red-600 text-white text-xs font-semibold px-3 py-1.5 rounded-xl shadow-lg flex items-center gap-1.5 pointer-events-auto transition-colors cursor-pointer"
+                title="Stop sharing your screen"
+              >
+                <ScreenShare className="h-3.5 w-3.5" />
+                <span>Stop Sharing</span>
+              </button>
+            )}
+          </div>
+
+          {/* Screen Share Video Track */}
+          <div className="relative flex-1 w-full h-full flex items-center justify-center bg-black">
+            <VideoTrack
+              trackRef={screenShareTrack as any}
+              className="w-full h-full object-contain"
+            />
+          </div>
         </div>
 
-        {/* Small circular avatar bubbles — pinned bottom-right */}
-        <div className="absolute bottom-4 right-4 z-20 flex flex-row-reverse gap-2 items-end">
-          {cameraTracks.map((track) => {
-            const participant = track.participant;
-            const isCameraOff = ('isPlaceholder' in track && track.isPlaceholder) || !track.publication?.track || track.publication?.isMuted;
-
-            let profilePicture = '';
-            let role = '';
-            try {
-              const meta = JSON.parse(participant?.metadata || '{}');
-              profilePicture = meta.profilePicture || '';
-              role = meta.role || '';
-            } catch (_) {}
-
-            const displayName = participant?.name || participant?.identity || 'User';
-
-            return (
-              <div
-                key={`${participant.identity}-${track.source}`}
-                className="group relative flex flex-col items-center"
-              >
-                {/* Avatar circle */}
-                <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-slate-600/80 bg-slate-900 shadow-2xl ring-2 ring-black/30">
-                  {isCameraOff ? (
-                    profilePicture ? (
-                      <img
-                        src={getImageUrl(profilePicture)}
-                        alt={displayName}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-brand/20 text-brand font-bold text-lg">
-                        {displayName[0]?.toUpperCase() || 'U'}
-                      </div>
-                    )
-                  ) : (
-                    <ParticipantTile trackRef={track} className="w-full h-full object-cover [&_.lk-participant-metadata]:hidden [&_.lk-participant-name]:hidden" />
-                  )}
-                </div>
-                {/* Name label below the bubble */}
-                <span className="mt-1 text-[10px] font-semibold text-white/80 bg-black/60 px-2 py-0.5 rounded-full whitespace-nowrap max-w-[80px] truncate text-center">
-                  {displayName.split(' ')[0]}
-                </span>
-                {/* Role badge */}
-                {role && (
-                  <span className={`text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full mt-0.5 ${
-                    role === 'TEACHER' ? 'bg-amber-500/20 text-amber-400' : 'bg-sky-500/20 text-sky-400'
-                  }`}>
-                    {role}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+        {/* Side Rail: Participants (Teacher & Student remain clearly visible) */}
+        <div className="w-full md:w-72 lg:w-80 flex md:flex-col gap-3 shrink-0 overflow-y-auto pr-1">
+          {cameraTracks.map((track) => (
+            <div
+              key={`${track.participant.identity}-${track.source}`}
+              className="relative group w-full aspect-video shrink-0"
+            >
+              <CustomParticipantTile
+                track={track}
+                className="w-full h-full shadow-md"
+                compact={true}
+                showMuteButton={user?.role === 'TEACHER' && track.participant.identity !== user.id}
+                onMute={() => handleMuteParticipant(track.participant)}
+              />
+            </div>
+          ))}
         </div>
       </div>
     );
   }
 
-  // ─── No Screen Share: Simple camera grid ───
+  // ─── Normal View: Balanced 2-Participant Grid ───
   return (
     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 h-full overflow-y-auto pr-1">
       {cameraTracks.map((track) => (
         <div key={`${track.participant.identity}-${track.source}`} className="relative group w-full aspect-video">
           <CustomParticipantTile
             track={track}
-            className="w-full h-full"
+            className="w-full h-full shadow-lg"
+            compact={false}
             showMuteButton={user?.role === 'TEACHER' && track.participant.identity !== user.id}
             onMute={() => handleMuteParticipant(track.participant)}
           />
@@ -371,16 +390,22 @@ function VideoGrid() {
 function CustomParticipantTile({
   track,
   className = '',
+  compact = false,
   showMuteButton = false,
   onMute,
 }: {
   track: any;
   className?: string;
+  compact?: boolean;
   showMuteButton?: boolean;
   onMute?: () => void;
 }) {
-  const isCameraOff = ('isPlaceholder' in track && track.isPlaceholder) || !track.publication?.track || track.publication?.isMuted;
+  const isCameraOff =
+    ('isPlaceholder' in track && track.isPlaceholder) ||
+    !track.publication?.track ||
+    track.publication?.isMuted;
   const participant = track.participant;
+  const isSpeaking = useIsSpeaking(participant);
 
   let profilePicture = '';
   let role = '';
@@ -391,39 +416,99 @@ function CustomParticipantTile({
   } catch (_) {}
 
   const displayName = participant?.name || participant?.identity || 'User';
+  const isMicMuted = !participant?.isMicrophoneEnabled;
 
   return (
-    <div className={`relative ${className} bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center`}>
+    <div
+      className={`relative ${className} bg-slate-900 border rounded-2xl overflow-hidden flex items-center justify-center transition-all duration-200 ${
+        isSpeaking
+          ? 'border-emerald-500 ring-2 ring-emerald-500/50 shadow-[0_0_18px_rgba(16,185,129,0.3)]'
+          : 'border-slate-800'
+      }`}
+    >
+      {/* Participant Video or Avatar Placeholder */}
       {isCameraOff ? (
-        <div className="flex flex-col items-center justify-center p-4 text-center space-y-2">
+        <div className="flex flex-col items-center justify-center p-3 text-center space-y-2 select-none">
           {profilePicture ? (
             <img
               src={getImageUrl(profilePicture)}
               alt={displayName}
-              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-2 border-brand/50 shadow-xl"
+              className={`${
+                compact ? 'w-14 h-14' : 'w-20 h-20 sm:w-24 sm:h-24'
+              } rounded-full object-cover border-2 border-brand/50 shadow-xl`}
             />
           ) : (
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-brand/20 border-2 border-brand/40 flex items-center justify-center text-brand font-bold text-xl shadow-xl">
+            <div
+              className={`${
+                compact ? 'w-14 h-14 text-base' : 'w-20 h-20 sm:w-24 sm:h-24 text-xl'
+              } rounded-full bg-brand/20 border-2 border-brand/40 flex items-center justify-center text-brand font-bold shadow-xl`}
+            >
               {displayName[0]?.toUpperCase() || 'U'}
             </div>
           )}
           <div>
-            <h4 className="text-xs sm:text-sm font-bold text-white tracking-wide">{displayName}</h4>
-            {role && <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">{role}</span>}
+            <h4
+              className={`${
+                compact ? 'text-xs max-w-[140px]' : 'text-xs sm:text-sm max-w-[200px]'
+              } font-bold text-white tracking-wide truncate`}
+            >
+              {displayName}
+            </h4>
+            {role && (
+              <span
+                className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full inline-block mt-0.5 ${
+                  role === 'TEACHER'
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                }`}
+              >
+                {role}
+              </span>
+            )}
           </div>
         </div>
       ) : (
         <ParticipantTile trackRef={track} className="w-full h-full object-cover" />
       )}
 
+      {/* Participant Name Badge + Speaking/Mic Status Overlay */}
+      <div className="absolute bottom-2 left-2 z-20 flex items-center gap-1.5 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/10 text-white shadow-md">
+        {isMicMuted ? (
+          <span title="Microphone muted" className="text-red-400 flex items-center">
+            <MicOff size={11} />
+          </span>
+        ) : isSpeaking ? (
+          <span title="Speaking" className="text-emerald-400 flex items-center animate-pulse">
+            <Mic size={11} />
+          </span>
+        ) : (
+          <span title="Microphone active" className="text-slate-400 flex items-center">
+            <Mic size={11} />
+          </span>
+        )}
+        <span className="text-[11px] font-medium max-w-[100px] sm:max-w-[140px] truncate">
+          {displayName}
+        </span>
+        {role && (
+          <span
+            className={`text-[8px] font-bold uppercase tracking-wider px-1 rounded ${
+              role === 'TEACHER' ? 'text-amber-300' : 'text-sky-300'
+            }`}
+          >
+            {role === 'TEACHER' ? 'T' : 'S'}
+          </span>
+        )}
+      </div>
+
+      {/* Remote Mute Button (for teacher hovering over student) */}
       {showMuteButton && onMute && (
         <button
           onClick={onMute}
-          className="absolute top-2 right-2 z-30 p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg transition opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs shadow-md"
-          title="Mute participant microphone"
+          className="absolute top-2 right-2 z-30 p-1.5 sm:p-2 bg-red-500/80 hover:bg-red-600 text-white rounded-lg transition opacity-0 group-hover:opacity-100 flex items-center gap-1 text-xs shadow-md cursor-pointer outline-none"
+          title="Mute student microphone"
         >
           <MicOff size={12} />
-          <span>Mute</span>
+          <span className="hidden sm:inline text-[10px]">Mute</span>
         </button>
       )}
     </div>
@@ -465,6 +550,7 @@ function ControlBarCustom({
   const [mediaError, setMediaError] = useState<string | null>(null);
   const [togglingMic, setTogglingMic] = useState(false);
   const [togglingCamera, setTogglingCamera] = useState(false);
+  const [togglingScreenShare, setTogglingScreenShare] = useState(false);
   const {
     isMicrophoneEnabled,
     isCameraEnabled,
@@ -538,6 +624,22 @@ function ControlBarCustom({
       setMediaError(getMediaDeviceErrorMessage(err, 'camera'));
     } finally {
       setTogglingCamera(false);
+    }
+  };
+
+  const handleScreenShareToggle = async () => {
+    if (!localParticipant || togglingScreenShare) return;
+    setTogglingScreenShare(true);
+    setMediaError(null);
+    try {
+      await localParticipant.setScreenShareEnabled(!isScreenShareEnabled);
+    } catch (err: any) {
+      if (err?.name !== 'NotAllowedError' && err?.name !== 'AbortError') {
+        console.error('Screen share error:', err);
+        setMediaError(err?.message || 'Could not toggle screen sharing.');
+      }
+    } finally {
+      setTogglingScreenShare(false);
     }
   };
 
@@ -648,14 +750,20 @@ function ControlBarCustom({
           {/* Screen Share Toggle Button */}
           {role === 'TEACHER' && (
             <button
-              onClick={() => localParticipant?.setScreenShareEnabled(!isScreenShareEnabled)}
-              className={`p-3 rounded-xl transition-all duration-200 outline-none border ${isScreenShareEnabled
-                  ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-emerald-500/20'
-                  : 'bg-slate-700/50 text-slate-400 border-slate-700/60 hover:bg-slate-700'
-                }`}
+              onClick={handleScreenShareToggle}
+              disabled={togglingScreenShare}
+              className={`p-3 rounded-xl transition-all duration-200 outline-none border cursor-pointer disabled:opacity-50 ${
+                isScreenShareEnabled
+                  ? 'bg-blue-500/20 text-blue-400 border-blue-500/40 hover:bg-blue-500/30 shadow-[0_0_12px_rgba(59,130,246,0.25)]'
+                  : 'bg-slate-700/50 text-slate-400 border-slate-700/60 hover:bg-slate-700 hover:text-white'
+              }`}
               title={isScreenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
             >
-              <ScreenShare className="h-5 w-5" />
+              {togglingScreenShare ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <ScreenShare className="h-5 w-5" />
+              )}
             </button>
           )}
         </div>
