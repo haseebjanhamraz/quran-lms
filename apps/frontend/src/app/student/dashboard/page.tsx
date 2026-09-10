@@ -17,10 +17,14 @@ import {
   CheckCircle,
   PlayCircle,
   X,
+  History,
+  Sparkles,
+  FileText,
 } from 'lucide-react';
 import RescheduleModal from '@/components/RescheduleModal';
 import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
+import ViewClassReportModal from '@/components/ViewClassReportModal';
 import DailyScheduleView from '@/components/DailyScheduleView';
 import { useUrlState } from '@/hooks/useUrlState';
 import Navbar from '@/components/Navbar';
@@ -34,10 +38,27 @@ interface SessionItem {
   id: string;
   _id?: string;
   course: { title: string; type: string };
+  teacher?: { id: string; name: string; email?: string; profilePicture?: string };
   scheduledAt: string;
   durationMinutes: number;
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   recording?: { filePath: string | null; status: string } | null;
+  teacherReport?: {
+    attendanceStatus?: string;
+    topicsCovered?: string;
+    surahOrLesson?: string;
+    fromAyahOrPage?: string;
+    toAyahOrPage?: string;
+    sabaqiRevision?: string;
+    manzilRevision?: string;
+    performanceRating?: number;
+    understandingLevel?: string;
+    tajweedLevel?: string;
+    behavior?: string;
+    homeworkAssignment?: string;
+    teacherNotes?: string;
+    submittedAt?: string;
+  } | null;
 }
 
 interface Course {
@@ -112,8 +133,9 @@ function StudentDashboardContent() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [activeTab, setActiveTab] = useUrlState<'learning' | 'schedule' | 'attendance'>('tab', 'learning');
+  const [activeTab, setActiveTab] = useUrlState<'learning' | 'schedule' | 'history' | 'attendance'>('tab', 'learning');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
+  const [selectedReportSession, setSelectedReportSession] = useState<SessionItem | null>(null);
   const [selectedRescheduleSession, setSelectedRescheduleSession] = useState<SessionItem | null>(null);
 
   const fetchSessionsAndStats = async () => {
@@ -229,12 +251,12 @@ function StudentDashboardContent() {
       {/* Reusable Dynamic Navbar */}
       <Navbar
         role="STUDENT"
-        activeTab={activeTab}
+        activeTab={activeTab === 'attendance' ? 'history' : activeTab}
         onTabChange={(tabKey) => setActiveTab(tabKey as any)}
         customTabs={[
           { key: 'learning', label: 'Learning Portal', icon: BookOpen },
           { key: 'schedule', label: 'Daily Schedule', icon: Calendar },
-          { key: 'attendance', label: 'Attendance Logs', icon: Clock },
+          { key: 'history', label: 'Classes History', icon: History },
         ]}
       />
 
@@ -454,65 +476,160 @@ function StudentDashboardContent() {
             onReschedule={(session) => setSelectedRescheduleSession(session)}
           />
         ) : (
-          /* ATTENDANCE & RECORDINGS TAB */
-          <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm">
-            <h2 className="text-lg font-bold text-foreground flex items-center gap-2 mb-6">
-              <CheckCircle className="w-5 h-5 text-brand" />
-              Class Attendance & Recording History
-            </h2>
+          /* CLASSES HISTORY & LESSON REPORTS TAB */
+          <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <History className="w-5 h-5 text-brand" />
+                  Classes History &amp; Lesson Progress
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Review past attended classes, teacher evaluations, assigned homework, and recorded sessions.
+                </p>
+              </div>
+              <span className="text-xs font-mono font-semibold text-muted-foreground bg-muted/40 px-3 py-1 rounded-xl border border-border/40 self-start sm:self-auto">
+                {completedSessions.length} Completed Session{completedSessions.length === 1 ? '' : 's'}
+              </span>
+            </div>
 
             {dataLoading ? (
-              <div className="flex justify-center py-10">
-                <Loader2 className="w-7 h-7 text-brand animate-spin" />
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 text-brand animate-spin" />
               </div>
             ) : completedSessions.length === 0 ? (
-              <div className="py-12 text-center text-muted-foreground text-sm">
-                <p>No completed class records found.</p>
+              <div className="py-16 text-center text-muted-foreground text-sm space-y-2">
+                <History className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+                <p className="font-semibold text-foreground">No completed class records yet.</p>
+                <p className="text-xs">Your attended classes and teacher evaluation reports will appear here.</p>
               </div>
             ) : (
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 {completedSessions.map((session, idx) => {
                   const sessionId = session.id || session._id || `completed-session-${idx}`;
+                  const hasReport = Boolean(session.teacherReport);
+                  const isReadyRecording = session.recording?.status === 'READY';
+                  const teacherName = session.teacher?.name || 'Assigned Teacher';
+
                   return (
-                    <div key={sessionId} className="rounded-xl border border-border bg-background/50 p-4 flex flex-col gap-3">
-                      <div className="flex items-center justify-between flex-wrap gap-2">
-                        <div>
-                          <p className="font-semibold text-foreground text-sm mb-1">{session.course.title}</p>
+                    <div
+                      key={sessionId}
+                      className="rounded-2xl border border-border bg-card/60 hover:border-brand/40 p-5 flex flex-col gap-4 transition-all shadow-sm"
+                    >
+                      {/* Top row: Course, Teacher, Date, Attendance status */}
+                      <div className="flex items-start justify-between flex-wrap gap-3">
+                        <div className="space-y-1">
                           <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-bold text-foreground text-sm">{session.course.title}</p>
                             <CourseTypeBadge type={session.course.type} />
-                            <span className="text-xs text-muted-foreground">
-                              {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)}
-                            </span>
                           </div>
+                          <p className="text-xs text-muted-foreground">
+                            Teacher: <span className="font-medium text-foreground">{teacherName}</span> ·{' '}
+                            {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)} ({session.durationMinutes} mins)
+                          </p>
                         </div>
                         <span className="bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
                           <CheckCircle className="w-3.5 h-3.5" /> Attended
                         </span>
                       </div>
 
-                      {/* Recording section */}
-                      <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs">
-                        <span className="text-muted-foreground">
-                          Recording:{' '}
-                          <span className={`font-semibold ${session.recording?.status === 'READY' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
-                            {session.recording?.status || 'PROCESSING'}
+                      {/* Lesson Progress & Teacher Report Card */}
+                      {hasReport && (
+                        <div className="rounded-xl border border-border/80 bg-background/60 p-4 space-y-3">
+                          <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-primary flex items-center gap-1">
+                                <BookOpen className="h-3.5 w-3.5" />
+                                Today&apos;s Lesson:
+                              </span>
+                              <span className="font-semibold text-foreground">
+                                {session.teacherReport?.topicsCovered || session.teacherReport?.surahOrLesson}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1 text-amber-400">
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <Star
+                                  key={star}
+                                  className={`h-3 w-3 ${
+                                    (session.teacherReport?.performanceRating ?? 5) >= star
+                                      ? 'fill-amber-400 text-amber-400'
+                                      : 'text-muted-foreground/30'
+                                  }`}
+                                />
+                              ))}
+                              <span className="text-xs font-mono font-bold text-foreground ml-1">
+                                {session.teacherReport?.performanceRating ?? 5}/5
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Homework Box */}
+                          {session.teacherReport?.homeworkAssignment && (
+                            <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs flex items-start gap-2">
+                              <Sparkles className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
+                              <div>
+                                <span className="font-bold text-amber-600 dark:text-amber-400 block mb-0.5">
+                                  Homework &amp; Practice Task:
+                                </span>
+                                <p className="text-foreground/90 leading-relaxed">
+                                  {session.teacherReport.homeworkAssignment}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Teacher notes */}
+                          {session.teacherReport?.teacherNotes && (
+                            <p className="text-xs text-muted-foreground italic border-t border-border/40 pt-2">
+                              Teacher&apos;s Note: &ldquo;{session.teacherReport.teacherNotes}&rdquo;
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Footer Actions: View Report & Watch Recording */}
+                      <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs flex-wrap gap-2">
+                        <div>
+                          {hasReport ? (
+                            <button
+                              onClick={() => setSelectedReportSession(session)}
+                              className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline cursor-pointer"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>View Full Teacher Report &rarr;</span>
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground italic text-xs">
+                              Report pending submission by teacher
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">
+                            Recording:{' '}
+                            <span className={`font-semibold ${isReadyRecording ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                              {session.recording?.status || 'PROCESSING'}
+                            </span>
                           </span>
-                        </span>
-                        {session.recording?.status === 'READY' ? (
-                          <button
-                            onClick={() => {
-                              const previewUrl = `${API_URL}/recordings/${sessionId}/stream`;
-                              setActiveVideoUrl(previewUrl);
-                            }}
-                            className="bg-brand hover:bg-brand/90 text-brand-foreground font-semibold px-3.5 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5"
-                          >
-                            <PlayCircle className="w-3.5 h-3.5" /> Watch Recording
-                          </button>
-                        ) : (
-                          <span className="text-muted-foreground italic">
-                            Processing upload...
-                          </span>
-                        )}
+
+                          {isReadyRecording ? (
+                            <button
+                              onClick={() => {
+                                const previewUrl = `${API_URL}/recordings/${sessionId}/stream`;
+                                setActiveVideoUrl(previewUrl);
+                              }}
+                              className="bg-brand hover:bg-brand/90 text-brand-foreground font-semibold px-3.5 py-1.5 rounded-xl transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-sm"
+                            >
+                              <PlayCircle className="w-3.5 h-3.5" /> Watch Recording
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground italic text-[11px]">
+                              Processing upload...
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -521,6 +638,13 @@ function StudentDashboardContent() {
             )}
           </section>
         )}
+
+        <ViewClassReportModal
+          isOpen={Boolean(selectedReportSession)}
+          report={selectedReportSession?.teacherReport}
+          session={selectedReportSession}
+          onClose={() => setSelectedReportSession(null)}
+        />
 
         <VideoPlayerModal
           videoUrl={activeVideoUrl}

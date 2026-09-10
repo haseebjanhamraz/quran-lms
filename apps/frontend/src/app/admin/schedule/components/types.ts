@@ -26,15 +26,7 @@ export interface SlotAssignment {
 
 export const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
-export const DEFAULT_TEACHERS: TeacherItem[] = [
-  { id: '1', name: 'Qari Muneeb 1', assignedDaysCount: 5 },
-  { id: '2', name: 'Sheikh Abdullah', assignedDaysCount: 2 },
-  { id: '3', name: 'Ustadh Asad', assignedDaysCount: 3 },
-  { id: '4', name: 'Qari Talha', assignedDaysCount: 3 },
-  { id: '5', name: 'Sheikh Aziz', assignedDaysCount: 2 },
-  { id: '6', name: 'Qari Aamir', assignedDaysCount: 5 },
-  { id: '7', name: 'Ustadh Aahil', assignedDaysCount: 6 },
-];
+export const DEFAULT_TEACHERS: TeacherItem[] = [];
 
 export const TEACHER_COLORS = [
   'bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border-emerald-500/30',

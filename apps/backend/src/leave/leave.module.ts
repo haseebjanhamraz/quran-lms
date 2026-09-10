@@ -6,6 +6,7 @@ import {
   LeaveRequest, LeaveRequestSchema,
   LeaveBalance, LeaveBalanceSchema,
   User, UserSchema,
+  ClassSession, ClassSessionSchema,
 } from '../schemas';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ScheduleModule } from '../schedule/schedule.module';
@@ -16,6 +17,7 @@ import { ScheduleModule } from '../schedule/schedule.module';
       { name: LeaveRequest.name, schema: LeaveRequestSchema },
       { name: LeaveBalance.name, schema: LeaveBalanceSchema },
       { name: User.name, schema: UserSchema },
+      { name: ClassSession.name, schema: ClassSessionSchema },
     ]),
     NotificationsModule,
     ScheduleModule,

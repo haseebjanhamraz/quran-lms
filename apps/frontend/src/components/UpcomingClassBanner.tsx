@@ -11,7 +11,7 @@ interface SessionItem {
   course?: { title: string; type: string };
   scheduledAt: string;
   durationMinutes: number;
-  status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
+  status: 'SCHEDULED' | 'ACTIVATED' | 'LIVE' | 'COMPLETED' | 'CANCELLED';
   teacherId?: any;
   studentId?: any;
   livekitRoomId?: string;

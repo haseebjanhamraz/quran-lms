@@ -54,6 +54,25 @@ export class ClassSession {
   @Prop()
   scheduledTimePKT?: string;
 
+  @Prop({ type: Object })
+  teacherReport?: {
+    attendanceStatus: string;
+    topicsCovered?: string;
+    surahOrLesson?: string;
+    fromAyahOrPage?: string;
+    toAyahOrPage?: string;
+    sabaqiRevision?: string;
+    manzilRevision?: string;
+    performanceRating?: number;
+    understandingLevel?: string;
+    tajweedLevel?: string;
+    behavior?: string;
+    studentBehavior?: string;
+    homeworkAssignment?: string;
+    teacherNotes?: string;
+    submittedAt?: Date;
+  };
+
   createdAt?: Date;
   updatedAt?: Date;
 }

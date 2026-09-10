@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
 import { UpdateClassSessionDto } from './dto/update-class-session.dto';
+import { SubmitClassReportDto } from './dto/submit-class-report.dto';
 import {
   ClassSession, ClassSessionDocument, ClassStatus,
   Course, CourseDocument,
@@ -973,5 +974,221 @@ export class ClassSessionsService {
         populate: { path: 'teacher', select: 'id name' },
       })
       .sort({ scheduledAt: 1 });
+  }
+
+  async submitClassReport(sessionId: string, dto: SubmitClassReportDto, currentUser: any) {
+    const session = await this.classSessionModel.findById(sessionId);
+    if (!session) {
+      throw new NotFoundException('Class session not found');
+    }
+
+    const currentUserId = (currentUser?.id || currentUser?._id)?.toString();
+    const sessionTeacherId = (session.teacherId as any)?._id?.toString() || (session.teacherId as any)?.id?.toString() || session.teacherId?.toString();
+
+    const isTeacher = sessionTeacherId === currentUserId;
+    const isAdmin = currentUser?.role === Role.ADMIN || currentUser?.role === Role.SUPER_ADMIN;
+
+    if (!isTeacher && !isAdmin) {
+      throw new ForbiddenException('Only the assigned teacher or administrator can submit a report for this class.');
+    }
+
+    const topics = dto.topicsCovered?.trim() || dto.surahOrLesson?.trim() || 'Class Lesson & Practice';
+    const behavior = dto.studentBehavior || dto.behavior || 'ATTENTIVE';
+
+    const updated = await this.classSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          teacherReport: {
+            attendanceStatus: dto.attendanceStatus,
+            topicsCovered: topics,
+            surahOrLesson: topics,
+            performanceRating: dto.performanceRating ?? 5,
+            understandingLevel: dto.understandingLevel ?? 'GOOD',
+            behavior,
+            studentBehavior: behavior,
+            homeworkAssignment: dto.homeworkAssignment?.trim() || undefined,
+            teacherNotes: dto.teacherNotes?.trim() || undefined,
+            submittedAt: new Date(),
+          },
+        },
+      },
+      { new: true },
+    )
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    await this.cacheService.delByPattern('sessions:*');
+    return updated;
+  }
+
+  async getClassReport(sessionId: string) {
+    const session = await this.classSessionModel.findById(sessionId)
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    if (!session) {
+      throw new NotFoundException('Class session not found');
+    }
+
+    const s = session as any;
+    return {
+      sessionId: session._id.toString(),
+      session: {
+        id: session._id.toString(),
+        scheduledAt: session.scheduledAt,
+        durationMinutes: session.durationMinutes,
+        actualStartTime: session.actualStartTime,
+        actualEndTime: session.actualEndTime,
+        status: session.status,
+        course: s.course,
+        teacher: s.teacher,
+        student: s.student,
+      },
+      report: session.teacherReport || null,
+    };
+  }
+
+  async getClassesHistory(query: any, currentUser: any) {
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const filter: any = {};
+    const currentUserId = (currentUser?.id || currentUser?._id)?.toString();
+
+    if (currentUser?.role === Role.TEACHER) {
+      const teacherFilter: any[] = [currentUserId];
+      if (Types.ObjectId.isValid(currentUserId)) {
+        teacherFilter.push(new Types.ObjectId(currentUserId));
+      }
+      filter.teacherId = { $in: teacherFilter };
+    } else if (currentUser?.role === Role.STUDENT) {
+      filter.studentId = currentUserId;
+    } else {
+      // Admin, Super Admin, Supervisor
+      if (query.teacherId) {
+        filter.teacherId = query.teacherId;
+      }
+      if (query.studentId) {
+        filter.studentId = query.studentId;
+      }
+    }
+
+    if (query.courseId) {
+      filter.courseId = query.courseId;
+    }
+
+    if (query.status) {
+      filter.status = query.status;
+    } else {
+      filter.status = {
+        $in: [ClassStatus.COMPLETED, ClassStatus.CANCELLED, ClassStatus.EXPIRED, ClassStatus.LIVE],
+      };
+    }
+
+    if (query.startDate || query.endDate) {
+      filter.scheduledAt = {};
+      if (query.startDate) {
+        filter.scheduledAt.$gte = new Date(query.startDate);
+      }
+      if (query.endDate) {
+        const end = new Date(query.endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.scheduledAt.$lte = end;
+      }
+    }
+
+    const [docs, total] = await Promise.all([
+      this.classSessionModel
+        .find(filter)
+        .populate('course', 'title type')
+        .populate('teacher', 'id name email profilePicture')
+        .populate('student', 'id name preferredName email studentId profilePicture')
+        .populate('recording')
+        .sort({ scheduledAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.classSessionModel.countDocuments(filter),
+    ]);
+
+    const formattedDocs = docs.map((s: any) => ({
+      ...s,
+      id: s._id?.toString() || s.id,
+    }));
+
+    return {
+      data: formattedDocs,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async markStudentAbsent(sessionId: string, currentUser: any, note?: string) {
+    const session = await this.classSessionModel.findById(sessionId).populate('course').populate('student');
+    if (!session) {
+      throw new NotFoundException('Class session not found');
+    }
+
+    const currentUserId = (currentUser?.id || currentUser?._id)?.toString();
+    const sessionTeacherId = (session.teacherId as any)?._id?.toString() || (session.teacherId as any)?.id?.toString() || session.teacherId?.toString();
+    const isTeacher = sessionTeacherId === currentUserId;
+    const isAdmin = currentUser?.role === Role.ADMIN || currentUser?.role === Role.SUPER_ADMIN;
+
+    if (!isTeacher && !isAdmin) {
+      throw new ForbiddenException('Only the assigned teacher or administrator can mark a student absent.');
+    }
+
+    const studentId = session.studentId || (session as any)?.student?._id || (session as any)?.student?.id;
+    if (studentId) {
+      await this.attendanceModel.findOneAndUpdate(
+        { sessionId: session._id, userId: studentId },
+        {
+          $set: {
+            status: 'ABSENT',
+            durationSeconds: 0,
+            joinTime: null,
+            leaveTime: null,
+          },
+        },
+        { upsert: true, new: true },
+      );
+    }
+
+    const now = new Date();
+    const updated = await this.classSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          status: ClassStatus.COMPLETED,
+          actualEndTime: now,
+          endedAt: now,
+          teacherReport: {
+            attendanceStatus: 'ABSENT',
+            surahOrLesson: 'Student Absent',
+            performanceRating: 1,
+            tajweedLevel: 'N/A',
+            behavior: 'ABSENT',
+            teacherNotes: note || 'Marked absent by teacher as student did not attend the scheduled class session.',
+            submittedAt: now,
+          },
+        },
+      },
+      { new: true },
+    )
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    await this.cacheService.delByPattern('sessions:*');
+    await this.cacheService.delByPattern('stats:*');
+    await this.cacheService.delByPattern('schedule:*');
+
+    return updated;
   }
 }

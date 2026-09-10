@@ -5,11 +5,13 @@ import {
   LeaveRequest, LeaveRequestDocument, LeaveStatus, LeaveType,
   LeaveBalance, LeaveBalanceDocument,
   User, UserDocument, Role, AccountStatus,
+  ClassSession, ClassSessionDocument, ClassStatus,
   NotificationType,
 } from '../schemas';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { ReviewLeaveRequestDto } from './dto/review-leave-request.dto';
 import { UpdateLeaveBalanceDto } from './dto/update-leave-balance.dto';
+import { ReassignLeaveClassesDto } from './dto/reassign-leave-classes.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ScheduleGateway } from '../schedule/schedule.gateway';
 import { RedisCacheService } from '../cache/redis-cache.service';
@@ -25,6 +27,8 @@ export class LeaveService {
     private readonly leaveBalanceModel: Model<LeaveBalanceDocument>,
     @InjectModel(User.name)
     private readonly userModel: Model<UserDocument>,
+    @InjectModel(ClassSession.name)
+    private readonly classSessionModel: Model<ClassSessionDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly scheduleGateway: ScheduleGateway,
     private readonly cacheService: RedisCacheService,
@@ -354,4 +358,175 @@ export class LeaveService {
 
     return this.getTeacherBalance(teacherId, year);
   }
+
+  // 11. Get classes affected by teacher leave (Admin)
+  async getAffectedClasses(leaveId: string): Promise<any> {
+    const leave = await this.leaveRequestModel
+      .findById(leaveId)
+      .populate('teacher', 'id name email profilePicture')
+      .lean();
+    if (!leave) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    const start = new Date(leave.startDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(leave.endDate);
+    end.setHours(23, 59, 59, 999);
+
+    const affectedClasses = await this.classSessionModel
+      .find({
+        teacherId: leave.teacherId,
+        scheduledAt: { $gte: start, $lte: end },
+        status: { $in: [ClassStatus.SCHEDULED, ClassStatus.ACTIVATED] },
+      })
+      .populate('course', 'id title type')
+      .populate('student', 'id name preferredName email studentId profilePicture')
+      .sort({ scheduledAt: 1 })
+      .lean();
+
+    return {
+      leave,
+      affectedClasses,
+      total: affectedClasses.length,
+    };
+  }
+
+  // 12. Check whether a substitute teacher has a schedule conflict
+  async checkSubstituteConflict(
+    teacherId: string,
+    scheduledAt: Date,
+    durationMinutes: number,
+    excludeSessionId?: string,
+  ): Promise<boolean> {
+    const scheduledTime = new Date(scheduledAt).getTime();
+    const endTime = scheduledTime + durationMinutes * 60 * 1000;
+
+    const daySessions = await this.classSessionModel.find({
+      teacherId,
+      status: { $in: [ClassStatus.SCHEDULED, ClassStatus.ACTIVATED, ClassStatus.LIVE, ClassStatus.COMPLETED] },
+      scheduledAt: {
+        $gte: new Date(scheduledTime - 24 * 60 * 60 * 1000),
+        $lte: new Date(endTime + 24 * 60 * 60 * 1000),
+      },
+    });
+
+    for (const session of daySessions) {
+      if (excludeSessionId && session._id.toString() === excludeSessionId) {
+        continue;
+      }
+      const existingStart = new Date(session.scheduledAt).getTime();
+      const existingEnd = existingStart + session.durationMinutes * 60 * 1000;
+
+      if (scheduledTime < existingEnd && existingStart < endTime) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // 13. Reassign affected classes to substitute teachers
+  async reassignClasses(
+    leaveId: string,
+    dto: ReassignLeaveClassesDto,
+    adminUser: any,
+  ): Promise<any> {
+    const leave = await this.leaveRequestModel
+      .findById(leaveId)
+      .populate('teacher', 'id name email')
+      .lean();
+    if (!leave) {
+      throw new NotFoundException('Leave request not found');
+    }
+
+    if (!dto.reassignments || dto.reassignments.length === 0) {
+      throw new BadRequestException('No class reassignments provided');
+    }
+
+    const results: any[] = [];
+    const originalTeacherName = (leave as any)?.teacher?.name || 'the teacher';
+
+    for (const item of dto.reassignments) {
+      const session = await this.classSessionModel
+        .findById(item.sessionId)
+        .populate('course', 'title type')
+        .populate('student', 'id name preferredName email');
+
+      if (!session) {
+        throw new NotFoundException(`Class session ${item.sessionId} not found`);
+      }
+
+      const substituteTeacher = await this.userModel.findById(item.substituteTeacherId);
+      if (!substituteTeacher || substituteTeacher.role !== Role.TEACHER) {
+        throw new BadRequestException(`Substitute teacher ${item.substituteTeacherId} is invalid`);
+      }
+
+      // Check conflict for substitute teacher
+      const hasConflict = await this.checkSubstituteConflict(
+        item.substituteTeacherId,
+        session.scheduledAt,
+        session.durationMinutes,
+        session._id.toString(),
+      );
+
+      if (hasConflict) {
+        throw new BadRequestException(
+          `Scheduling conflict: ${substituteTeacher.name} already has a class during this time slot (${new Date(session.scheduledAt).toLocaleString()}).`,
+        );
+      }
+
+      // Reassign teacher
+      session.teacherId = item.substituteTeacherId as any;
+      await session.save();
+
+      const courseTitle = (session as any)?.course?.title || 'Quran class';
+      const scheduledStr = new Date(session.scheduledAt).toLocaleString();
+
+      // Notify substitute teacher
+      await this.notificationsService.createNotification(
+        item.substituteTeacherId,
+        'Substitute Class Assigned',
+        `You have been assigned to conduct ${courseTitle} on ${scheduledStr} covering for ${originalTeacherName}.${dto.note ? ` Note: ${dto.note}` : ''}`,
+        NotificationType.SYSTEM,
+        { sessionId: session._id.toString(), leaveId },
+      );
+
+      // Notify student if student exists
+      const studentId = session.studentId || (session as any)?.student?._id || (session as any)?.student?.id;
+      if (studentId) {
+        await this.notificationsService.createNotification(
+          studentId.toString(),
+          'Substitute Teacher Assigned',
+          `Your upcoming class for ${courseTitle} on ${scheduledStr} will be conducted by ${substituteTeacher.name}.${dto.note ? ` Note: ${dto.note}` : ''}`,
+          NotificationType.SYSTEM,
+          { sessionId: session._id.toString(), leaveId },
+        );
+      }
+
+      results.push({
+        sessionId: session._id.toString(),
+        substituteTeacherId: substituteTeacher._id.toString(),
+        substituteTeacherName: substituteTeacher.name,
+      });
+    }
+
+    // Invalidate caches
+    await this.cacheService.delByPattern('sessions:*');
+    await this.cacheService.delByPattern('schedule:*');
+    await this.cacheService.delByPattern('stats:*');
+
+    // Broadcast schedule update via WebSocket
+    this.scheduleGateway.broadcastScheduleUpdate('CLASSES_REASSIGNED', {
+      leaveId,
+      reassignments: results,
+    });
+
+    return {
+      success: true,
+      message: `Successfully reassigned ${results.length} class(es) to substitute teachers`,
+      reassignedCount: results.length,
+      details: results,
+    };
+  }
 }
+

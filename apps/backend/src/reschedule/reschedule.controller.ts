@@ -31,6 +31,15 @@ export class RescheduleController {
     return this.rescheduleService.createRequest(user.id, dto);
   }
 
+  @Post('teacher-request')
+  @Roles(Role.TEACHER)
+  async createTeacherRequest(
+    @CurrentUser() user: any,
+    @Body() dto: CreateRescheduleRequestDto,
+  ) {
+    return this.rescheduleService.createTeacherRequest(user.id, dto);
+  }
+
   @Get()
   @Roles(Role.ADMIN)
   async getAllRequests(@Query('status') status?: RescheduleStatus) {
@@ -41,6 +50,12 @@ export class RescheduleController {
   @Roles(Role.STUDENT)
   async getMyRequests(@CurrentUser() user: any) {
     return this.rescheduleService.getStudentRequests(user.id);
+  }
+
+  @Get('teacher/my')
+  @Roles(Role.TEACHER)
+  async getTeacherRequests(@CurrentUser() user: any) {
+    return this.rescheduleService.getTeacherRequests(user.id);
   }
 
   @Put(':id/approve')

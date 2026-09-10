@@ -19,6 +19,7 @@ import { Loader2, AlertCircle, Mic, MicOff, Video, VideoOff, ScreenShare, LogOut
 import '@livekit/components-styles';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getImageUrl } from '@/utils/image';
+import PostClassReportModal from '@/components/classroom/PostClassReportModal';
 
 export default function ClassroomPage() {
   const { id } = useParams() as { id: string };
@@ -28,6 +29,7 @@ export default function ClassroomPage() {
   const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
@@ -106,7 +108,9 @@ export default function ClassroomPage() {
       video={false}
       audio={false}
       onDisconnected={() => {
-        router.push('/');
+        if (!isReportModalOpen && user?.role !== 'TEACHER') {
+          router.push('/');
+        }
       }}
       className="relative flex flex-col min-h-screen bg-background text-foreground overflow-hidden animate-fadeIn"
     >
@@ -121,9 +125,28 @@ export default function ClassroomPage() {
         <VideoGrid />
       </div>
 
-      <ControlBarCustom role={user?.role} sessionId={id} canPublishMedia={canPublishMedia} />
+      <ControlBarCustom
+        role={user?.role}
+        sessionId={id}
+        canPublishMedia={canPublishMedia}
+        onRequestReportModal={() => setIsReportModalOpen(true)}
+      />
 
       <RoomAudioRenderer />
+
+      <PostClassReportModal
+        isOpen={isReportModalOpen}
+        sessionId={id}
+        sessionInfo={sessionInfo}
+        onClose={() => {
+          setIsReportModalOpen(false);
+          router.push('/teacher/dashboard?tab=Classes History');
+        }}
+        onSuccess={() => {
+          setIsReportModalOpen(false);
+          router.push('/teacher/dashboard?tab=Classes History');
+        }}
+      />
     </LiveKitRoom>
   );
 }
@@ -139,8 +162,14 @@ function ClassroomHeader({ roomName, sessionInfo }: { roomName: string; sessionI
     if (!sessionInfo) return;
 
     const timer = setInterval(() => {
-      const startTimeVal = sessionInfo.startedAt || sessionInfo.scheduledAt;
-      if (!startTimeVal) return;
+      // Use actualStartTime or startedAt; DO NOT fall back to scheduledAt
+      const startTimeVal = sessionInfo.actualStartTime || sessionInfo.startedAt;
+      if (!startTimeVal) {
+        setElapsed('00:00');
+        const durationMins = sessionInfo.durationMinutes || 30;
+        setRemaining(`${String(durationMins).padStart(2, '0')}:00`);
+        return;
+      }
 
       const start = new Date(startTimeVal).getTime();
       const now = Date.now();
@@ -540,10 +569,12 @@ function ControlBarCustom({
   role,
   sessionId,
   canPublishMedia,
+  onRequestReportModal,
 }: {
   role?: string;
   sessionId: string;
   canPublishMedia: boolean;
+  onRequestReportModal?: () => void;
 }) {
   const router = useRouter();
   const [ending, setEnding] = useState(false);
@@ -655,7 +686,7 @@ function ControlBarCustom({
   };
 
   const handleEndClass = async () => {
-    if (confirm('Are you sure you want to end this class for everyone? This will save the actual class duration and trigger recording uploads.')) {
+    if (confirm('Are you sure you want to end this class for everyone? This will save the actual class duration and prompt for the class report.')) {
       setEnding(true);
       try {
         if (room) {
@@ -668,7 +699,11 @@ function ControlBarCustom({
           credentials: 'include',
         });
         if (res.ok) {
-          router.push('/');
+          if (role === 'TEACHER' && onRequestReportModal) {
+            onRequestReportModal();
+          } else {
+            router.push('/');
+          }
         } else {
           alert('Failed to end the class session properly.');
         }

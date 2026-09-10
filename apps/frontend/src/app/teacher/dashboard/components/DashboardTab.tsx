@@ -1,9 +1,11 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, PlayCircle, PlaneTakeoff,
-  History, Sparkles, X, Loader2, CheckCircle2, Zap
+  History, Sparkles, X, Loader2, CheckCircle2, Zap,
+  FastForward, UserX, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
+import { toast } from 'react-toastify';
 import { apiFetch } from '@/utils/apiFetch';
 import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
 import { useUrlState } from '@/hooks/useUrlState';
@@ -21,6 +23,8 @@ interface DashboardTabProps {
   leaveBalance: any;
   handleStartClass: (id: string) => void;
   handleActivateClass?: (id: string) => void;
+  handleMarkAbsent?: (id: string, note?: string) => void;
+  onRefresh?: () => void;
   onOpenInstantModal: () => void;
   onNavigateTab: (tab: any) => void;
   router: any;
@@ -46,8 +50,11 @@ export default function DashboardTab({
   loading,
   handleStartClass,
   handleActivateClass,
+  handleMarkAbsent,
+  onRefresh,
   onOpenInstantModal,
   canStartInstantClass = true,
+  router,
 }: DashboardTabProps) {
   const isLoading = loading ?? sessionsLoading ?? false;
   const todayStr = useMemo(() => {
@@ -67,7 +74,35 @@ export default function DashboardTab({
   const [leaveSuccessMsg, setLeaveSuccessMsg] = useState<string | null>(null);
   const [leaveErrorMsg, setLeaveErrorMsg] = useState<string | null>(null);
 
+  // Advance Class Requests State
+  const [advanceRequests, setAdvanceRequests] = useState<any[]>([]);
+  const [advanceSession, setAdvanceSession] = useState<any | null>(null);
+  const [advanceDate, setAdvanceDate] = useState<string>('');
+  const [advanceTime, setAdvanceTime] = useState<string>('');
+  const [advanceReason, setAdvanceReason] = useState<string>('');
+  const [advanceSubmitting, setAdvanceSubmitting] = useState<boolean>(false);
+  const [advanceErrorMsg, setAdvanceErrorMsg] = useState<string | null>(null);
+
+  // Absent Confirmation State
+  const [absentSession, setAbsentSession] = useState<any | null>(null);
+  const [absentNote, setAbsentNote] = useState<string>('');
+  const [absentSubmitting, setAbsentSubmitting] = useState<boolean>(false);
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const fetchAdvanceRequests = useCallback(async () => {
+    try {
+      const res = await apiFetch(`${API_URL}/reschedule-requests/teacher/my`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data)) setAdvanceRequests(data);
+      }
+    } catch (_) {}
+  }, [API_URL]);
+
+  useEffect(() => {
+    fetchAdvanceRequests();
+  }, [fetchAdvanceRequests]);
 
   const isSameDay = (isoDate: string, targetDateStr: string) => {
     try {
@@ -176,13 +211,102 @@ export default function DashboardTab({
     }
   };
 
+  // Open Advance Class Request Modal
+  const handleOpenAdvanceModal = (session: any) => {
+    setAdvanceSession(session);
+    setAdvanceErrorMsg(null);
+    try {
+      const d = new Date(session.scheduledAt);
+      setAdvanceDate(d.toISOString().split('T')[0]);
+      const hours = String(d.getHours()).padStart(2, '0');
+      const minutes = String(d.getMinutes()).padStart(2, '0');
+      setAdvanceTime(`${hours}:${minutes}`);
+    } catch (_) {
+      setAdvanceDate('');
+      setAdvanceTime('');
+    }
+    setAdvanceReason('');
+  };
+
+  const handleSubmitAdvance = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!advanceSession || !advanceDate || !advanceTime) return;
+    setAdvanceSubmitting(true);
+    setAdvanceErrorMsg(null);
+    try {
+      const requestedDateTime = new Date(`${advanceDate}T${advanceTime}:00`);
+      if (isNaN(requestedDateTime.getTime())) {
+        throw new Error('Please specify a valid date and time.');
+      }
+      if (requestedDateTime.getTime() <= Date.now()) {
+        throw new Error('Requested advance time must be in the future.');
+      }
+
+      const res = await apiFetch(`${API_URL}/reschedule-requests/teacher-request`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sessionId: advanceSession.id || advanceSession._id,
+          requestedTime: requestedDateTime.toISOString(),
+          reason: advanceReason.trim() || 'Teacher requested to conduct future class in advance',
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to submit advance class request.');
+      }
+
+      toast.success('Advance class request submitted to administrator for approval!');
+      setAdvanceSession(null);
+      fetchAdvanceRequests();
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      setAdvanceErrorMsg(err.message || 'An error occurred.');
+    } finally {
+      setAdvanceSubmitting(false);
+    }
+  };
+
+  // Open Absent Confirmation Modal
+  const handleOpenAbsentModal = (session: any) => {
+    setAbsentSession(session);
+    setAbsentNote('');
+  };
+
+  const handleConfirmAbsent = async () => {
+    if (!absentSession) return;
+    setAbsentSubmitting(true);
+    try {
+      const sId = absentSession.id || absentSession._id;
+      if (handleMarkAbsent) {
+        await handleMarkAbsent(sId, absentNote);
+      } else {
+        const res = await apiFetch(`${API_URL}/class-sessions/${sId}/mark-absent`, {
+          method: 'POST',
+          body: JSON.stringify({ note: absentNote.trim() || undefined }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || 'Failed to mark student absent.');
+        }
+        toast.success('Student marked as absent. Class completed.');
+        if (onRefresh) onRefresh();
+      }
+      setAbsentSession(null);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to mark student absent.');
+    } finally {
+      setAbsentSubmitting(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn">
       <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-foreground tracking-tight">
-              Teacher Student's List
+              Teacher Schedule &amp; Class List
             </h1>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 font-medium">
               <span>Home</span>
@@ -286,6 +410,7 @@ export default function DashboardTab({
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Leave</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Advance</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Start Class</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -322,7 +447,10 @@ export default function DashboardTab({
                       <div className="h-6 w-14 bg-muted/60 rounded mx-auto" />
                     </td>
                     <td className="py-4 px-4 text-center">
-                      <div className="h-8 w-28 bg-muted/80 rounded-xl mx-auto" />
+                      <div className="h-8 w-24 bg-muted/80 rounded-xl mx-auto" />
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <div className="h-8 w-24 bg-muted/80 rounded-xl mx-auto" />
                     </td>
                   </tr>
                 ))}
@@ -353,6 +481,7 @@ export default function DashboardTab({
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Leave</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Advance</th>
+                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Start Class</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
@@ -506,28 +635,87 @@ export default function DashboardTab({
                         })()}
                       </td>
 
-                      {/* Action Button: Activate (Amber) vs Start Class (Green) */}
+                      {/* Advance Column (Individual Entity) */}
+                      <td className="py-3.5 px-4 text-center">
+                        {(() => {
+                          const sId = (session.id || session._id)?.toString();
+                          const advanceReq = advanceRequests.find((r) => {
+                            const rSid = (typeof r.sessionId === 'object' ? r.sessionId?._id || r.sessionId?.id : r.sessionId)?.toString();
+                            return rSid === sId;
+                          });
+                          const isPending = advanceReq?.status === 'PENDING';
+                          const isApproved = advanceReq?.status === 'APPROVED';
+
+                          if (session.status === 'SCHEDULED') {
+                            if (isApproved) {
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (handleActivateClass) {
+                                      handleActivateClass(session.id || session._id);
+                                    } else {
+                                      handleStartClass(session.id || session._id);
+                                    }
+                                  }}
+                                  className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
+                                  title="Advance request approved by admin! Click to activate session"
+                                >
+                                  <Zap className="h-3.5 w-3.5" />
+                                  <span>Activate</span>
+                                </button>
+                              );
+                            }
+                            if (isPending) {
+                              return (
+                                <span
+                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30"
+                                  title="Advance class request awaiting admin approval"
+                                >
+                                  Pending Approval
+                                </span>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => handleOpenAdvanceModal(session)}
+                                className="px-3 py-1 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
+                                title="Request to take this future class in advance"
+                              >
+                                <FastForward className="h-3.5 w-3.5" />
+                                <span>Advance</span>
+                              </button>
+                            );
+                          }
+                          if (session.status === 'ACTIVATED') {
+                            return (
+                              <span className="text-[10px] font-bold text-amber-500 flex items-center justify-center gap-1">
+                                <Zap className="h-3 w-3" />
+                                <span>Activated</span>
+                              </span>
+                            );
+                          }
+                          return <span className="text-muted-foreground/40 text-xs">—</span>;
+                        })()}
+                      </td>
+
+                      {/* Start Class Column (Start Class / Absent) */}
                       <td className="py-3.5 px-4 text-center">
                         {session.status === 'SCHEDULED' ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              if (handleActivateClass) {
-                                handleActivateClass(session.id);
-                              } else {
-                                handleStartClass(session.id);
-                              }
-                            }}
-                            className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
-                            title="Activate session to prepare for class"
+                            disabled
+                            className="px-3 py-1 rounded-lg text-xs font-bold bg-muted text-muted-foreground border border-border opacity-50 cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
+                            title="Class must be activated before starting"
                           >
-                            <Zap className="h-3.5 w-3.5" />
-                            <span>Activate</span>
+                            <PlayCircle className="h-3.5 w-3.5" />
+                            <span>Start Class</span>
                           </button>
                         ) : session.status === 'ACTIVATED' ? (
                           <button
                             type="button"
-                            onClick={() => handleStartClass(session.id)}
+                            onClick={() => handleStartClass(session.id || session._id)}
                             className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-md flex items-center justify-center gap-1 mx-auto animate-pulse"
                             title="Start Live Class Now"
                           >
@@ -535,15 +723,25 @@ export default function DashboardTab({
                             <span>Start Class</span>
                           </button>
                         ) : session.status === 'LIVE' ? (
-                          <button
-                            type="button"
-                            onClick={() => handleStartClass(session.id)}
-                            className="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
-                            title="Enter Ongoing Live Class"
-                          >
-                            <PlayCircle className="h-3.5 w-3.5" />
-                            <span>Enter Class</span>
-                          </button>
+                          <div className="flex flex-col items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAbsentModal(session)}
+                              className="px-3 py-1 rounded-lg text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
+                              title="Student did not attend — Mark Absent"
+                            >
+                              <UserX className="h-3.5 w-3.5" />
+                              <span>Absent</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/classroom/${session.id || session._id}`)}
+                              className="text-[10px] font-bold text-emerald-500 hover:text-emerald-400 hover:underline transition-colors"
+                              title="Enter Ongoing Live Classroom"
+                            >
+                              Enter Class &rarr;
+                            </button>
+                          </div>
                         ) : (
                           <span className="text-[10px] text-muted-foreground uppercase font-semibold">
                             {session.status}
@@ -739,6 +937,185 @@ export default function DashboardTab({
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. Advance Class Request Modal */}
+      {advanceSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn">
+          <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative border border-border bg-card">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                  <FastForward size={16} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Take Class in Advance
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Submit request to admin to reschedule this class earlier
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAdvanceSession(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {advanceErrorMsg && (
+              <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{advanceErrorMsg}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmitAdvance} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase">Current Class Schedule</label>
+                <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs space-y-1">
+                  <p className="font-bold text-foreground">{advanceSession.course?.title || 'Quran Session'}</p>
+                  <p className="text-muted-foreground">
+                    Student: {advanceSession.student?.name || advanceSession.student?.preferredName || 'Assigned Student'}
+                  </p>
+                  <p className="font-mono text-muted-foreground">
+                    Originally: {new Date(advanceSession.scheduledAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase">Proposed Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={advanceDate}
+                    onChange={(e) => setAdvanceDate(e.target.value)}
+                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase">Proposed Time *</label>
+                  <input
+                    type="time"
+                    required
+                    value={advanceTime}
+                    onChange={(e) => setAdvanceTime(e.target.value)}
+                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-muted-foreground uppercase">Reason for Advance Class</label>
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Student requested to cover upcoming exam topics early..."
+                  value={advanceReason}
+                  onChange={(e) => setAdvanceReason(e.target.value)}
+                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2.5 pt-3 border-t border-border/50">
+                <button
+                  type="button"
+                  onClick={() => setAdvanceSession(null)}
+                  className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={advanceSubmitting}
+                  className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {advanceSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  <span>Request Advance</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 6. Mark Absent Confirmation Modal */}
+      {absentSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn">
+          <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative border border-border bg-card space-y-4">
+            <div className="flex items-center justify-between border-b border-border/50 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
+                  <UserX size={18} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">
+                    Mark Student Absent
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Record absent status for this live session
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setAbsentSession(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-1.5 text-xs">
+              <p className="font-bold text-foreground">
+                Student: {absentSession.student?.name || absentSession.student?.preferredName || 'Student'}
+              </p>
+              <p className="text-muted-foreground">
+                Course: {absentSession.course?.title || 'Quran Recitation'}
+              </p>
+              <p className="font-mono text-muted-foreground">
+                Scheduled: {formatPKTTime(new Date(absentSession.scheduledAt))} PKT
+              </p>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Are you sure the student did not attend? This will mark the student absent, log 0 attendance minutes, and complete this class.
+            </p>
+
+            <div className="space-y-1">
+              <label className="text-[11px] font-bold text-muted-foreground uppercase">Optional Note</label>
+              <input
+                type="text"
+                value={absentNote}
+                onChange={(e) => setAbsentNote(e.target.value)}
+                placeholder="e.g. Student did not join after 15 minutes of waiting..."
+                className="w-full bg-background border border-border rounded-xl p-2.5 text-xs outline-none focus:border-primary"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-3 border-t border-border/50">
+              <button
+                type="button"
+                onClick={() => setAbsentSession(null)}
+                disabled={absentSubmitting}
+                className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmAbsent}
+                disabled={absentSubmitting}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
+              >
+                {absentSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <span>Confirm Absent</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

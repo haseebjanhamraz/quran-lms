@@ -396,7 +396,7 @@ export default function TeachersManagementPage() {
         <div>
           <h1 className="text-3xl font-display font-bold text-foreground flex items-center gap-3">
             <BookUser className="h-8 w-8 text-brand" />
-            <span>Teachers & Staff Management</span>
+            <span>Teachers Management</span>
           </h1>
           <p className="text-muted-foreground mt-1">
             Manage teaching staff profiles, guarantors, credentials, and monthly compensation.

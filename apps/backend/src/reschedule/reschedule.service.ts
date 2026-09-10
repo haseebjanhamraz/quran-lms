@@ -88,6 +88,7 @@ export class RescheduleService {
     const request = await this.rescheduleModel.create({
       sessionId: dto.sessionId,
       requestedBy: studentId,
+      requestedByRole: Role.STUDENT,
       originalScheduledAt: session.scheduledAt,
       requestedTime,
       reason: dto.reason,
@@ -115,6 +116,79 @@ export class RescheduleService {
       .populate('student', 'id name email profilePicture');
   }
 
+  async createTeacherRequest(teacherId: string, dto: CreateRescheduleRequestDto) {
+    const session = await this.classSessionModel.findById(dto.sessionId).populate('course');
+    if (!session) {
+      throw new NotFoundException('Class session not found');
+    }
+
+    if (session.teacherId.toString() !== teacherId.toString()) {
+      throw new ForbiddenException('You can only request advance class for your own sessions.');
+    }
+
+    if (session.status !== ClassStatus.SCHEDULED) {
+      throw new BadRequestException(`Cannot request advance class for a session with status ${session.status}.`);
+    }
+
+    const now = new Date();
+    const requestedTime = new Date(dto.requestedTime);
+    if (requestedTime.getTime() <= now.getTime()) {
+      throw new BadRequestException('Requested advance time must be in the future.');
+    }
+
+    // Check for duplicate pending requests
+    const existingPending = await this.rescheduleModel.findOne({
+      sessionId: dto.sessionId,
+      requestedBy: teacherId,
+      status: RescheduleStatus.PENDING,
+    });
+
+    if (existingPending) {
+      throw new ConflictException('You already have a pending advance class request for this session.');
+    }
+
+    // Check for teacher schedule conflict at proposed new time
+    const hasConflict = await this.classSessionsService.checkTeacherConflict(
+      teacherId,
+      requestedTime,
+      session.durationMinutes,
+      session._id.toString(),
+    );
+
+    if (hasConflict) {
+      throw new ConflictException('You have a scheduling conflict at the requested advance time slot.');
+    }
+
+    const request = await this.rescheduleModel.create({
+      sessionId: dto.sessionId,
+      requestedBy: teacherId,
+      requestedByRole: Role.TEACHER,
+      originalScheduledAt: session.scheduledAt,
+      requestedTime,
+      reason: dto.reason || 'Teacher requested to conduct future class in advance',
+      status: RescheduleStatus.PENDING,
+    });
+
+    // Notify admins
+    const admins = await this.userModel.find({ role: Role.ADMIN });
+    const teacherDoc = await this.userModel.findById(teacherId);
+    const teacherName = teacherDoc?.name || 'Teacher';
+
+    for (const admin of admins) {
+      await this.notificationsService.createNotification(
+        admin._id.toString(),
+        'New Teacher Advance Class Request',
+        `${teacherName} requested to conduct class in advance on ${requestedTime.toLocaleString()}`,
+        NotificationType.RESCHEDULE_REQUESTED,
+        { requestId: request._id.toString(), sessionId: dto.sessionId },
+      );
+    }
+
+    return this.rescheduleModel
+      .findById(request._id)
+      .populate('session');
+  }
+
   async getAllRequests(status?: RescheduleStatus) {
     const filter = status ? { status } : {};
     return this.rescheduleModel
@@ -139,6 +213,20 @@ export class RescheduleService {
         populate: [
           { path: 'course', select: 'id title type' },
           { path: 'teacher', select: 'id name email' },
+        ],
+      })
+      .populate('reviewer', 'id name')
+      .sort({ createdAt: -1 });
+  }
+
+  async getTeacherRequests(teacherId: string) {
+    return this.rescheduleModel
+      .find({ requestedBy: teacherId })
+      .populate({
+        path: 'session',
+        populate: [
+          { path: 'course', select: 'id title type' },
+          { path: 'student', select: 'id name email' },
         ],
       })
       .populate('reviewer', 'id name')
@@ -198,22 +286,44 @@ export class RescheduleService {
     );
 
     // Send notifications
-    await this.notificationsService.createNotification(
-      request.requestedBy.toString(),
-      'Advance Class Request Approved',
-      `Your request to reschedule class to ${newScheduledAt.toLocaleString()} has been approved.`,
-      NotificationType.RESCHEDULE_APPROVED,
-      { sessionId: session._id.toString() },
-    );
-
-    if (session.teacherId) {
+    if (request.requestedByRole === Role.TEACHER) {
+      // Teacher requested advance class
       await this.notificationsService.createNotification(
-        session.teacherId.toString(),
-        'Class Rescheduled by Admin',
-        `A class has been rescheduled to ${newScheduledAt.toLocaleString()} upon student request.`,
+        request.requestedBy.toString(),
+        'Advance Class Request Approved',
+        `Your request to conduct class in advance on ${newScheduledAt.toLocaleString()} has been approved. You can now activate this class when ready.`,
         NotificationType.RESCHEDULE_APPROVED,
         { sessionId: session._id.toString() },
       );
+
+      if (session.studentId) {
+        await this.notificationsService.createNotification(
+          session.studentId.toString(),
+          'Class Moved in Advance by Teacher',
+          `Your teacher has scheduled your class in advance for ${newScheduledAt.toLocaleString()}.`,
+          NotificationType.RESCHEDULE_APPROVED,
+          { sessionId: session._id.toString() },
+        );
+      }
+    } else {
+      // Student requested reschedule
+      await this.notificationsService.createNotification(
+        request.requestedBy.toString(),
+        'Advance Class Request Approved',
+        `Your request to reschedule class to ${newScheduledAt.toLocaleString()} has been approved.`,
+        NotificationType.RESCHEDULE_APPROVED,
+        { sessionId: session._id.toString() },
+      );
+
+      if (session.teacherId) {
+        await this.notificationsService.createNotification(
+          session.teacherId.toString(),
+          'Class Rescheduled by Admin',
+          `A class has been rescheduled to ${newScheduledAt.toLocaleString()} upon student request.`,
+          NotificationType.RESCHEDULE_APPROVED,
+          { sessionId: session._id.toString() },
+        );
+      }
     }
 
     return updatedRequest;

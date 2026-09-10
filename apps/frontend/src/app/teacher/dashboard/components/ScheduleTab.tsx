@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check, Zap } from 'lucide-react';
+import { Calendar, Clock, Loader2, PlayCircle, MonitorPlay, Award, Copy, Check, Zap, UserX } from 'lucide-react';
 import Link from 'next/link';
 import DailyScheduleView from '@/components/DailyScheduleView';
 import TeacherTimetableGrid from '@/components/TeacherTimetableGrid';
@@ -21,6 +21,7 @@ interface ScheduleTabProps {
   reviewsLoading: boolean;
   handleStartClass: (id: string) => void;
   handleActivateClass?: (id: string) => void;
+  handleMarkAbsent?: (id: string, note?: string) => void;
   router: any;
   teacherId?: string;
 }
@@ -66,6 +67,8 @@ export default function ScheduleTab({
   recentReviews,
   reviewsLoading,
   handleStartClass,
+  handleActivateClass,
+  handleMarkAbsent,
   router,
   teacherId,
 }: ScheduleTabProps) {
@@ -246,8 +249,22 @@ export default function ScheduleTab({
                           className="flex items-center gap-1.5 rounded-xl bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-md transition-all duration-200 hover:bg-primary/90"
                         >
                           <MonitorPlay size={14} />
-                          Enter Classroom
+                          <span>Enter Classroom</span>
                         </button>
+                        {handleMarkAbsent && (
+                          <button
+                            onClick={() => {
+                              if (confirm('Mark student as absent for this live session? This will complete the session.')) {
+                                handleMarkAbsent(session.id);
+                              }
+                            }}
+                            className="flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all duration-200"
+                            title="Student did not attend — Mark Absent"
+                          >
+                            <UserX size={14} />
+                            <span>Absent</span>
+                          </button>
+                        )}
                       </>
                     )}
                     {session.status === 'COMPLETED' && (

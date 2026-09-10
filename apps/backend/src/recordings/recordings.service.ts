@@ -152,4 +152,94 @@ export class RecordingsService {
 
     return { success: true, message: 'Upload retried', status: RecordingStatus.PROCESSING };
   }
+
+  async getAllRecordings(query: any) {
+    const page = Math.max(1, parseInt(query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
+    const skip = (page - 1) * limit;
+
+    const filter: any = {};
+    if (query.status && query.status !== 'ALL') {
+      filter.status = query.status;
+    }
+
+    if (query.startDate || query.endDate) {
+      filter.createdAt = {};
+      if (query.startDate) {
+        filter.createdAt.$gte = new Date(query.startDate);
+      }
+      if (query.endDate) {
+        const end = new Date(query.endDate);
+        end.setHours(23, 59, 59, 999);
+        filter.createdAt.$lte = end;
+      }
+    }
+
+    const [recordings, total, stats] = await Promise.all([
+      this.recordingModel
+        .find(filter)
+        .populate({
+          path: 'session',
+          populate: [
+            { path: 'course', select: 'title type' },
+            { path: 'teacher', select: 'id name email profilePicture' },
+            { path: 'student', select: 'id name preferredName email studentId profilePicture' },
+          ],
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      this.recordingModel.countDocuments(filter),
+      this.recordingModel.aggregate([
+        {
+          $group: {
+            _id: null,
+            total: { $sum: 1 },
+            ready: {
+              $sum: { $cond: [{ $eq: ['$status', RecordingStatus.READY] }, 1, 0] },
+            },
+            processing: {
+              $sum: {
+                $cond: [
+                  {
+                    $or: [
+                      { $eq: ['$status', RecordingStatus.PROCESSING] },
+                      { $eq: ['$status', RecordingStatus.UPLOADING] },
+                    ],
+                  },
+                  1,
+                  0,
+                ],
+              },
+            },
+            failed: {
+              $sum: { $cond: [{ $eq: ['$status', RecordingStatus.FAILED] }, 1, 0] },
+            },
+            totalSizeBytes: { $sum: { $ifNull: ['$fileSize', 0] } },
+          },
+        },
+      ]),
+    ]);
+
+    const aggregateStats = stats[0] || {
+      total: 0,
+      ready: 0,
+      processing: 0,
+      failed: 0,
+      totalSizeBytes: 0,
+    };
+
+    return {
+      data: recordings.map((r: any) => ({
+        ...r,
+        id: r._id?.toString() || r.id,
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      stats: aggregateStats,
+    };
+  }
 }

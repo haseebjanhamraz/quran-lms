@@ -20,6 +20,9 @@ export class Attendance {
   @Prop({ default: 0 })
   durationSeconds: number;
 
+  @Prop({ default: 'PRESENT' })
+  status?: string;
+
   createdAt?: Date;
 }
 

@@ -14,6 +14,7 @@ import ScheduleTab from './components/ScheduleTab';
 import CoursesTab from './components/CoursesTab';
 import StudentsTab from './components/StudentsTab';
 import RecordingsTab from './components/RecordingsTab';
+import ClassesHistoryTab from './components/ClassesHistoryTab';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import InstantClassModal from './components/InstantClassModal';
 import { toast, ToastContainer } from 'react-toastify';
@@ -103,7 +104,7 @@ interface TeacherStats {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-const TABS = ['Dashboard', 'Schedule', 'My Courses', 'My Students', 'Course Materials', 'Class Recordings'] as const;
+const TABS = ['Dashboard', 'Schedule', 'Classes History', 'My Courses', 'My Students', 'Course Materials', 'Class Recordings'] as const;
 type TabType = (typeof TABS)[number];
 
 function TeacherDashboardContent() {
@@ -328,6 +329,28 @@ function TeacherDashboardContent() {
     }
   };
 
+  // Mark student absent action
+  const handleMarkAbsent = async (id: string, note?: string) => {
+    try {
+      const res = await apiFetch(`${API_URL}/class-sessions/${id}/mark-absent`, {
+        method: 'POST',
+        body: JSON.stringify({ note: note || undefined }),
+      });
+
+      if (res.ok) {
+        toast.success('Student marked as absent. Class completed.');
+        fetchSessions();
+        fetchStats();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        toast.error(err.message || 'Failed to mark student absent');
+      }
+    } catch (err) {
+      console.error('Error marking student absent:', err);
+      toast.error('Error marking student absent');
+    }
+  };
+
   // Retry recording upload action
   const handleRetryUpload = async (id: string) => {
     try {
@@ -428,6 +451,8 @@ function TeacherDashboardContent() {
             leaveBalance={leaveBalance}
             handleStartClass={handleStartClass}
             handleActivateClass={handleActivateClass}
+            handleMarkAbsent={handleMarkAbsent}
+            onRefresh={fetchSessions}
             onOpenInstantModal={handleOpenInstantModal}
             onNavigateTab={(tab) => setActiveTab(tab)}
             router={router}
@@ -447,10 +472,20 @@ function TeacherDashboardContent() {
               reviewsLoading={reviewsLoading}
               handleStartClass={handleStartClass}
               handleActivateClass={handleActivateClass}
+              handleMarkAbsent={handleMarkAbsent}
               router={router}
               teacherId={user?.id}
             />
           </>
+        )}
+
+        {/* Classes History Tab */}
+        {activeTab === 'Classes History' && (
+          <ClassesHistoryTab
+            sessions={sessions}
+            sessionsLoading={sessionsLoading}
+            onRefresh={fetchSessions}
+          />
         )}
 
         {/* 3. My Courses Tab */}

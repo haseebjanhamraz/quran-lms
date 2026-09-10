@@ -5,11 +5,12 @@ import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import {
   PlaneTakeoff, CheckCircle2, XCircle, Clock, Search, Filter,
-  RefreshCw, AlertCircle, Check, X, Sliders, User, MessageSquare, Loader2
+  RefreshCw, AlertCircle, Check, X, Sliders, User, MessageSquare, Loader2, Calendar
 } from 'lucide-react';
 import Image from 'next/image';
 import { apiFetch } from '@/utils/apiFetch';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import ReassignLeaveClassesModal from './components/ReassignLeaveClassesModal';
 
 interface LeaveRequestItem {
   id?: string;
@@ -81,6 +82,10 @@ export default function AdminLeaveRequestsPage() {
   const [otherQuota, setOtherQuota] = useState<number>(5);
   const [savingQuota, setSavingQuota] = useState(false);
 
+  // Reassign Classes Modal State
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [reassignLeave, setReassignLeave] = useState<LeaveRequestItem | null>(null);
+
   const fetchLeavesAndStats = useCallback(async () => {
     try {
       setLoading(true);
@@ -144,10 +149,18 @@ export default function AdminLeaveRequestsPage() {
         throw new Error(err.message || `Failed to ${actionType.toLowerCase()} leave request.`);
       }
 
+      const wasApproved = actionType === 'APPROVE';
+      const approvedLeave = selectedLeave;
+
       setActionType(null);
       setSelectedLeave(null);
       setAdminRemarks('');
       await fetchLeavesAndStats();
+
+      if (wasApproved && approvedLeave) {
+        setReassignLeave(approvedLeave);
+        setIsReassignModalOpen(true);
+      }
     } catch (err: any) {
       alert(err.message || 'An error occurred.');
     } finally {
@@ -455,14 +468,29 @@ export default function AdminLeaveRequestsPage() {
                               </button>
                             </>
                           ) : (
-                            <button
-                              onClick={() => handleOpenQuotaModal(leave.teacher)}
-                              className="px-2.5 py-1 rounded-lg border border-border text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                              title="View / Adjust Teacher Quotas"
-                            >
-                              <Sliders size={12} className="inline mr-1" />
-                              Quotas
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              {leave.status === 'APPROVED' && (
+                                <button
+                                  onClick={() => {
+                                    setReassignLeave(leave);
+                                    setIsReassignModalOpen(true);
+                                  }}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-primary/40 bg-primary/10 text-primary text-[11px] font-bold hover:bg-primary/20 transition-all shadow-xs"
+                                  title="Reassign affected classes to substitute teachers"
+                                >
+                                  <Calendar size={12} />
+                                  <span>Reassign</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleOpenQuotaModal(leave.teacher)}
+                                className="px-2.5 py-1 rounded-lg border border-border text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                                title="View / Adjust Teacher Quotas"
+                              >
+                                <Sliders size={12} className="inline mr-1" />
+                                Quotas
+                              </button>
+                            </div>
                           )}
                         </div>
                       </td>
@@ -642,6 +670,19 @@ export default function AdminLeaveRequestsPage() {
           </div>
         </div>
       )}
+
+      {/* Reassign Affected Classes Modal */}
+      <ReassignLeaveClassesModal
+        isOpen={isReassignModalOpen}
+        leave={reassignLeave}
+        onClose={() => {
+          setIsReassignModalOpen(false);
+          setReassignLeave(null);
+        }}
+        onSuccess={() => {
+          fetchLeavesAndStats();
+        }}
+      />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Role } from './user.schema';
 
 export type RescheduleRequestDocument = RescheduleRequest & Document;
 
@@ -16,6 +17,9 @@ export class RescheduleRequest {
 
   @Prop({ required: true, type: MongooseSchema.Types.ObjectId, ref: 'User', index: true })
   requestedBy: MongooseSchema.Types.ObjectId | string;
+
+  @Prop({ type: String, enum: Role, default: Role.STUDENT })
+  requestedByRole: Role;
 
   @Prop({ required: true })
   originalScheduledAt: Date;

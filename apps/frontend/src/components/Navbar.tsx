@@ -31,6 +31,7 @@ import {
   FileText,
   HelpCircle,
   Video,
+  History,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -107,6 +108,8 @@ const ADMIN_PRIMARY_NAV: NavItemConfig[] = [
 ];
 
 const ADMIN_MORE_NAV: NavItemConfig[] = [
+  { label: 'Class Recordings', icon: Video, href: '/admin/recordings' },
+  { label: 'Classes History', icon: History, href: '/admin/classes-history' },
   { label: 'Leave Requests', icon: PlaneTakeoff, href: '/admin/leave-requests', permission: 'leave.read' },
   { label: 'Users & Accounts', icon: Users, href: '/admin/users', permission: 'users.read' },
   { label: 'Enrollments', icon: UserCheck, href: '/admin/enrollments', permission: 'enrollments.read' },

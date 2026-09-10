@@ -10,6 +10,8 @@ import {
   Clock,
   Activity,
   Sparkles,
+  Video,
+  History,
 } from 'lucide-react';
 import IslamabadClock from '@/components/IslamabadClock';
 import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
@@ -220,12 +222,59 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* ── Quick Access: Class Recordings & Classes History ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Link
+          href="/admin/recordings"
+          className="glass-panel p-4 rounded-2xl border border-border bg-card/50 hover:border-primary/50 transition-all flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 group-hover:scale-105 transition-transform">
+              <Video className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                Class Recordings Archive
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Manage cloud video streams, storage, and egress processing
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold text-primary group-hover:translate-x-1 transition-transform">
+            View Archive &rarr;
+          </span>
+        </Link>
+
+        <Link
+          href="/admin/classes-history"
+          className="glass-panel p-4 rounded-2xl border border-border bg-card/50 hover:border-primary/50 transition-all flex items-center justify-between group"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 group-hover:scale-105 transition-transform">
+              <History className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                Classes History Audit
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Audit past sessions, attendance logs, and teacher lesson reports
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-semibold text-primary group-hover:translate-x-1 transition-transform">
+            View History &rarr;
+          </span>
+        </Link>
+      </div>
+
       {/* ── Two-column Dashboard Area ── */}
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
         {/* Left Columns - Roster, Schedule, System metrics */}
         <div className="xl:col-span-2 space-y-6">
           {/* Recent Sessions Table */}
-          <section>
+          {/* <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-base font-semibold text-foreground">
                 <Clock size={16} className="text-brand" />
@@ -290,7 +339,7 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             </div>
-          </section>
+          </section> */}
 
           {/* System Overview Visualizations */}
           <section className="grid grid-cols-1 md:grid-cols-2 gap-6">

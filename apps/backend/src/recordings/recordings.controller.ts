@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, UseGuards, Res, Headers, NotFoundException } from '@nestjs/common';
+import { Controller, Post, Get, Param, Query, UseGuards, Res, Headers, NotFoundException } from '@nestjs/common';
 import { RecordingsService } from './recordings.service';
 import { LocalStorageService } from '../local-storage/local-storage.service';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -14,6 +14,12 @@ export class RecordingsController {
     private readonly recordingsService: RecordingsService,
     private readonly localStorageService: LocalStorageService,
   ) {}
+
+  @Get()
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN)
+  async getAllRecordings(@Query() query: any) {
+    return this.recordingsService.getAllRecordings(query);
+  }
 
   @Post(':sessionId/start')
   @Roles(Role.ADMIN, Role.TEACHER)

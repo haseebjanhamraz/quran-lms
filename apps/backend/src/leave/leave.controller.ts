@@ -12,6 +12,7 @@ import { LeaveService } from './leave.service';
 import { CreateLeaveRequestDto } from './dto/create-leave-request.dto';
 import { ReviewLeaveRequestDto } from './dto/review-leave-request.dto';
 import { UpdateLeaveBalanceDto } from './dto/update-leave-balance.dto';
+import { ReassignLeaveClassesDto } from './dto/reassign-leave-classes.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -121,5 +122,23 @@ export class LeaveController {
     @Body() dto: ReviewLeaveRequestDto,
   ): Promise<any> {
     return this.leaveService.rejectLeave(id, user.id, dto);
+  }
+
+  // 11. Admin: Get affected classes for leave period
+  @Get(':id/affected-classes')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  async getAffectedClasses(@Param('id') id: string): Promise<any> {
+    return this.leaveService.getAffectedClasses(id);
+  }
+
+  // 12. Admin: Reassign affected classes to substitute teachers
+  @Post(':id/reassign-classes')
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  async reassignClasses(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+    @Body() dto: ReassignLeaveClassesDto,
+  ): Promise<any> {
+    return this.leaveService.reassignClasses(id, dto, user);
   }
 }

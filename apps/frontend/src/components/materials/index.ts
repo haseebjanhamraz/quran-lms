@@ -1,0 +1,11 @@
+export { default } from './MaterialsManager';
+export { default as MaterialsManager } from './MaterialsManager';
+export { default as MaterialsHeader } from './MaterialsHeader';
+export { default as MaterialsStats } from './MaterialsStats';
+export { default as MaterialsFilterBar } from './MaterialsFilterBar';
+export { default as MaterialCard } from './MaterialCard';
+export { default as MaterialsGrid } from './MaterialsGrid';
+export { default as UploadMaterialModal } from './UploadMaterialModal';
+export * from './types';
+export * from './constants';
+export * from './utils';

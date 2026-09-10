@@ -3,6 +3,7 @@ import { ClassSessionsService } from './class-sessions.service';
 import { CreateClassSessionDto } from './dto/create-class-session.dto';
 import { UpdateClassSessionDto } from './dto/update-class-session.dto';
 import { LogAttendanceDto } from './dto/log-attendance.dto';
+import { SubmitClassReportDto } from './dto/submit-class-report.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
@@ -82,9 +83,42 @@ export class ClassSessionsController {
     return this.classSessionsService.getWeeklyScheduleGrid();
   }
 
+  @Get('history')
+  async getHistory(
+    @Query() query: any,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.getClassesHistory(query, user);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.classSessionsService.findOne(id);
+  }
+
+  @Post(':id/report')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
+  async submitReport(
+    @Param('id') id: string,
+    @Body() dto: SubmitClassReportDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.submitClassReport(id, dto, user);
+  }
+
+  @Get(':id/report')
+  async getReport(@Param('id') id: string) {
+    return this.classSessionsService.getClassReport(id);
+  }
+
+  @Post(':id/mark-absent')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
+  async markAbsent(
+    @Param('id') id: string,
+    @Body('note') note: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.markStudentAbsent(id, user, note);
   }
 
   @Put(':id')
