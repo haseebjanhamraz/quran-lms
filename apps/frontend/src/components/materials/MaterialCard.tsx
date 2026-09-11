@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { BookOpen, Eye, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { BookOpen, Eye, Trash2, Presentation } from 'lucide-react';
 import { MaterialItem } from './types';
 import { CATEGORIES, CATEGORY_COLORS } from './constants';
 import { formatBytes } from './utils';
@@ -10,13 +11,23 @@ interface MaterialCardProps {
   material: MaterialItem;
   canDelete: boolean;
   onDelete: (id: string) => void;
+  onPresent?: (material: MaterialItem) => void;
 }
 
-export default function MaterialCard({ material, canDelete, onDelete }: MaterialCardProps) {
+export default function MaterialCard({ material, canDelete, onDelete, onPresent }: MaterialCardProps) {
+  const router = useRouter();
   const matId = material.id || material._id;
   const categoryBadge = CATEGORY_COLORS[material.category] || CATEGORY_COLORS.GENERAL;
   const categoryLabel =
     CATEGORIES.find((c) => c.id === material.category)?.label || material.category;
+
+  const handlePresent = () => {
+    if (onPresent) {
+      onPresent(material);
+    } else if (matId) {
+      window.open(`/online-class?materialId=${matId}`, '_blank', 'noopener,noreferrer');
+    }
+  };
 
   return (
     <div className="glass-panel group rounded-2xl border border-border/80 bg-card hover:border-primary/50 transition-all duration-200 p-5 flex flex-col justify-between space-y-4 hover:shadow-xl hover:shadow-primary/5 relative overflow-hidden">
@@ -76,15 +87,25 @@ export default function MaterialCard({ material, canDelete, onDelete }: Material
 
       {/* Footer Action Buttons */}
       <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+        <button
+          type="button"
+          onClick={handlePresent}
+          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+          title="Present this PDF on Whiteboard"
+        >
+          <Presentation className="h-3.5 w-3.5" />
+          <span>Present</span>
+        </button>
+
         <a
           href={`/materials/view/${matId}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shadow-sm hover:bg-primary/90 transition-all"
+          className="flex items-center justify-center gap-1 px-3 py-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold border border-primary/20 transition-all"
           title="View & Read PDF in Protected Mode"
         >
           <Eye className="h-3.5 w-3.5" />
-          <span>View &amp; Read PDF</span>
+          <span className="hidden sm:inline">View</span>
         </a>
 
         {canDelete && matId && (

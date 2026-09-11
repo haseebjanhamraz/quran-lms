@@ -12,6 +12,7 @@ interface MaterialsGridProps {
   canDelete: boolean;
   onDelete: (id: string) => void;
   onOpenUpload: () => void;
+  onPresent?: (material: MaterialItem) => void;
 }
 
 export default function MaterialsGrid({
@@ -21,6 +22,7 @@ export default function MaterialsGrid({
   canDelete,
   onDelete,
   onOpenUpload,
+  onPresent,
 }: MaterialsGridProps) {
   if (loading) {
     return (
@@ -66,6 +68,7 @@ export default function MaterialsGrid({
             material={mat}
             canDelete={canDelete}
             onDelete={onDelete}
+            onPresent={onPresent}
           />
         );
       })}

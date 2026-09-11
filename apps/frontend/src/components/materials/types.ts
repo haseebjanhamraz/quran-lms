@@ -30,6 +30,7 @@ export interface MaterialsManagerProps {
   title?: string;
   subtitle?: string;
   className?: string;
+  onPresent?: (material: MaterialItem) => void;
 }
 
 export interface CourseOption {

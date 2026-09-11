@@ -17,6 +17,7 @@ export default function MaterialsManager({
   title = 'Course Materials & Curriculum Resources',
   subtitle = 'Browse, read, and share curriculum PDFs, tajweed manuals, and student lesson notes.',
   className = '',
+  onPresent,
 }: MaterialsManagerProps) {
   const { user } = useAuth();
   const canDelete = user?.role === 'SUPER_ADMIN' || user?.role === 'ADMIN';
@@ -129,6 +130,7 @@ export default function MaterialsManager({
         canDelete={canDelete}
         onDelete={handleDelete}
         onOpenUpload={() => setIsUploadModalOpen(true)}
+        onPresent={onPresent}
       />
 
       {/* Upload Material Modal */}
