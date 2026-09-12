@@ -1,6 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { ConfigService } from '@nestjs/config';
 import { EgressClient, EncodedFileOutput, RoomServiceClient, EncodingOptionsPreset } from 'livekit-server-sdk';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -241,5 +241,37 @@ export class RecordingsService {
       totalPages: Math.ceil(total / limit),
       stats: aggregateStats,
     };
+  }
+
+  async getStudentRecordings(studentId: string) {
+    const studentFilter: any[] = [studentId];
+    if (Types.ObjectId.isValid(studentId)) {
+      studentFilter.push(new Types.ObjectId(studentId));
+    }
+
+    const sessions = await this.classSessionModel.find({
+      studentId: { $in: studentFilter },
+    })
+      .populate('course', 'title type')
+      .populate('teacher', 'name email')
+      .populate('recording')
+      .sort({ scheduledAt: -1 })
+      .lean();
+
+    return sessions
+      .filter((s: any) => s.recording && s.recording.status === RecordingStatus.READY)
+      .map((s: any) => ({
+        sessionId: s._id.toString(),
+        course: s.course,
+        teacher: s.teacher,
+        scheduledAt: s.scheduledAt,
+        durationMinutes: s.durationMinutes,
+        recording: {
+          id: s.recording._id?.toString(),
+          durationSeconds: s.recording.durationSeconds,
+          status: s.recording.status,
+          fileSize: s.recording.fileSize,
+        },
+      }));
   }
 }

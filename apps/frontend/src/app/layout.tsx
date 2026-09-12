@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "../context/AuthContext";
 import { ThemeProvider } from "../context/ThemeContext";
+import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   title: "Ain Ul Quran — E-Learning & QA Platform",
@@ -82,6 +83,7 @@ export default function RootLayout({
         <ThemeProvider>
           <AuthProvider>
             {children}
+          <Footer />
           </AuthProvider>
         </ThemeProvider>
       </body>

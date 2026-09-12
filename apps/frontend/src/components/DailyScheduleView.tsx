@@ -20,6 +20,7 @@ import {
 import IslamabadClock from '@/components/IslamabadClock';
 import { useUrlState } from '@/hooks/useUrlState';
 import { matchTeacherFilter } from '@/app/admin/schedule/components/types';
+import { getClassRowHighlight } from '@/utils/classHighlight';
 
 export interface TeacherItem {
   id: string;
@@ -849,6 +850,7 @@ export default function DailyScheduleView({
 
                     const isLive = session?.status === 'LIVE';
                     const targetSessionId = session?.id || assignment?.id || `slot-${timeSlotIndex}`;
+                    const highlightClass = session ? getClassRowHighlight(session) : '';
 
                     return (
                       <tr
@@ -856,7 +858,7 @@ export default function DailyScheduleView({
                         onDragOver={(e) => handleDragOver(e, timeSlotIndex)}
                         onDragLeave={handleDragLeave}
                         onDrop={(e) => handleDrop(e, timeSlotIndex)}
-                        className={`hover:bg-card/40 transition-colors ${isLive ? 'bg-emerald-500/10' : ''
+                        className={`hover:bg-card/40 transition-colors ${highlightClass} ${isLive ? 'bg-emerald-500/10' : ''
                           } ${isDragOver ? 'bg-primary/20 ring-2 ring-primary ring-inset' : ''}`}
                       >
                         {/* Index */}

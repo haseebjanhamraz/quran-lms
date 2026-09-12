@@ -2,13 +2,14 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, PlayCircle, PlaneTakeoff,
   History, Sparkles, X, Loader2, CheckCircle2, Zap,
-  FastForward, UserX, AlertTriangle
+  UserX, AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
 import { apiFetch } from '@/utils/apiFetch';
 import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
 import { useUrlState } from '@/hooks/useUrlState';
+import { getClassRowHighlight } from '@/utils/classHighlight';
 
 interface DashboardTabProps {
   user: any;
@@ -74,35 +75,12 @@ export default function DashboardTab({
   const [leaveSuccessMsg, setLeaveSuccessMsg] = useState<string | null>(null);
   const [leaveErrorMsg, setLeaveErrorMsg] = useState<string | null>(null);
 
-  // Advance Class Requests State
-  const [advanceRequests, setAdvanceRequests] = useState<any[]>([]);
-  const [advanceSession, setAdvanceSession] = useState<any | null>(null);
-  const [advanceDate, setAdvanceDate] = useState<string>('');
-  const [advanceTime, setAdvanceTime] = useState<string>('');
-  const [advanceReason, setAdvanceReason] = useState<string>('');
-  const [advanceSubmitting, setAdvanceSubmitting] = useState<boolean>(false);
-  const [advanceErrorMsg, setAdvanceErrorMsg] = useState<string | null>(null);
-
   // Absent Confirmation State
   const [absentSession, setAbsentSession] = useState<any | null>(null);
   const [absentNote, setAbsentNote] = useState<string>('');
   const [absentSubmitting, setAbsentSubmitting] = useState<boolean>(false);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
-
-  const fetchAdvanceRequests = useCallback(async () => {
-    try {
-      const res = await apiFetch(`${API_URL}/reschedule-requests/teacher/my`);
-      if (res.ok) {
-        const data = await res.json();
-        if (Array.isArray(data)) setAdvanceRequests(data);
-      }
-    } catch (_) {}
-  }, [API_URL]);
-
-  useEffect(() => {
-    fetchAdvanceRequests();
-  }, [fetchAdvanceRequests]);
 
   const isSameDay = (isoDate: string, targetDateStr: string) => {
     try {
@@ -211,62 +189,6 @@ export default function DashboardTab({
     }
   };
 
-  // Open Advance Class Request Modal
-  const handleOpenAdvanceModal = (session: any) => {
-    setAdvanceSession(session);
-    setAdvanceErrorMsg(null);
-    try {
-      const d = new Date(session.scheduledAt);
-      setAdvanceDate(d.toISOString().split('T')[0]);
-      const hours = String(d.getHours()).padStart(2, '0');
-      const minutes = String(d.getMinutes()).padStart(2, '0');
-      setAdvanceTime(`${hours}:${minutes}`);
-    } catch (_) {
-      setAdvanceDate('');
-      setAdvanceTime('');
-    }
-    setAdvanceReason('');
-  };
-
-  const handleSubmitAdvance = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!advanceSession || !advanceDate || !advanceTime) return;
-    setAdvanceSubmitting(true);
-    setAdvanceErrorMsg(null);
-    try {
-      const requestedDateTime = new Date(`${advanceDate}T${advanceTime}:00`);
-      if (isNaN(requestedDateTime.getTime())) {
-        throw new Error('Please specify a valid date and time.');
-      }
-      if (requestedDateTime.getTime() <= Date.now()) {
-        throw new Error('Requested advance time must be in the future.');
-      }
-
-      const res = await apiFetch(`${API_URL}/reschedule-requests/teacher-request`, {
-        method: 'POST',
-        body: JSON.stringify({
-          sessionId: advanceSession.id || advanceSession._id,
-          requestedTime: requestedDateTime.toISOString(),
-          reason: advanceReason.trim() || 'Teacher requested to conduct future class in advance',
-        }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to submit advance class request.');
-      }
-
-      toast.success('Advance class request submitted to administrator for approval!');
-      setAdvanceSession(null);
-      fetchAdvanceRequests();
-      if (onRefresh) onRefresh();
-    } catch (err: any) {
-      setAdvanceErrorMsg(err.message || 'An error occurred.');
-    } finally {
-      setAdvanceSubmitting(false);
-    }
-  };
-
   // Open Absent Confirmation Modal
   const handleOpenAbsentModal = (session: any) => {
     setAbsentSession(session);
@@ -306,7 +228,7 @@ export default function DashboardTab({
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/50 pb-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-display font-extrabold text-foreground tracking-tight">
-              Teacher Schedule &amp; Class List
+              Teacher
             </h1>
             <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1 font-medium">
               <span>Home</span>
@@ -409,7 +331,6 @@ export default function DashboardTab({
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">History</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Leave</th>
-                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Advance</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Start Class</th>
                 </tr>
               </thead>
@@ -449,9 +370,6 @@ export default function DashboardTab({
                     <td className="py-4 px-4 text-center">
                       <div className="h-8 w-24 bg-muted/80 rounded-xl mx-auto" />
                     </td>
-                    <td className="py-4 px-4 text-center">
-                      <div className="h-8 w-24 bg-muted/80 rounded-xl mx-auto" />
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -480,7 +398,6 @@ export default function DashboardTab({
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">History</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Status</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Leave</th>
-                  <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Advance</th>
                   <th className="py-3.5 px-4 font-bold uppercase tracking-wider text-muted-foreground text-[11px] text-center">Start Class</th>
                 </tr>
               </thead>
@@ -507,11 +424,12 @@ export default function DashboardTab({
                   const hasStudents = studentCandidates.length > 0;
                   const isLive = session.status === 'LIVE';
                   const id = session.id || session._id || `session-${idx}`;
+                  const highlightClass = getClassRowHighlight(session);
 
                   return (
                     <tr
                       key={id}
-                      className={`hover:bg-muted/30 transition-colors ${
+                      className={`hover:bg-muted/30 transition-colors ${highlightClass} ${
                         isLive ? 'bg-emerald-500/5' : ''
                       }`}
                     >
@@ -558,73 +476,64 @@ export default function DashboardTab({
                       {/* Course */}
                       <td className="py-3.5 px-4">
                         <span className="font-semibold text-foreground">
-                          {session.course?.title || session.course?.type || 'Quran Recitation'}
+                          {session.course?.title || 'Quranic Course'}
                         </span>
                       </td>
 
-                      {/* History Button */}
+                      {/* History Column (View previous reports) */}
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
-                          onClick={() => handleOpenHistory(session)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition-colors border border-border"
-                          title="View Attendance & Progress History"
+                          onClick={() => handleOpenHistoryModal(session)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition-all flex items-center justify-center gap-1 mx-auto"
+                          title="View past class evaluations and lesson history for this student"
                         >
-                          <History className="h-3.5 w-3.5 text-brand" />
+                          <History className="h-3 w-3 text-muted-foreground" />
                           <span>History</span>
                         </button>
                       </td>
 
-                      {/* Status Badge */}
+                      {/* Status Column */}
                       <td className="py-3.5 px-4 text-center">
-                        <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                            session.status === 'LIVE'
-                              ? 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30 animate-pulse'
-                              : session.status === 'ACTIVATED'
-                              ? 'bg-amber-500/15 text-amber-400 border-amber-500/30 animate-pulse'
-                              : session.status === 'COMPLETED'
-                              ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-                              : session.status === 'CANCELLED'
-                              ? 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                              : session.student?.studentStatus === 'Trial' || session.student?.status === 'Trial'
-                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                              : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                          }`}
-                        >
-                          {session.status === 'LIVE'
-                            ? '● Live Now'
-                            : session.status === 'ACTIVATED'
-                            ? '⚡ Activated'
-                            : session.status === 'COMPLETED'
-                            ? 'Completed'
-                            : session.status === 'CANCELLED'
-                            ? 'Cancelled'
-                            : session.student?.studentStatus === 'Trial'
-                            ? 'Trial'
-                            : 'Regular'}
-                        </span>
+                        {isLive ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 flex items-center justify-center gap-1 mx-auto w-fit">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Now
+                          </span>
+                        ) : session.status === 'COMPLETED' ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-muted text-muted-foreground border border-border flex items-center justify-center gap-1 mx-auto w-fit">
+                            <CheckCircle2 className="h-3 w-3" />
+                            Completed
+                          </span>
+                        ) : session.status === 'ACTIVATED' ? (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30 flex items-center justify-center gap-1 mx-auto w-fit">
+                            <Zap className="h-3 w-3" />
+                            Activated
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-muted/60 text-muted-foreground border border-border flex items-center justify-center gap-1 mx-auto w-fit">
+                            <Clock className="h-3 w-3" />
+                            Scheduled
+                          </span>
+                        )}
                       </td>
 
-                      {/* Leave Button (Blue) */}
+                      {/* Leave Column */}
                       <td className="py-3.5 px-4 text-center">
                         {(() => {
-                          const isEndedOrCompleted =
-                            session.status === 'COMPLETED' ||
-                            session.status === 'ENDED' ||
-                            session.status === 'CANCELLED';
+                          const isLeaveDisabled = session.status === 'COMPLETED' || session.status === 'ENDED' || session.status === 'CANCELLED';
                           return (
                             <button
                               type="button"
-                              disabled={isEndedOrCompleted}
-                              onClick={() => handleOpenLeaveModal(session)}
-                              className={`px-3 py-1 rounded-lg text-xs font-bold transition-all shadow-sm ${
-                                isEndedOrCompleted
-                                  ? 'bg-muted text-muted-foreground border border-border opacity-50 cursor-not-allowed'
-                                  : 'bg-sky-500 hover:bg-sky-600 text-white'
+                              disabled={isLeaveDisabled}
+                              onClick={() => !isLeaveDisabled && handleOpenLeaveModal(session)}
+                              className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all shadow-sm flex items-center justify-center gap-1 mx-auto ${
+                                isLeaveDisabled
+                                  ? 'bg-muted/40 text-muted-foreground/40 border border-border/40 cursor-not-allowed'
+                                  : 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 cursor-pointer'
                               }`}
                               title={
-                                isEndedOrCompleted
+                                isLeaveDisabled
                                   ? 'Leave request disabled for completed or ended classes'
                                   : 'Request Leave for this Class'
                               }
@@ -632,71 +541,6 @@ export default function DashboardTab({
                               Leave
                             </button>
                           );
-                        })()}
-                      </td>
-
-                      {/* Advance Column (Individual Entity) */}
-                      <td className="py-3.5 px-4 text-center">
-                        {(() => {
-                          const sId = (session.id || session._id)?.toString();
-                          const advanceReq = advanceRequests.find((r) => {
-                            const rSid = (typeof r.sessionId === 'object' ? r.sessionId?._id || r.sessionId?.id : r.sessionId)?.toString();
-                            return rSid === sId;
-                          });
-                          const isPending = advanceReq?.status === 'PENDING';
-                          const isApproved = advanceReq?.status === 'APPROVED';
-
-                          if (session.status === 'SCHEDULED') {
-                            if (isApproved) {
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    if (handleActivateClass) {
-                                      handleActivateClass(session.id || session._id);
-                                    } else {
-                                      handleStartClass(session.id || session._id);
-                                    }
-                                  }}
-                                  className="px-3 py-1 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
-                                  title="Advance request approved by admin! Click to activate session"
-                                >
-                                  <Zap className="h-3.5 w-3.5" />
-                                  <span>Activate</span>
-                                </button>
-                              );
-                            }
-                            if (isPending) {
-                              return (
-                                <span
-                                  className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-amber-500/15 text-amber-500 border border-amber-500/30"
-                                  title="Advance class request awaiting admin approval"
-                                >
-                                  Pending Approval
-                                </span>
-                              );
-                            }
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => handleOpenAdvanceModal(session)}
-                                className="px-3 py-1 rounded-lg text-xs font-bold bg-sky-500 hover:bg-sky-600 text-white transition-all shadow-sm flex items-center justify-center gap-1 mx-auto"
-                                title="Request to take this future class in advance"
-                              >
-                                <FastForward className="h-3.5 w-3.5" />
-                                <span>Advance</span>
-                              </button>
-                            );
-                          }
-                          if (session.status === 'ACTIVATED') {
-                            return (
-                              <span className="text-[10px] font-bold text-amber-500 flex items-center justify-center gap-1">
-                                <Zap className="h-3 w-3" />
-                                <span>Activated</span>
-                              </span>
-                            );
-                          }
-                          return <span className="text-muted-foreground/40 text-xs">—</span>;
                         })()}
                       </td>
 
@@ -941,108 +785,7 @@ export default function DashboardTab({
         </div>
       )}
 
-      {/* 5. Advance Class Request Modal */}
-      {advanceSession && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn">
-          <div className="glass-panel w-full max-w-md rounded-2xl p-6 shadow-2xl relative border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border/50 pb-3 mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-                  <FastForward size={16} />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-foreground">
-                    Take Class in Advance
-                  </h3>
-                  <p className="text-xs text-muted-foreground">
-                    Submit request to admin to reschedule this class earlier
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setAdvanceSession(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
 
-            {advanceErrorMsg && (
-              <div className="mb-4 p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-xs text-destructive flex items-center gap-2">
-                <AlertTriangle size={14} className="shrink-0" />
-                <span>{advanceErrorMsg}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmitAdvance} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase">Current Class Schedule</label>
-                <div className="p-3 rounded-xl bg-muted/40 border border-border text-xs space-y-1">
-                  <p className="font-bold text-foreground">{advanceSession.course?.title || 'Quran Session'}</p>
-                  <p className="text-muted-foreground">
-                    Student: {advanceSession.student?.name || advanceSession.student?.preferredName || 'Assigned Student'}
-                  </p>
-                  <p className="font-mono text-muted-foreground">
-                    Originally: {new Date(advanceSession.scheduledAt).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-muted-foreground uppercase">Proposed Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={advanceDate}
-                    onChange={(e) => setAdvanceDate(e.target.value)}
-                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none font-mono"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-muted-foreground uppercase">Proposed Time *</label>
-                  <input
-                    type="time"
-                    required
-                    value={advanceTime}
-                    onChange={(e) => setAdvanceTime(e.target.value)}
-                    className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none font-mono"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase">Reason for Advance Class</label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Student requested to cover upcoming exam topics early..."
-                  value={advanceReason}
-                  onChange={(e) => setAdvanceReason(e.target.value)}
-                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 rounded-xl p-2.5 text-xs outline-none resize-none"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2.5 pt-3 border-t border-border/50">
-                <button
-                  type="button"
-                  onClick={() => setAdvanceSession(null)}
-                  className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={advanceSubmitting}
-                  className="px-4 py-2 rounded-xl bg-sky-500 hover:bg-sky-600 text-white text-xs font-bold shadow-md transition-all flex items-center gap-1.5 disabled:opacity-50"
-                >
-                  {advanceSubmitting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                  <span>Request Advance</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* 6. Mark Absent Confirmation Modal */}
       {absentSession && (

@@ -32,10 +32,11 @@ import {
   HelpCircle,
   Video,
   History,
+  Megaphone,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
+import NoticeInbox from '@/components/NoticeInbox';
 import ThemeToggle from '@/components/ThemeToggle';
-import IslamabadClock from '@/components/IslamabadClock';
 import { apiFetch } from '@/utils/apiFetch';
 
 export interface NavItemConfig {
@@ -108,6 +109,8 @@ const ADMIN_PRIMARY_NAV: NavItemConfig[] = [
 ];
 
 const ADMIN_MORE_NAV: NavItemConfig[] = [
+  { label: 'Notice Board', icon: Megaphone, href: '/admin/notice-board' },
+  { label: 'Support Tickets', icon: HelpCircle, href: '/admin/support' },
   { label: 'Class Recordings', icon: Video, href: '/admin/recordings' },
   { label: 'Classes History', icon: History, href: '/admin/classes-history' },
   { label: 'Leave Requests', icon: PlaneTakeoff, href: '/admin/leave-requests', permission: 'leave.read' },
@@ -135,12 +138,14 @@ const TEACHER_DEFAULT_TABS: NavItemConfig[] = [
   { key: 'My Students', label: 'My Students', icon: GraduationCap, href: '/teacher/dashboard?tab=My+Students' },
   { key: 'Course Materials', label: 'Course Materials', icon: FileText, href: '/teacher/materials' },
   { key: 'Class Recordings', label: 'Class Recordings', icon: Video, href: '/teacher/dashboard?tab=Class+Recordings' },
+  { key: 'Support', label: 'Support & Help', icon: HelpCircle, href: '/teacher/dashboard?tab=Support' },
 ];
 
 const STUDENT_DEFAULT_TABS: NavItemConfig[] = [
   { key: 'learning', label: 'Learning Portal', icon: BookOpen },
   { key: 'schedule', label: 'Daily Schedule', icon: Calendar },
   { key: 'attendance', label: 'Attendance Logs', icon: Clock },
+  { key: 'recordings', label: 'Class Recordings', icon: Video },
 ];
 
 const SUPERVISOR_DEFAULT_TABS: NavItemConfig[] = [
@@ -366,7 +371,7 @@ export default function Navbar({
                     key={itemKey}
                     type="button"
                     onClick={() => onTabChange(itemKey)}
-                    className={`relative flex h-full items-center gap-2 px-3 text-xs sm:text-sm font-medium transition-colors ${
+                    className={`nav-hover-lift relative flex h-full items-center gap-2 px-3 text-xs sm:text-sm font-medium transition-colors ${
                       isActive
                         ? 'text-primary font-bold shadow-[inset_0_-2px_0_0_hsl(var(--primary))]'
                         : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
@@ -387,7 +392,7 @@ export default function Navbar({
                 <Link
                   key={itemKey}
                   href={item.href || '#'}
-                  className={`flex h-full items-center gap-2 px-3 text-xs sm:text-sm font-medium transition-colors ${
+                  className={`nav-hover-lift flex h-full items-center gap-2 px-3 text-xs sm:text-sm font-medium transition-colors ${
                     isActive
                       ? 'text-brand font-bold shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
@@ -410,7 +415,7 @@ export default function Navbar({
                 <button
                   type="button"
                   onClick={() => setIsMoreOpen(!isMoreOpen)}
-                  className={`flex h-full items-center gap-1.5 px-3 text-xs sm:text-sm font-medium transition-colors ${
+                  className={`nav-hover-lift flex h-full items-center gap-1.5 px-3 text-xs sm:text-sm font-medium transition-colors ${
                     moreNavItems.some((item) => item.href && pathname === item.href)
                       ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))] font-bold'
                       : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
@@ -430,7 +435,7 @@ export default function Navbar({
                           key={item.label}
                           href={item.href || '#'}
                           onClick={() => setIsMoreOpen(false)}
-                          className={`flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${
+                          className={`nav-hover-lift flex items-center gap-3 px-4 py-2 text-xs font-medium transition-colors ${
                             isActive
                               ? 'bg-primary/10 text-primary font-semibold'
                               : 'text-muted-foreground hover:bg-muted hover:text-foreground'
@@ -456,11 +461,11 @@ export default function Navbar({
         {/* Right: Clock, Extra Actions, Theme, Notifications & Profile */}
         <div className="flex items-center gap-2.5 sm:gap-3.5 h-full">
 
-          {/* Optional Extra Action Buttons */}
-          {extraActions && <div className="flex items-center gap-2">{extraActions}</div>}
-
           {/* Theme Toggle */}
           <ThemeToggle />
+
+          {/* Notice Board Inbox Drawer */}
+          <NoticeInbox />
 
           {/* Notifications Dropdown */}
           <NotificationsDropdown />
@@ -572,7 +577,7 @@ export default function Navbar({
                       onTabChange(itemKey);
                       setIsMobileOpen(false);
                     }}
-                    className={`flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                    className={`nav-hover-lift flex items-center justify-between w-full px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
                       isActive
                         ? 'bg-primary text-primary-foreground shadow-md'
                         : 'text-foreground/80 hover:bg-muted'
@@ -596,7 +601,7 @@ export default function Navbar({
                   key={itemKey}
                   href={item.href || '#'}
                   onClick={() => setIsMobileOpen(false)}
-                  className={`flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
+                  className={`nav-hover-lift flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold transition-colors ${
                     isActive
                       ? 'bg-brand text-brand-foreground shadow-md'
                       : 'text-foreground/80 hover:bg-muted'

@@ -25,6 +25,7 @@ interface StudentTimetableGridProps {
   timezone?: string;
   tier?: string;
   totalClasses?: number;
+  hideUpcomingSessions?: boolean;
 }
 
 const FULL_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -76,6 +77,7 @@ export default function StudentTimetableGrid({
   timezone = 'UTC',
   tier = 'Beginner',
   totalClasses,
+  hideUpcomingSessions = false,
 }: StudentTimetableGridProps) {
   const [, setLoading] = useState(false);
   const [sessions, setSessions] = useState<any[]>([]);
@@ -471,7 +473,7 @@ export default function StudentTimetableGrid({
       </div>
 
       {/* 4. Upcoming & Live Class Sessions */}
-      {sessions.length > 0 && (
+      {!hideUpcomingSessions && sessions.length > 0 && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <h4 className="text-sm font-bold text-foreground flex items-center gap-2">

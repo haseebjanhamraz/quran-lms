@@ -19,12 +19,16 @@ import {
 
 import { ClassExpiryService } from './class-expiry.service';
 import { PermissionsModule } from '../permissions/permissions.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { ScheduleModule } from '../schedule/schedule.module';
 
 @Module({
   imports: [
     RecordingsModule,
     LocalStorageModule,
     PermissionsModule,
+    NotificationsModule,
+    ScheduleModule,
     MongooseModule.forFeature([
       { name: ClassSession.name, schema: ClassSessionSchema },
       { name: Course.name, schema: CourseSchema },

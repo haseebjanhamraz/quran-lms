@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Bell, Check, Loader2, Calendar, X, ExternalLink, Sparkles, BookOpen, PlaneTakeoff, Info, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { useRouter } from 'next/navigation';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useNotificationSound } from '@/hooks/useNotificationSound';
 
 interface NotificationItem {
   id: string;
@@ -27,6 +29,15 @@ export default function NotificationsDropdown() {
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { playNotificationSound } = useNotificationSound();
+
+  useWebSocket({
+    eventFilter: ['new_notification', 'new_notice', 'new_broadcast'],
+    onMessage: () => {
+      playNotificationSound();
+      fetchNotifications();
+    },
+  });
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 

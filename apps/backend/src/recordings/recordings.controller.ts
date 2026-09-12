@@ -2,6 +2,7 @@ import { Controller, Post, Get, Param, Query, UseGuards, Res, Headers, NotFoundE
 import { RecordingsService } from './recordings.service';
 import { LocalStorageService } from '../local-storage/local-storage.service';
 import { Roles } from '../auth/decorators/roles.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Role } from '../schemas';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -14,6 +15,12 @@ export class RecordingsController {
     private readonly recordingsService: RecordingsService,
     private readonly localStorageService: LocalStorageService,
   ) {}
+
+  @Get('student/my')
+  @Roles(Role.STUDENT)
+  async getStudentRecordings(@CurrentUser() user: any) {
+    return this.recordingsService.getStudentRecordings(user.id || user._id);
+  }
 
   @Get()
   @Roles(Role.SUPER_ADMIN, Role.ADMIN)

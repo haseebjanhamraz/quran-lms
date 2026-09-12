@@ -34,3 +34,6 @@ export * from './leave-request.schema';
 export * from './leave-balance.schema';
 export * from './material.schema';
 export * from './reviewer-assignment.schema';
+export * from './notice.schema';
+export * from './broadcast.schema';
+

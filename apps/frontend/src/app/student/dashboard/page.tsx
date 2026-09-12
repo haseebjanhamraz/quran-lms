@@ -26,8 +26,10 @@ import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
 import ViewClassReportModal from '@/components/ViewClassReportModal';
 import DailyScheduleView from '@/components/DailyScheduleView';
+import StudentTimetableGrid from '@/components/StudentTimetableGrid';
 import { useUrlState } from '@/hooks/useUrlState';
 import Navbar from '@/components/Navbar';
+import { getClassRowHighlight } from '@/utils/classHighlight';
 import {
   formatPKTTime,
   formatPKTDate,
@@ -43,6 +45,7 @@ interface SessionItem {
   durationMinutes: number;
   status: 'SCHEDULED' | 'LIVE' | 'COMPLETED' | 'CANCELLED' | 'EXPIRED' | 'FROZEN';
   recording?: { filePath: string | null; status: string } | null;
+  reportStatus?: 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | string;
   teacherReport?: {
     attendanceStatus?: string;
     topicsCovered?: string;
@@ -133,10 +136,11 @@ function StudentDashboardContent() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [stats, setStats] = useState<StudentStats | null>(null);
   const [dataLoading, setDataLoading] = useState(true);
-  const [activeTab, setActiveTab] = useUrlState<'learning' | 'schedule' | 'history' | 'attendance'>('tab', 'learning');
+  const [activeTab, setActiveTab] = useUrlState<'learning' | 'schedule' | 'history' | 'attendance' | 'recordings'>('tab', 'learning');
   const [activeVideoUrl, setActiveVideoUrl] = useState<string | null>(null);
   const [selectedReportSession, setSelectedReportSession] = useState<SessionItem | null>(null);
   const [selectedRescheduleSession, setSelectedRescheduleSession] = useState<SessionItem | null>(null);
+  const [studentProfile, setStudentProfile] = useState<any>(null);
 
   const fetchSessionsAndStats = async () => {
     try {
@@ -181,6 +185,16 @@ function StudentDashboardContent() {
       if (stRes.ok) {
         const stData = await stRes.json();
         setStats(stData);
+      }
+
+      if (user?.id) {
+        try {
+          const uRes = await fetch(`${API_URL}/users/${user.id}`, { credentials: 'include' });
+          if (uRes.ok) {
+            const uData = await uRes.json();
+            setStudentProfile(uData);
+          }
+        } catch (_) {}
       }
     } catch (err) {
       console.error('Failed to load student dashboard data:', err);
@@ -257,6 +271,7 @@ function StudentDashboardContent() {
           { key: 'learning', label: 'Learning Portal', icon: BookOpen },
           { key: 'schedule', label: 'Daily Schedule', icon: Calendar },
           { key: 'history', label: 'Classes History', icon: History },
+          { key: 'recordings', label: 'Class Recordings', icon: Video },
         ]}
       />
 
@@ -294,7 +309,7 @@ function StudentDashboardContent() {
         <UpcomingClassBanner userRole="STUDENT" className="mb-8" />
 
         {/* METRICS ROW */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {/* <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="rounded-2xl border border-border bg-card/80 p-5 backdrop-blur-sm shadow-sm">
             <div className="flex items-center justify-between mb-3">
               <div className="bg-brand/15 rounded-xl p-2.5">
@@ -342,7 +357,7 @@ function StudentDashboardContent() {
             </p>
             <p className="text-xs font-medium text-muted-foreground">Enrolled Courses</p>
           </div>
-        </section>
+        </section> */}
 
         {activeTab === 'learning' ? (
           <>
@@ -425,6 +440,42 @@ function StudentDashboardContent() {
               )}
             </section>
 
+            {/* WEEKLY CLASS SCHEDULE */}
+            <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm mb-8 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-brand" />
+                    <span>Weekly Class Schedule</span>
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Your assigned weekly class timetable, recurring timings, and schedule matrix.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setActiveTab('schedule')}
+                    className="text-xs font-semibold text-brand hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Clock size={12} />
+                    <span>Open Daily Timetable &rarr;</span>
+                  </button>
+                </div>
+              </div>
+
+              <StudentTimetableGrid
+                studentId={user?.id || ''}
+                studentName={user?.name || 'Student'}
+                classDays={studentProfile?.classDays || (user as any)?.classDays || []}
+                classDuration={studentProfile?.classDuration || (user as any)?.classDuration || 30}
+                assignedTeacher={studentProfile?.assignedTeacher || (user as any)?.assignedTeacher}
+                timezone={studentProfile?.timezone || user?.timezone || 'UTC'}
+                tier={studentProfile?.tier || (user as any)?.tier || 'Beginner'}
+                totalClasses={stats?.total || completedSessions.length}
+                hideUpcomingSessions={true}
+              />
+            </section>
+
             {/* ENROLLED COURSES */}
             <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm">
               <div className="flex items-center justify-between mb-5">
@@ -475,7 +526,7 @@ function StudentDashboardContent() {
             onJoinClass={(sessionId) => router.push(`/classroom/${sessionId}`)}
             onReschedule={(session) => setSelectedRescheduleSession(session)}
           />
-        ) : (
+        ) : activeTab === 'history' || activeTab === 'attendance' ? (
           /* CLASSES HISTORY & LESSON REPORTS TAB */
           <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
@@ -507,14 +558,18 @@ function StudentDashboardContent() {
               <div className="flex flex-col gap-4">
                 {completedSessions.map((session, idx) => {
                   const sessionId = session.id || session._id || `completed-session-${idx}`;
-                  const hasReport = Boolean(session.teacherReport);
+                  const isApprovedReport = session.reportStatus === 'APPROVED' && Boolean(session.teacherReport);
                   const isReadyRecording = session.recording?.status === 'READY';
                   const teacherName = session.teacher?.name || 'Assigned Teacher';
+                  const rowHighlight = getClassRowHighlight(session);
+                  const attendance = session.teacherReport?.attendanceStatus;
+                  const isAbsent = attendance === 'ABSENT';
+                  const isOnLeave = session.status === 'FROZEN' || attendance === 'ON_LEAVE' || attendance === 'LEAVE';
 
                   return (
                     <div
                       key={sessionId}
-                      className="rounded-2xl border border-border bg-card/60 hover:border-brand/40 p-5 flex flex-col gap-4 transition-all shadow-sm"
+                      className={`rounded-2xl border ${rowHighlight || 'border-border bg-card/60 hover:border-brand/40'} p-5 flex flex-col gap-4 transition-all shadow-sm`}
                     >
                       {/* Top row: Course, Teacher, Date, Attendance status */}
                       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -528,13 +583,23 @@ function StudentDashboardContent() {
                             {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)} ({session.durationMinutes} mins)
                           </p>
                         </div>
-                        <span className="bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
-                          <CheckCircle className="w-3.5 h-3.5" /> Attended
-                        </span>
+                        {isAbsent ? (
+                          <span className="bg-rose-500/15 border border-rose-500/30 rounded-full px-3 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 inline-flex items-center gap-1">
+                            <X className="w-3.5 h-3.5" /> Absent
+                          </span>
+                        ) : isOnLeave ? (
+                          <span className="bg-purple-500/15 border border-purple-500/30 rounded-full px-3 py-1 text-xs font-bold text-purple-600 dark:text-purple-400 inline-flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5" /> On Leave
+                          </span>
+                        ) : (
+                          <span className="bg-emerald-500/15 border border-emerald-500/30 rounded-full px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5" /> Attended
+                          </span>
+                        )}
                       </div>
 
-                      {/* Lesson Progress & Teacher Report Card */}
-                      {hasReport && (
+                      {/* Lesson Progress & Teacher Report Card (ONLY displayed if report is APPROVED) */}
+                      {isApprovedReport ? (
                         <div className="rounded-xl border border-border/80 bg-background/60 p-4 space-y-3">
                           <div className="flex items-center justify-between flex-wrap gap-2 text-xs">
                             <div className="flex items-center gap-2">
@@ -586,12 +651,29 @@ function StudentDashboardContent() {
                             </p>
                           )}
                         </div>
+                      ) : (
+                        <div className="rounded-xl border border-border/40 bg-muted/10 p-3 text-xs text-muted-foreground flex items-center justify-between">
+                          <span>Teacher Evaluation Report:</span>
+                          {session.reportStatus === 'REJECTED' ? (
+                            <span className="text-[11px] font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded-md border border-border">
+                              Report Not Available
+                            </span>
+                          ) : session.reportStatus === 'PENDING_REVIEW' ? (
+                            <span className="text-[11px] font-semibold text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                              Report Under Review
+                            </span>
+                          ) : (
+                            <span className="text-[11px] italic text-muted-foreground">
+                              Report Pending Submission
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       {/* Footer Actions: View Report & Watch Recording */}
                       <div className="flex items-center justify-between border-t border-border/60 pt-3 text-xs flex-wrap gap-2">
                         <div>
-                          {hasReport ? (
+                          {isApprovedReport ? (
                             <button
                               onClick={() => setSelectedReportSession(session)}
                               className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand hover:underline cursor-pointer"
@@ -601,7 +683,11 @@ function StudentDashboardContent() {
                             </button>
                           ) : (
                             <span className="text-muted-foreground italic text-xs">
-                              Report pending submission by teacher
+                              {session.reportStatus === 'REJECTED'
+                                ? 'Report rejected by supervisor'
+                                : session.reportStatus === 'PENDING_REVIEW'
+                                ? 'Report undergoing supervisor approval'
+                                : 'Report pending submission by teacher'}
                             </span>
                           )}
                         </div>
@@ -637,7 +723,80 @@ function StudentDashboardContent() {
               </div>
             )}
           </section>
-        )}
+        ) : activeTab === 'recordings' ? (
+          /* DEDICATED CLASS RECORDINGS TAB */
+          <section className="rounded-2xl border border-border bg-card/80 p-6 backdrop-blur-sm shadow-sm space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+                  <Video className="w-5 h-5 text-brand" />
+                  Class Recordings Library
+                </h2>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Stream and review your past recorded classes anytime. Streaming only.
+                </p>
+              </div>
+              <span className="text-xs font-mono font-semibold text-muted-foreground bg-muted/40 px-3 py-1 rounded-xl border border-border/40 self-start sm:self-auto">
+                {completedSessions.filter((s) => s.recording?.status === 'READY' || s.recording?.filePath).length} Recording(s) Available
+              </span>
+            </div>
+
+            {dataLoading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="w-8 h-8 text-brand animate-spin" />
+              </div>
+            ) : completedSessions.filter((s) => s.recording?.status === 'READY' || s.recording?.filePath).length === 0 ? (
+              <div className="py-16 text-center text-muted-foreground text-sm space-y-2">
+                <Video className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+                <p className="font-semibold text-foreground">No recordings available yet.</p>
+                <p className="text-xs">Once your live classes finish processing, recordings will appear here for streaming.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {completedSessions
+                  .filter((s) => s.recording?.status === 'READY' || s.recording?.filePath)
+                  .map((session, idx) => {
+                    const sessionId = session.id || session._id || `rec-${idx}`;
+                    const teacherName = session.teacher?.name || 'Assigned Teacher';
+                    return (
+                      <div
+                        key={sessionId}
+                        className="rounded-2xl border border-border bg-background/60 p-5 flex flex-col justify-between hover:border-brand/40 transition shadow-sm space-y-4"
+                      >
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-foreground truncate">{session.course.title}</span>
+                            <CourseTypeBadge type={session.course.type} />
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Teacher: <span className="font-medium text-foreground">{teacherName}</span>
+                          </p>
+                          <p className="text-xs text-muted-foreground font-mono">
+                            {formatDate(session.scheduledAt)} at {formatTime(session.scheduledAt)} ({session.durationMinutes} mins)
+                          </p>
+                        </div>
+
+                        <div className="pt-3 border-t border-border/60 flex items-center justify-between">
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5" /> Ready to stream
+                          </span>
+                          <button
+                            onClick={() => {
+                              const previewUrl = `${API_URL}/recordings/${sessionId}/stream`;
+                              setActiveVideoUrl(previewUrl);
+                            }}
+                            className="bg-brand hover:bg-brand/90 text-brand-foreground font-semibold px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5 text-xs shadow-sm cursor-pointer"
+                          >
+                            <PlayCircle className="w-4 h-4" /> Watch Recording
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         <ViewClassReportModal
           isOpen={Boolean(selectedReportSession)}

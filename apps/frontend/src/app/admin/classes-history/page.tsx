@@ -21,6 +21,7 @@ import { apiFetch } from '@/utils/apiFetch';
 import { formatPKTDate, formatPKTTime } from '@/utils/islamabadTime';
 import ViewClassReportModal from '@/components/ViewClassReportModal';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
+import { getClassRowHighlight } from '@/utils/classHighlight';
 
 interface ClassHistoryItem {
   id: string;
@@ -185,8 +186,10 @@ export default function AdminClassesHistoryPage() {
                   const studentName = session.student?.preferredName || session.student?.name || 'Assigned Student';
                   const teacherName = session.teacher?.name || 'Assigned Teacher';
 
+                  const highlightClass = getClassRowHighlight(session);
+
                   return (
-                    <tr key={session.id || session._id} className="hover:bg-muted/20 transition-colors">
+                    <tr key={session.id || session._id} className={`hover:bg-muted/20 transition-colors ${highlightClass}`}>
                       {/* Course */}
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2.5">

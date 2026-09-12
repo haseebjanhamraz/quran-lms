@@ -24,6 +24,8 @@ export function VideoPlayerModal({ videoUrl, url, onClose }: VideoPlayerModalPro
         <video
           className="w-full h-full object-contain"
           controls
+          controlsList="nodownload"
+          onContextMenu={(e) => e.preventDefault()}
           autoPlay
           crossOrigin="use-credentials"
           src={activeUrl}

@@ -53,6 +53,12 @@ export class Ticket {
   @Prop()
   raisedByName?: string;
 
+  @Prop({ type: String, default: 'STUDENT', index: true })
+  submitterRole?: string;
+
+  @Prop({ type: Boolean, default: false, index: true })
+  isTeacherSupport?: boolean;
+
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
   assignedTo?: MongooseSchema.Types.ObjectId | string;
 

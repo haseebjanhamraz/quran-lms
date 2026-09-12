@@ -96,6 +96,12 @@ export class ClassSessionsController {
     return this.classSessionsService.findOne(id);
   }
 
+  @Get('pending-reports')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR)
+  async getPendingReports(@CurrentUser() user: any) {
+    return this.classSessionsService.getPendingReports(user);
+  }
+
   @Post(':id/report')
   @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.TEACHER)
   async submitReport(
@@ -106,9 +112,28 @@ export class ClassSessionsController {
     return this.classSessionsService.submitClassReport(id, dto, user);
   }
 
+  @Put(':id/report/approve')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR)
+  async approveReport(
+    @Param('id') id: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.approveClassReport(id, user);
+  }
+
+  @Put(':id/report/reject')
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPERVISOR)
+  async rejectReport(
+    @Param('id') id: string,
+    @Body('reason') reason: string,
+    @CurrentUser() user: any,
+  ) {
+    return this.classSessionsService.rejectClassReport(id, reason, user);
+  }
+
   @Get(':id/report')
-  async getReport(@Param('id') id: string) {
-    return this.classSessionsService.getClassReport(id);
+  async getReport(@Param('id') id: string, @CurrentUser() user: any) {
+    return this.classSessionsService.getClassReport(id, user);
   }
 
   @Post(':id/mark-absent')

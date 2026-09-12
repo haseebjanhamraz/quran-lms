@@ -25,6 +25,7 @@ import { useWebSocket } from '@/hooks/useWebSocket';
 import { useUrlState } from '@/hooks/useUrlState';
 import Navbar from '@/components/Navbar';
 import MaterialsManager from '@/components/materials/MaterialsManager';
+import TeacherSupportTab from './components/TeacherSupportTab';
 
 // Interfaces
 interface SessionItem {
@@ -531,6 +532,9 @@ function TeacherDashboardContent() {
             />
           </>
         )}
+
+        {/* 7. Teacher Support Tab */}
+        {activeTab === 'Support' && <TeacherSupportTab />}
       </main>
 
       <InstantClassModal

@@ -19,6 +19,7 @@ import { formatPKTDate, formatPKTTime } from '@/utils/islamabadTime';
 import ViewClassReportModal from '@/components/ViewClassReportModal';
 import PostClassReportModal from '@/components/classroom/PostClassReportModal';
 import { VideoPlayerModal } from '@/components/VideoPlayerModal';
+import { getClassRowHighlight } from '@/utils/classHighlight';
 
 interface SessionItem {
   id: string;
@@ -143,10 +144,12 @@ export default function ClassesHistoryTab({
             const hasReport = Boolean(session.teacherReport);
             const isReadyRecording = session.recording?.status === 'READY';
 
+            const highlightClass = getClassRowHighlight(session);
+
             return (
               <div
                 key={sessId}
-                className="glass-panel rounded-2xl border border-border bg-card p-5 flex flex-col justify-between gap-4 shadow-sm hover:border-primary/40 transition-all relative"
+                className={`glass-panel rounded-2xl border border-border bg-card p-5 flex flex-col justify-between gap-4 shadow-sm hover:border-primary/40 transition-all relative ${highlightClass}`}
               >
                 <div className="space-y-3">
                   {/* Top tags */}

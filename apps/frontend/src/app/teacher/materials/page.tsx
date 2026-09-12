@@ -18,7 +18,6 @@ export default function TeacherMaterialsPage() {
           />
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

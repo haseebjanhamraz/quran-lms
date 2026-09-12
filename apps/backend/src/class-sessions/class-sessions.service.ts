@@ -16,6 +16,7 @@ import {
   ClassReview, ClassReviewDocument, ReviewStatus,
   LeaveRequest, LeaveRequestDocument, LeaveStatus,
   LeaveBalance, LeaveBalanceDocument,
+  NotificationType,
 } from '../schemas';
 import { AccessToken, RoomServiceClient } from 'livekit-server-sdk';
 import { RecordingsService } from '../recordings/recordings.service';
@@ -29,6 +30,8 @@ import {
   parsePKTDateAndTimeToUTC,
 } from '../utils/islamabad-time';
 import { EmailService } from '../email/email.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { ScheduleGateway } from '../schedule/schedule.gateway';
 
 @Injectable()
 export class ClassSessionsService {
@@ -50,6 +53,8 @@ export class ClassSessionsService {
     private readonly localStorageService: LocalStorageService,
     private readonly cacheService: RedisCacheService,
     private readonly emailService: EmailService,
+    private readonly notificationsService: NotificationsService,
+    private readonly scheduleGateway: ScheduleGateway,
   ) {}
 
   async checkTeacherConflict(
@@ -999,6 +1004,8 @@ export class ClassSessionsService {
       sessionId,
       {
         $set: {
+          reportStatus: 'PENDING_REVIEW',
+          reportRejectionReason: null,
           teacherReport: {
             attendanceStatus: dto.attendanceStatus,
             topicsCovered: topics,
@@ -1019,11 +1026,201 @@ export class ClassSessionsService {
       .populate('teacher', 'id name email')
       .populate('student', 'id name email studentId');
 
+    // Notify supervisors & admins about pending report
+    try {
+      const supervisors = await this.userModel.find({
+        role: { $in: [Role.SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN] },
+        isActive: true,
+      });
+
+      const courseTitle = (updated as any)?.course?.title || 'Class';
+      const teacherName = (updated as any)?.teacher?.name || 'Teacher';
+
+      for (const sup of supervisors) {
+        await this.notificationsService.createNotification(
+          sup._id.toString(),
+          'New Class Report Pending Review',
+          `Teacher ${teacherName} submitted a post-class evaluation report for ${courseTitle}. Please review and approve.`,
+          NotificationType.REPORT_PENDING_REVIEW,
+          { sessionId, courseTitle, teacherName },
+        );
+      }
+
+      this.scheduleGateway.sendToRoles(
+        [Role.SUPERVISOR, Role.ADMIN, Role.SUPER_ADMIN],
+        'report_pending_review',
+        { sessionId, courseTitle, teacherName },
+      );
+    } catch (err: any) {
+      this.logger.warn(`Failed to dispatch supervisor report notifications: ${err.message}`);
+    }
+
     await this.cacheService.delByPattern('sessions:*');
     return updated;
   }
 
-  async getClassReport(sessionId: string) {
+  async approveClassReport(sessionId: string, currentUser: any) {
+    const session = await this.classSessionModel.findById(sessionId)
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    if (!session) {
+      throw new NotFoundException('Class session not found');
+    }
+
+    if (
+      currentUser?.role !== Role.SUPERVISOR &&
+      currentUser?.role !== Role.ADMIN &&
+      currentUser?.role !== Role.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException('Only a supervisor or administrator can approve class reports.');
+    }
+
+    const currentUserId = (currentUser?.id || currentUser?._id)?.toString();
+    const updated = await this.classSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          reportStatus: 'APPROVED',
+          reportReviewedBy: new Types.ObjectId(currentUserId),
+          reportReviewedAt: new Date(),
+          reportRejectionReason: null,
+        },
+      },
+      { new: true },
+    )
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    const s = updated as any;
+    const studentId = s?.student?.id || s?.student?._id || session.studentId;
+    const teacherId = s?.teacher?.id || s?.teacher?._id || session.teacherId;
+    const courseTitle = s?.course?.title || 'Class';
+
+    // Notify Student that final report is available
+    if (studentId) {
+      try {
+        await this.notificationsService.createNotification(
+          studentId.toString(),
+          'Class Evaluation Report Approved',
+          `Your post-class evaluation report for ${courseTitle} has been approved by the supervisor and is now available in your dashboard.`,
+          NotificationType.REPORT_APPROVED,
+          { sessionId, courseTitle },
+        );
+        this.scheduleGateway.sendToUser(studentId.toString(), 'report_approved', {
+          sessionId,
+          courseTitle,
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to notify student of approved report: ${err.message}`);
+      }
+    }
+
+    // Notify Teacher
+    if (teacherId) {
+      try {
+        await this.notificationsService.createNotification(
+          teacherId.toString(),
+          'Class Report Approved',
+          `Your evaluation report for ${courseTitle} has been reviewed and approved.`,
+          NotificationType.REPORT_APPROVED,
+          { sessionId, courseTitle },
+        );
+        this.scheduleGateway.sendToUser(teacherId.toString(), 'report_approved', {
+          sessionId,
+          courseTitle,
+        });
+      } catch (_) {}
+    }
+
+    await this.cacheService.delByPattern('sessions:*');
+    return updated;
+  }
+
+  async rejectClassReport(sessionId: string, rejectionReason: string, currentUser: any) {
+    const session = await this.classSessionModel.findById(sessionId)
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    if (!session) {
+      throw new NotFoundException('Class session not found');
+    }
+
+    if (
+      currentUser?.role !== Role.SUPERVISOR &&
+      currentUser?.role !== Role.ADMIN &&
+      currentUser?.role !== Role.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException('Only a supervisor or administrator can reject class reports.');
+    }
+
+    const currentUserId = (currentUser?.id || currentUser?._id)?.toString();
+    const updated = await this.classSessionModel.findByIdAndUpdate(
+      sessionId,
+      {
+        $set: {
+          reportStatus: 'REJECTED',
+          reportReviewedBy: new Types.ObjectId(currentUserId),
+          reportReviewedAt: new Date(),
+          reportRejectionReason: rejectionReason || 'Requires revision',
+        },
+      },
+      { new: true },
+    )
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId');
+
+    const s = updated as any;
+    const teacherId = s?.teacher?.id || s?.teacher?._id || session.teacherId;
+    const courseTitle = s?.course?.title || 'Class';
+
+    // Notify Teacher with reason so they can revise
+    if (teacherId) {
+      try {
+        await this.notificationsService.createNotification(
+          teacherId.toString(),
+          'Class Report Requires Revision',
+          `Your evaluation report for ${courseTitle} was rejected by supervisor: "${rejectionReason || 'Please revise and resubmit.'}".`,
+          NotificationType.REPORT_REJECTED,
+          { sessionId, courseTitle, rejectionReason },
+        );
+        this.scheduleGateway.sendToUser(teacherId.toString(), 'report_rejected', {
+          sessionId,
+          courseTitle,
+          rejectionReason,
+        });
+      } catch (err: any) {
+        this.logger.warn(`Failed to notify teacher of rejected report: ${err.message}`);
+      }
+    }
+
+    await this.cacheService.delByPattern('sessions:*');
+    return updated;
+  }
+
+  async getPendingReports(currentUser: any) {
+    if (
+      currentUser?.role !== Role.SUPERVISOR &&
+      currentUser?.role !== Role.ADMIN &&
+      currentUser?.role !== Role.SUPER_ADMIN
+    ) {
+      throw new ForbiddenException('Only supervisors and administrators can view pending reports.');
+    }
+
+    return this.classSessionModel.find({
+      reportStatus: 'PENDING_REVIEW',
+    })
+      .populate('course', 'title type')
+      .populate('teacher', 'id name email')
+      .populate('student', 'id name email studentId')
+      .sort({ updatedAt: -1 });
+  }
+
+  async getClassReport(sessionId: string, currentUser?: any) {
     const session = await this.classSessionModel.findById(sessionId)
       .populate('course', 'title type')
       .populate('teacher', 'id name email')
@@ -1034,6 +1231,34 @@ export class ClassSessionsService {
     }
 
     const s = session as any;
+    const isStudent = currentUser?.role === Role.STUDENT;
+    const isApproved = session.reportStatus === 'APPROVED';
+
+    // Requirement:
+    // If report is approved -> full report sent to student dashboard.
+    // If not approved / rejected -> student only sees class attendance, class time, duration, and teacher.
+    if (isStudent && !isApproved) {
+      return {
+        sessionId: session._id.toString(),
+        session: {
+          id: session._id.toString(),
+          scheduledAt: session.scheduledAt,
+          durationMinutes: session.durationMinutes,
+          actualStartTime: session.actualStartTime,
+          actualEndTime: session.actualEndTime,
+          status: session.status,
+          course: s.course,
+          teacher: s.teacher,
+          student: s.student,
+        },
+        report: {
+          attendanceStatus: session.teacherReport?.attendanceStatus || 'ABSENT',
+        },
+        reportStatus: session.reportStatus || 'PENDING_REVIEW',
+        isApproved: false,
+      };
+    }
+
     return {
       sessionId: session._id.toString(),
       session: {
@@ -1048,6 +1273,10 @@ export class ClassSessionsService {
         student: s.student,
       },
       report: session.teacherReport || null,
+      reportStatus: session.reportStatus || (session.teacherReport ? 'APPROVED' : null),
+      reportReviewedAt: session.reportReviewedAt,
+      reportRejectionReason: session.reportRejectionReason,
+      isApproved,
     };
   }
 

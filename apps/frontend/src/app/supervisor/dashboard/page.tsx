@@ -20,6 +20,11 @@ import {
   Save,
   UserCheck,
   Settings,
+  FileText,
+  Check,
+  X,
+  Star,
+  Sparkles,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -160,12 +165,14 @@ function SupervisorDashboardContent() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useUrlState<'pending' | 'flagged' | 'history' | 'assignments' | 'settings'>('tab', 'pending');
+  const [activeTab, setActiveTab] = useUrlState<'pending' | 'reports' | 'flagged' | 'history' | 'assignments' | 'settings'>('tab', 'pending');
   const [pendingSessions, setPendingSessions] = useState<SessionItem[]>([]);
+  const [pendingReports, setPendingReports] = useState<any[]>([]);
   const [flaggedReviews, setFlaggedReviews] = useState<FlaggedReview[]>([]);
   const [historyReviews, setHistoryReviews] = useState<ReviewHistoryItem[]>([]);
   const [assignments, setAssignments] = useState<AssignmentItem[]>([]);
   const [stats, setStats] = useState<SupervisorStats | null>(null);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   const [loadingData, setLoadingData] = useState(true);
 
@@ -175,16 +182,18 @@ function SupervisorDashboardContent() {
     if (!user?.id) return;
     setLoadingData(true);
     try {
-      const [pendRes, flagRes, statsRes, histRes, assignRes] = await Promise.all([
+      const [pendRes, repRes, flagRes, statsRes, histRes, assignRes] = await Promise.all([
         fetch(`${API_BASE}/class-reviews/pending`, { credentials: 'include' }),
+        fetch(`${API_BASE}/class-sessions/pending-reports`, { credentials: 'include' }),
         fetch(`${API_BASE}/class-reviews/flagged`, { credentials: 'include' }),
         fetch(`${API_BASE}/class-sessions/stats`, { credentials: 'include' }),
         fetch(`${API_BASE}/class-reviews/history`, { credentials: 'include' }),
         fetch(`${API_BASE}/supervisor-assignments/supervisor/${user.id}`, { credentials: 'include' }),
       ]);
 
-      const [pendData, flagData, statsData, histData, assignData] = await Promise.all([
+      const [pendData, repData, flagData, statsData, histData, assignData] = await Promise.all([
         pendRes.ok ? pendRes.json() : [],
+        repRes.ok ? repRes.json() : [],
         flagRes.ok ? flagRes.json() : [],
         statsRes.ok ? statsRes.json() : null,
         histRes.ok ? histRes.json() : [],
@@ -192,6 +201,7 @@ function SupervisorDashboardContent() {
       ]);
 
       setPendingSessions(Array.isArray(pendData) ? pendData : []);
+      setPendingReports(Array.isArray(repData) ? repData : []);
       setFlaggedReviews(Array.isArray(flagData) ? flagData : []);
       setStats(statsData);
       setHistoryReviews(Array.isArray(histData) ? histData : []);
@@ -199,6 +209,45 @@ function SupervisorDashboardContent() {
     } catch (_) {
     } finally {
       setLoadingData(false);
+    }
+  };
+
+  const handleApproveReport = async (sessionId: string) => {
+    try {
+      setActionLoadingId(sessionId);
+      const res = await fetch(`${API_BASE}/class-sessions/${sessionId}/report/approve`, {
+        method: 'PUT',
+        credentials: 'include',
+      });
+      if (res.ok) {
+        await loadData();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleRejectReport = async (sessionId: string) => {
+    const reason = window.prompt('Please enter a reason for rejecting this report (optional):');
+    if (reason === null) return;
+
+    try {
+      setActionLoadingId(sessionId);
+      const res = await fetch(`${API_BASE}/class-sessions/${sessionId}/report/reject`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ reason }),
+      });
+      if (res.ok) {
+        await loadData();
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -266,6 +315,7 @@ function SupervisorDashboardContent() {
         onTabChange={(tabKey) => setActiveTab(tabKey as any)}
         customTabs={[
           { key: 'pending', label: 'Pending Reviews', badgeCount: pendingSessions.length, icon: Clock },
+          { key: 'reports', label: 'Teacher Reports', badgeCount: pendingReports.length, icon: FileText },
           { key: 'flagged', label: 'Escalated Flags', badgeCount: flaggedReviews.length, icon: Flag },
           { key: 'history', label: 'Evaluations History', badgeCount: historyReviews.length, icon: Activity },
           { key: 'assignments', label: 'Assigned Courses', badgeCount: assignments.length, icon: UserCheck },
@@ -337,6 +387,116 @@ function SupervisorDashboardContent() {
                         </div>
                       </div>
                     ))
+                  )}
+                </div>
+              )}
+
+              {/* TEACHER EVALUATION REPORTS APPROVAL TAB */}
+              {activeTab === 'reports' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-border/60">
+                    <div>
+                      <h2 className="text-base font-bold font-display text-foreground">Teacher Evaluation Reports Review</h2>
+                      <p className="text-xs text-muted-foreground">Approve reports to make them visible to students, or reject with feedback.</p>
+                    </div>
+                    <span className="text-xs font-mono font-bold bg-amber-500/15 text-amber-600 px-3 py-1 rounded-xl border border-amber-500/30">
+                      {pendingReports.length} Pending Approval
+                    </span>
+                  </div>
+
+                  {pendingReports.length === 0 ? (
+                    <div className="text-center py-14 text-muted-foreground">
+                      <FileText className="mx-auto h-8 w-8 mb-2 opacity-40" />
+                      <p className="text-xs font-semibold">No teacher reports awaiting approval.</p>
+                      <p className="text-[11px] opacity-70">All submitted reports have been reviewed.</p>
+                    </div>
+                  ) : (
+                    pendingReports.map((session: any) => {
+                      const sessionId = session._id || session.id;
+                      const report = session.teacherReport;
+                      const isLoading = actionLoadingId === sessionId;
+
+                      return (
+                        <div key={sessionId} className="glass-card p-5 rounded-2xl border border-border space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <h3 className="font-bold text-foreground text-sm">{session.course?.title || 'Class Session'}</h3>
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 border border-amber-500/30 uppercase">
+                                  Pending Supervisor Approval
+                                </span>
+                              </div>
+                              <div className="text-xs text-muted-foreground flex flex-wrap gap-3">
+                                <span>Teacher: <strong className="text-foreground">{session.teacher?.name || 'Teacher'}</strong></span>
+                                <span>Student: <strong className="text-foreground">{session.student?.name || session.student?.preferredName || 'Student'}</strong></span>
+                                <span>Date: {formatDate(session.scheduledAt)} ({session.durationMinutes} mins)</span>
+                              </div>
+                            </div>
+
+                            {/* Approve / Reject Actions */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                disabled={isLoading}
+                                onClick={() => handleApproveReport(sessionId)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition disabled:opacity-50"
+                              >
+                                {isLoading ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+                                <span>Approve</span>
+                              </button>
+
+                              <button
+                                disabled={isLoading}
+                                onClick={() => handleRejectReport(sessionId)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground font-bold text-xs shadow-md transition disabled:opacity-50"
+                              >
+                                {isLoading ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                                <span>Reject</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Report Details */}
+                          {report && (
+                            <div className="p-3.5 rounded-xl bg-muted/30 border border-border/70 space-y-2 text-xs">
+                              <div className="flex items-center justify-between flex-wrap gap-2">
+                                <div>
+                                  <span className="font-bold text-primary">Lesson / Topics: </span>
+                                  <span className="text-foreground font-medium">{report.topicsCovered || report.surahOrLesson || 'N/A'}</span>
+                                </div>
+                                <div className="flex items-center gap-1 text-amber-400">
+                                  {[1, 2, 3, 4, 5].map((star) => (
+                                    <Star
+                                      key={star}
+                                      className={`h-3 w-3 ${
+                                        (report.performanceRating ?? 5) >= star
+                                          ? 'fill-amber-400 text-amber-400'
+                                          : 'text-muted-foreground/30'
+                                      }`}
+                                    />
+                                  ))}
+                                  <span className="text-xs font-mono font-bold text-foreground ml-1">
+                                    {report.performanceRating ?? 5}/5
+                                  </span>
+                                </div>
+                              </div>
+
+                              {report.homeworkAssignment && (
+                                <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-foreground">
+                                  <strong className="text-amber-600 dark:text-amber-400 block mb-0.5">Homework:</strong>
+                                  {report.homeworkAssignment}
+                                </div>
+                              )}
+
+                              {report.teacherNotes && (
+                                <p className="text-muted-foreground italic pt-1 border-t border-border/50">
+                                  Teacher Notes: &ldquo;{report.teacherNotes}&rdquo;
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
                   )}
                 </div>
               )}

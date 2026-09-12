@@ -143,6 +143,7 @@ export default function PostClassReportModal({
               <p className="text-xs text-muted-foreground mt-0.5">
                 Record lesson overview, student behavior, and feedback for{' '}
                 <span className="font-semibold text-foreground">{studentDisplayName}</span> ({courseTitle})
+              This report will be sent to the Supervisor and Parents.
               </p>
             </div>
           </div>

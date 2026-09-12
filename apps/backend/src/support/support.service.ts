@@ -25,11 +25,15 @@ export class SupportService {
 
   async createTicket(dto: CreateTicketDto, user: any) {
     const ticketNumber = await this.getNextTicketNumber();
+    const isTeacherSupport = user.role === Role.TEACHER;
+    const submitterRole = user.role || 'STUDENT';
     return this.ticketModel.create({
       ...dto,
       ticketNumber,
       raisedBy: user.id || user._id,
       raisedByName: user.name,
+      submitterRole,
+      isTeacherSupport,
       status: TicketStatus.OPEN,
     });
   }
@@ -45,15 +49,21 @@ export class SupportService {
     if (query.category && query.category !== 'ALL') {
       filter.category = query.category;
     }
+    if (query.isTeacherSupport !== undefined) {
+      filter.isTeacherSupport = query.isTeacherSupport === 'true' || query.isTeacherSupport === true;
+    }
+    if (query.submitterRole && query.submitterRole !== 'ALL') {
+      filter.submitterRole = query.submitterRole;
+    }
 
-    // Parents / Students only see their own tickets, unless HR / Admin / Staff
-    if (user.role === Role.STUDENT) {
+    // Teachers & Students only see their own tickets, unless HR / Admin / Staff
+    if (user.role === Role.STUDENT || user.role === Role.TEACHER) {
       filter.raisedBy = user.id || user._id;
     }
 
     return this.ticketModel
       .find(filter)
-      .populate('raisedBy', 'name email guardianName guardianPhone')
+      .populate('raisedBy', 'name email role guardianName guardianPhone')
       .populate('assignedTo', 'name email')
       .sort({ createdAt: -1 });
   }

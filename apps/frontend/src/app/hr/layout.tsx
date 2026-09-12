@@ -19,8 +19,6 @@ export default function HRLayout({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

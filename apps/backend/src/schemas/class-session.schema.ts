@@ -1,5 +1,5 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Schema as MongooseSchema } from 'mongoose';
+import { Document, Schema as MongooseSchema, Types } from 'mongoose';
 
 export type ClassSessionDocument = ClassSession & Document;
 
@@ -72,6 +72,18 @@ export class ClassSession {
     teacherNotes?: string;
     submittedAt?: Date;
   };
+
+  @Prop({ type: String, enum: ['PENDING_REVIEW', 'APPROVED', 'REJECTED'], default: null, index: true })
+  reportStatus?: string;
+
+  @Prop({ type: MongooseSchema.Types.ObjectId, ref: 'User' })
+  reportReviewedBy?: Types.ObjectId;
+
+  @Prop({ type: Date })
+  reportReviewedAt?: Date;
+
+  @Prop({ type: String })
+  reportRejectionReason?: string;
 
   createdAt?: Date;
   updatedAt?: Date;

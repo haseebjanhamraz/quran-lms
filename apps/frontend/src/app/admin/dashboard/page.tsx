@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import IslamabadClock from '@/components/IslamabadClock';
 import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
+import AdvanceClassesWidget from './components/AdvanceClassesWidget';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -268,6 +269,9 @@ export default function AdminDashboardPage() {
           </span>
         </Link>
       </div>
+
+      {/* ── Advance Classes Management (Blinking Realtime Notifications) ── */}
+      <AdvanceClassesWidget />
 
       {/* ── Two-column Dashboard Area ── */}
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">
