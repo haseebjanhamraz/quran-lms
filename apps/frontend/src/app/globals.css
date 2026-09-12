@@ -7,6 +7,10 @@
   --font-display: 'Outfit', ui-sans-serif, system-ui, sans-serif;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 @layer base {
   :root {
     /* Main Background & Deep Black Typography */

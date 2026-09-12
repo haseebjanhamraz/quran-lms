@@ -70,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const checkAuth = async () => {
     try {
-      const res = await apiFetch(`${API_URL}/auth/me`);
+      const res = await apiFetch(`${API_URL}/auth/me`, { skipRedirectOn401: true });
 
       if (res.ok) {
         const data = await res.json();

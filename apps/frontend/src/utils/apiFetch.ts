@@ -14,10 +14,14 @@ const processQueue = (error: any = null) => {
   failedQueue = [];
 };
 
+export interface ApiFetchOptions extends RequestInit {
+  skipRedirectOn401?: boolean;
+}
+
 /**
  * Enhanced fetch wrapper with automatic token refresh on HTTP 401 Unauthorized errors.
  */
-export async function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+export async function apiFetch(url: string, options: ApiFetchOptions = {}): Promise<Response> {
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
   
   const headers: Record<string, string> = {
@@ -103,7 +107,8 @@ export async function apiFetch(url: string, options: RequestInit = {}): Promise<
         if (typeof window !== 'undefined') {
           localStorage.removeItem('quran_lms_access_token');
           localStorage.removeItem('quran_lms_auth_user');
-          if (!window.location.pathname.includes('/login')) {
+          const isPublic = window.location.pathname === '/' || window.location.pathname.startsWith('/login');
+          if (!isPublic && !options.skipRedirectOn401) {
             window.location.href = '/login';
           }
         }

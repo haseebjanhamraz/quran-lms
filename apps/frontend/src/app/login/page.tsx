@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../../context/AuthContext';
-import {  Mail, Lock, Loader2, ShieldAlert } from 'lucide-react';
+import {  Mail, Lock, Loader2, ShieldAlert, ArrowLeft } from 'lucide-react';
 import Image from 'next/image';
 import ThemeToggle from '@/components/ThemeToggle';
 import Footer from '@/components/Footer';
@@ -49,7 +50,18 @@ export default function LoginPage() {
   return (
     <>
     <div className="relative min-h-screen w-full flex items-center justify-center overflow-hidden bg-background">
-      {/* Top right theme switcher */}
+      {/* Top bar: Back to Home (left) & ThemeToggle (right) */}
+      <div className="absolute top-4 left-4 z-50">
+        <Link
+          href="/"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-foreground bg-card/80 hover:bg-card border border-border/80 shadow-sm backdrop-blur-md transition-all duration-200 hover-lift active:scale-95"
+          title="Back to Public Homepage"
+        >
+          <ArrowLeft className="w-4 h-4 text-[#006b47] dark:text-emerald-400" />
+          <span>Back to Home</span>
+        </Link>
+      </div>
+
       <div className="absolute top-4 right-4 z-50">
         <ThemeToggle />
       </div>
@@ -213,6 +225,17 @@ export default function LoginPage() {
               >
                 HR Portal
               </button>
+            </div>
+
+            {/* Return to Public Homepage */}
+            <div className="mt-5 pt-3 border-t border-border/50 text-center w-full">
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-[#006b47] dark:hover:text-emerald-400 transition-colors"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Return to Ain Ul Quran Homepage</span>
+              </Link>
             </div>
           </div>
         </div>

@@ -3,12 +3,19 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { HelpCircle, Heart, Phone, Mail, MapPin } from 'lucide-react';
 import SupportModal from './SupportModal';
 import VersionBadge from './VersionBadge';
 
 export default function Footer() {
   const [isSupportOpen, setIsSupportOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Public homepage has its own dedicated landing footer, and fullscreen classroom views do not show portal footer
+  if (pathname === '/' || pathname?.startsWith('/classroom') || pathname?.startsWith('/online-class')) {
+    return null;
+  }
 
   return (
     <>

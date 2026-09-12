@@ -1,6 +1,6 @@
 {
   "name": "Ain Ul Quran Combo",
-  "version": "4.0",
+  "version": "4.1",
   "private": true,
   "workspaces": [
     "apps/frontend",

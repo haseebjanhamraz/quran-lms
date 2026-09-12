@@ -59,6 +59,12 @@ export default {
         header: {
           DEFAULT: "hsl(var(--header-bg))",
         },
+        "emerald-anchor": "#00875A",
+        "brand-emerald": "#006b47",
+        "cheerful-orange": "#FF7A00",
+        "sunflower-yellow": "#FFC107",
+        "sky-blue": "#00A3FF",
+        "soft-mint": "#E8F5E9",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -68,6 +74,8 @@ export default {
       fontFamily: {
         sans: ["var(--font-sans)", "ui-sans-serif", "system-ui"],
         display: ["var(--font-display)", "ui-sans-serif", "system-ui"],
+        headline: ["'Plus Jakarta Sans'", "sans-serif"],
+        body: ["'Be Vietnam Pro'", "sans-serif"],
       },
     },
   },
