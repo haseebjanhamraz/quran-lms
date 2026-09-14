@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Check, Loader2, Calendar, X, ExternalLink, Sparkles, BookOpen, PlaneTakeoff, Info, Trash2 } from 'lucide-react';
 import { apiFetch } from '@/utils/apiFetch';
 import { useRouter } from 'next/navigation';
@@ -15,12 +16,17 @@ interface NotificationItem {
   type: string;
   isRead: boolean;
   createdAt: string;
-  entityType?: 'SESSION' | 'LEAVE' | 'STUDENT' | 'TEACHER' | 'MATERIAL' | 'REPORT' | 'FEEDBACK' | 'GENERAL';
+  entityType?: 'SESSION' | 'LEAVE' | 'STUDENT' | 'TEACHER' | 'MATERIAL' | 'REPORT' | 'FEEDBACK' | 'TICKET' | 'GENERAL';
   entityId?: string;
   linkUrl?: string;
+  metadata?: Record<string, any>;
 }
 
-export default function NotificationsDropdown() {
+interface NotificationsDropdownProps {
+  variant?: 'default' | 'navbar';
+}
+
+export default function NotificationsDropdown({ variant = 'navbar' }: NotificationsDropdownProps) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -108,6 +114,19 @@ export default function NotificationsDropdown() {
     if (!n.isRead && notifId) {
       handleMarkAsRead(notifId);
     }
+
+    const ticketId = n.metadata?.ticketId || (n.entityType === 'TICKET' ? n.entityId : null);
+    if (ticketId || n.type === 'SUPPORT_TICKET_CREATED' || n.type === 'SUPPORT_TICKET_REPLIED') {
+      setSelectedNotification(null);
+      setIsOpen(false);
+      window.dispatchEvent(
+        new CustomEvent('open-support-ticket', {
+          detail: { ticketId: ticketId || n.entityId },
+        })
+      );
+      return;
+    }
+
     setSelectedNotification(n);
     setIsOpen(false);
   };
@@ -155,12 +174,16 @@ export default function NotificationsDropdown() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition shadow-sm"
+        className={`relative p-2 rounded-xl transition shadow-sm ${
+          variant === 'navbar'
+            ? 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
+            : 'bg-card hover:bg-muted border border-border text-muted-foreground hover:text-foreground'
+        }`}
         title="Notifications"
       >
         <Bell size={16} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-brand text-[9px] font-bold text-brand-foreground ring-2 ring-background">
+          <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white ring-2 ring-blue-700">
             {unreadCount}
           </span>
         )}
@@ -224,9 +247,14 @@ export default function NotificationsDropdown() {
         </div>
       )}
 
-      {/* Expanded Notification Popup Modal */}
-      {selectedNotification && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-fadeIn">
+      {/* Expanded Notification Popup Modal rendered directly via React Portal for true screen centering */}
+      {selectedNotification && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fadeIn"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setSelectedNotification(null);
+          }}
+        >
           <div className="glass-panel w-full max-w-lg rounded-3xl p-6 sm:p-7 shadow-2xl relative border border-border bg-card">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-border/50 pb-4 mb-4">
@@ -247,7 +275,8 @@ export default function NotificationsDropdown() {
 
               <button
                 onClick={() => setSelectedNotification(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors p-1"
+                className="text-muted-foreground hover:text-foreground transition-colors p-1.5 rounded-lg hover:bg-muted"
+                aria-label="Close dialog"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -274,12 +303,32 @@ export default function NotificationsDropdown() {
               <button
                 type="button"
                 onClick={() => setSelectedNotification(null)}
-                className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors"
+                className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold transition-colors cursor-pointer"
               >
                 Close
               </button>
 
-              {getEntityRoute(selectedNotification) && (
+              {(selectedNotification.metadata?.ticketId ||
+              selectedNotification.entityType === 'TICKET' ||
+              selectedNotification.type?.startsWith('SUPPORT_TICKET')) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const tId =
+                      selectedNotification.metadata?.ticketId || selectedNotification.entityId;
+                    setSelectedNotification(null);
+                    window.dispatchEvent(
+                      new CustomEvent('open-support-ticket', {
+                        detail: { ticketId: tId },
+                      })
+                    );
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-md hover:bg-primary/90 transition-all cursor-pointer"
+                >
+                  <span>Open in Support Inbox</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </button>
+              ) : getEntityRoute(selectedNotification) && (
                 <button
                   type="button"
                   onClick={() => {
@@ -287,7 +336,7 @@ export default function NotificationsDropdown() {
                     setSelectedNotification(null);
                     if (route) router.push(route);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-md hover:bg-primary/90 transition-all"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-md hover:bg-primary/90 transition-all cursor-pointer"
                 >
                   <span>Open Related Record</span>
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -295,7 +344,8 @@ export default function NotificationsDropdown() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

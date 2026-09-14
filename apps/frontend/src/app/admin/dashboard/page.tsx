@@ -16,6 +16,7 @@ import {
 import IslamabadClock from '@/components/IslamabadClock';
 import { formatPKTTime, formatPKTDate } from '@/utils/islamabadTime';
 import AdvanceClassesWidget from './components/AdvanceClassesWidget';
+import TeacherSupportWidget from './components/TeacherSupportWidget';
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
@@ -272,6 +273,9 @@ export default function AdminDashboardPage() {
 
       {/* ── Advance Classes Management (Blinking Realtime Notifications) ── */}
       <AdvanceClassesWidget />
+
+      {/* ── Teacher Support & Helpdesk Requests Widget ── */}
+      <TeacherSupportWidget />
 
       {/* ── Two-column Dashboard Area ── */}
       <div className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-3">

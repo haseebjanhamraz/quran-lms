@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Calendar, Clock, PlayCircle, PlaneTakeoff,
   History, Sparkles, X, Loader2, CheckCircle2, Zap,
-  UserX, AlertTriangle
+  UserX, AlertTriangle, LifeBuoy, HelpCircle
 } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'react-toastify';
@@ -54,6 +54,7 @@ export default function DashboardTab({
   handleMarkAbsent,
   onRefresh,
   onOpenInstantModal,
+  onNavigateTab,
   canStartInstantClass = true,
   router,
 }: DashboardTabProps) {
@@ -258,6 +259,27 @@ export default function DashboardTab({
               <span>Apply for Leave</span>
             </Link>
           </div>
+        </div>
+
+        {/* Teacher Support & Helpdesk Quick Access Banner */}
+        <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-blue-600/10 via-indigo-600/10 to-transparent border border-blue-500/20 shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <div className="p-2.5 rounded-xl bg-blue-600 text-white shadow-md shrink-0">
+              <LifeBuoy className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground">Teacher Support & Academic Helpdesk</h3>
+              <p className="text-xs text-muted-foreground">Need timetable adjustments, technical troubleshooting, or curriculum assistance?</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateTab('Support')}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md hover:shadow-lg transition-all self-stretch sm:self-auto justify-center cursor-pointer"
+          >
+            <HelpCircle size={14} />
+            <span>Open Support Center</span>
+          </button>
         </div>
 
         {/* 2. Date Filter Controls */}
@@ -484,7 +506,7 @@ export default function DashboardTab({
                       <td className="py-3.5 px-4 text-center">
                         <button
                           type="button"
-                          onClick={() => handleOpenHistoryModal(session)}
+                          onClick={() => handleOpenHistory(session)}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-muted hover:bg-muted/80 text-foreground transition-all flex items-center justify-center gap-1 mx-auto"
                           title="View past class evaluations and lesson history for this student"
                         >

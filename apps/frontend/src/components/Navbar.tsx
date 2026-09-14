@@ -36,6 +36,7 @@ import {
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import NoticeInbox from '@/components/NoticeInbox';
+import SupportInbox from '@/components/SupportInbox';
 import ThemeToggle from '@/components/ThemeToggle';
 import { apiFetch } from '@/utils/apiFetch';
 
@@ -150,9 +151,11 @@ const STUDENT_DEFAULT_TABS: NavItemConfig[] = [
 
 const SUPERVISOR_DEFAULT_TABS: NavItemConfig[] = [
   { key: 'pending', label: 'Pending Reviews', icon: Clock },
+  { key: 'reports', label: 'Teacher Reports', icon: FileText },
   { key: 'flagged', label: 'Flagged Issues', icon: Flag },
   { key: 'history', label: 'Review History', icon: Activity },
   { key: 'assignments', label: 'My Assignments', icon: UserCheck },
+  { key: 'accounts', label: 'User Accounts', icon: Users },
   { key: 'settings', label: 'Platform Settings', icon: Settings },
 ];
 
@@ -336,19 +339,19 @@ export default function Navbar({
   return (
     <>
       <header
-        className={`sticky top-0 left-0 right-0 z-50 h-16 bg-sidebar/95 backdrop-blur-xl border-b border-sidebar-border px-4 md:px-6 flex items-center justify-between transition-colors ${className}`}
+        className={`sticky top-0 left-0 right-0 z-50 h-16 bg-blue-700 dark:bg-blue-900 border-b border-blue-600 text-white px-4 md:px-6 flex items-center justify-between shadow-md transition-colors ${className}`}
       >
         {/* Left: Brand Logo & Navigation */}
         <div className="flex items-center gap-6 h-full">
           <Link href={`/${activeRole.toLowerCase() === 'super_admin' ? 'admin' : activeRole.toLowerCase()}/dashboard`} className="flex items-center gap-2.5 shrink-0 group">
-            <div className="rounded-xl border border-primary/30 bg-primary/10 p-1.5 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
+            <div className="rounded-xl border border-white/20 bg-white p-1.5 flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform">
               <Image src="/logo.png" width={26} height={26} alt="Ain Ul Quran Logo" priority />
             </div>
             <div className="hidden sm:block leading-none">
-              <p className="text-sm font-bold tracking-tight text-foreground group-hover:text-brand transition-colors">
+              <p className="text-sm font-bold tracking-tight text-white group-hover:text-blue-100 transition-colors">
                 Ain Ul Quran
               </p>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mt-0.5">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-100 mt-0.5">
                 {displayPortalTitle}
               </p>
             </div>
@@ -373,14 +376,14 @@ export default function Navbar({
                     onClick={() => onTabChange(itemKey)}
                     className={`nav-hover-lift relative flex h-full items-center gap-2 px-3 text-xs sm:text-sm font-medium transition-colors ${
                       isActive
-                        ? 'text-primary font-bold shadow-[inset_0_-2px_0_0_hsl(var(--primary))]'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                        ? 'text-white font-bold bg-white/15 shadow-[inset_0_-3px_0_0_#ffffff]'
+                        : 'text-blue-100 hover:text-white hover:bg-white/10'
                     }`}
                   >
-                    {Icon && <Icon size={16} className={isActive ? 'text-primary' : 'text-muted-foreground'} />}
+                    {Icon && <Icon size={16} className={isActive ? 'text-white' : 'text-blue-200'} />}
                     <span>{item.label}</span>
                     {typeof item.badgeCount === 'number' && item.badgeCount > 0 && (
-                      <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/20 px-1 text-[10px] font-bold text-primary border border-primary/30">
+                      <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold text-white border border-white/30">
                         {item.badgeCount}
                       </span>
                     )}
@@ -394,14 +397,14 @@ export default function Navbar({
                   href={item.href || '#'}
                   className={`nav-hover-lift flex h-full items-center gap-2 px-3 text-xs sm:text-sm font-medium transition-colors ${
                     isActive
-                      ? 'text-brand font-bold shadow-[inset_0_-2px_0_0_hsl(var(--brand))]'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      ? 'text-white font-bold bg-white/15 shadow-[inset_0_-3px_0_0_#ffffff]'
+                      : 'text-blue-100 hover:text-white hover:bg-white/10'
                   }`}
                 >
-                  {Icon && <Icon size={16} className={isActive ? 'text-brand' : 'text-muted-foreground'} />}
+                  {Icon && <Icon size={16} className={isActive ? 'text-white' : 'text-blue-200'} />}
                   <span>{item.label}</span>
                   {typeof item.badgeCount === 'number' && item.badgeCount > 0 && (
-                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/20 px-1 text-[10px] font-bold text-primary border border-primary/30">
+                    <span className="ml-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-white/20 px-1 text-[10px] font-bold text-white border border-white/30">
                       {item.badgeCount}
                     </span>
                   )}
@@ -417,8 +420,8 @@ export default function Navbar({
                   onClick={() => setIsMoreOpen(!isMoreOpen)}
                   className={`nav-hover-lift flex h-full items-center gap-1.5 px-3 text-xs sm:text-sm font-medium transition-colors ${
                     moreNavItems.some((item) => item.href && pathname === item.href)
-                      ? 'text-brand shadow-[inset_0_-2px_0_0_hsl(var(--brand))] font-bold'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                      ? 'text-white font-bold bg-white/15 shadow-[inset_0_-3px_0_0_#ffffff]'
+                      : 'text-blue-100 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   <span>More</span>
@@ -462,20 +465,23 @@ export default function Navbar({
         <div className="flex items-center gap-2.5 sm:gap-3.5 h-full">
 
           {/* Theme Toggle */}
-          <ThemeToggle />
+          <ThemeToggle variant="navbar" />
+
+          {/* Support Inbox Drawer for Teachers, Students, and Admins */}
+          <SupportInbox variant="navbar" />
 
           {/* Notice Board Inbox Drawer */}
-          <NoticeInbox />
+          <NoticeInbox variant="navbar" />
 
           {/* Notifications Dropdown */}
-          <NotificationsDropdown />
+          <NotificationsDropdown variant="navbar" />
 
           {/* User Profile Pill & Dropdown */}
           <div className="relative h-full flex items-center" ref={profileRef}>
             <button
               type="button"
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="flex items-center gap-2 hover:bg-muted/50 p-1 rounded-full md:rounded-xl md:px-2 md:py-1.5 transition-colors border border-transparent hover:border-border/60"
+              className="flex items-center gap-2 hover:bg-white/10 p-1 rounded-full md:rounded-xl md:px-2 md:py-1.5 transition-colors border border-transparent hover:border-white/20"
             >
               <div
                 className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold shadow-sm ${getRoleBadgeBg(
@@ -485,14 +491,14 @@ export default function Navbar({
                 {isMounted && user ? getInitials(user.name, activeRole.slice(0, 2)) : activeRole.slice(0, 2)}
               </div>
               <div className="hidden lg:block text-left max-w-[120px] truncate">
-                <p className="text-xs font-bold text-foreground leading-tight truncate">
+                <p className="text-xs font-bold text-white leading-tight truncate">
                   {isMounted && user?.name ? user.name : displayPortalTitle}
                 </p>
-                <p className="text-[10px] text-muted-foreground leading-tight uppercase font-mono truncate">
+                <p className="text-[10px] text-blue-200 leading-tight uppercase font-mono truncate">
                   {isMounted && user?.role ? user.role : activeRole}
                 </p>
               </div>
-              <ChevronDown size={13} className="hidden lg:block text-muted-foreground" />
+              <ChevronDown size={13} className="hidden lg:block text-blue-100" />
             </button>
 
             {isProfileOpen && (
@@ -537,7 +543,7 @@ export default function Navbar({
             <button
               type="button"
               onClick={() => setIsMobileOpen(!isMobileOpen)}
-              className="md:hidden p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-colors"
+              className="md:hidden p-2 text-white hover:bg-white/10 rounded-xl transition-colors"
               aria-label="Toggle navigation menu"
             >
               {isMobileOpen ? <X size={20} /> : <Menu size={20} />}
@@ -548,8 +554,8 @@ export default function Navbar({
 
       {/* Optional Sub-Header Ribbon */}
       {subHeader && (
-        <div className="bg-header/50 backdrop-blur border-b border-border px-4 sm:px-6 py-2">
-          <p className="font-display font-semibold text-xs tracking-wide text-muted-foreground">
+        <div className="bg-blue-800/90 dark:bg-blue-950/90 backdrop-blur border-b border-blue-600/40 px-4 sm:px-6 py-2">
+          <p className="font-display font-semibold text-xs tracking-wide text-blue-100">
             {subHeader}
           </p>
         </div>

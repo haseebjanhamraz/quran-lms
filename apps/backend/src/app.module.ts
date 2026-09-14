@@ -38,6 +38,7 @@ import { MaterialsModule } from './materials/materials.module';
 import { DatabaseAdminModule } from './database-admin/database-admin.module';
 import { NoticeBoardModule } from './notice-board/notice-board.module';
 import { BroadcastModule } from './broadcast/broadcast.module';
+import { StudentInquiriesModule } from './student-inquiries/student-inquiries.module';
 import { APP_GUARD } from '@nestjs/core';
 import * as path from 'path';
 
@@ -104,6 +105,7 @@ import * as path from 'path';
     DatabaseAdminModule,
     NoticeBoardModule,
     BroadcastModule,
+    StudentInquiriesModule,
   ],
   controllers: [AppController],
   providers: [

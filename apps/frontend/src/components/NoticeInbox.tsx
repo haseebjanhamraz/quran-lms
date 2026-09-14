@@ -37,8 +37,13 @@ export interface NoticeItem {
   isRead?: boolean;
 }
 
-export default function NoticeInbox() {
+interface NoticeInboxProps {
+  variant?: 'default' | 'navbar';
+}
+
+export default function NoticeInbox({ variant = 'navbar' }: NoticeInboxProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
   const [notices, setNotices] = useState<NoticeItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -48,6 +53,48 @@ export default function NoticeInbox() {
   const panelRef = useRef<HTMLDivElement>(null);
   const { playNotificationSound } = useNotificationSound();
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+
+  const handleOpen = () => {
+    setIsClosing(false);
+    setIsOpen(true);
+  };
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsOpen(false);
+      setIsClosing(false);
+    }, 260);
+  };
+
+  // Lock background scrolling while drawer is active
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  // Handle escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (previewImage) {
+          setPreviewImage(null);
+        } else if (selectedNotice) {
+          setSelectedNotice(null);
+        } else if (isOpen) {
+          handleClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, selectedNotice, previewImage]);
 
   const fetchNotices = async () => {
     try {
@@ -116,14 +163,18 @@ export default function NoticeInbox() {
       <div className="relative">
         <button
           type="button"
-          onClick={() => setIsOpen(true)}
-          className="relative p-2 bg-card hover:bg-muted border border-border rounded-xl text-muted-foreground hover:text-foreground transition shadow-sm"
+          onClick={handleOpen}
+          className={`relative p-2 rounded-xl transition shadow-sm ${
+            variant === 'navbar'
+              ? 'bg-white/10 hover:bg-white/20 border border-white/20 text-white'
+              : 'bg-card hover:bg-muted border border-border text-muted-foreground hover:text-foreground'
+          }`}
           title="Notice Board"
           aria-label="Notice Board"
         >
           <Megaphone size={16} />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white ring-2 ring-background animate-pulse">
+            <span className="absolute -top-1 -right-1 flex h-4 min-w-4 px-1 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white ring-2 ring-blue-700 animate-pulse">
               {unreadCount}
             </span>
           )}
@@ -132,17 +183,21 @@ export default function NoticeInbox() {
 
       {/* Slide-out Drawer Panel */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 overflow-hidden animate-fadeIn">
+        <div className="fixed inset-0 z-50 overflow-hidden">
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity"
-            onClick={() => setIsOpen(false)}
+            className={`absolute inset-0 bg-background/80 backdrop-blur-sm transition-opacity ${
+              isClosing ? 'animate-drawer-backdrop-out' : 'animate-drawer-backdrop-in'
+            }`}
+            onClick={handleClose}
           />
 
-          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
+          <div className="fixed inset-y-0 right-0 max-w-full flex pl-10 pointer-events-none">
             <div
               ref={panelRef}
-              className="w-screen max-w-md bg-card border-l border-border shadow-2xl flex flex-col"
+              className={`w-screen max-w-md bg-card border-l border-border shadow-2xl flex flex-col pointer-events-auto ${
+                isClosing ? 'animate-drawer-slide-out' : 'animate-drawer-slide-in'
+              }`}
             >
               {/* Drawer Header */}
               <div className="p-4 border-b border-border flex items-center justify-between bg-muted/30">
@@ -160,8 +215,10 @@ export default function NoticeInbox() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setIsOpen(false)}
+                  type="button"
+                  onClick={handleClose}
                   className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition"
+                  aria-label="Close Notice Board"
                 >
                   <X size={18} />
                 </button>

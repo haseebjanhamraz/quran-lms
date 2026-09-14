@@ -105,7 +105,7 @@ interface TeacherStats {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-const TABS = ['Dashboard', 'Schedule', 'Classes History', 'My Courses', 'My Students', 'Course Materials', 'Class Recordings'] as const;
+const TABS = ['Dashboard', 'Schedule', 'Classes History', 'My Courses', 'My Students', 'Course Materials', 'Class Recordings', 'Support'] as const;
 type TabType = (typeof TABS)[number];
 
 function TeacherDashboardContent() {

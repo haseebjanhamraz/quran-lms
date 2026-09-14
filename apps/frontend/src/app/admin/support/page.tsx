@@ -32,7 +32,8 @@ interface SupportTicket {
   id: string;
   _id?: string;
   ticketNumber?: string;
-  subject: string;
+  title?: string;
+  subject?: string;
   description: string;
   category: string;
   priority: string;
@@ -320,7 +321,7 @@ export default function AdminSupportPage() {
                           </span>
                         </div>
 
-                        <h4 className="text-xs font-bold text-foreground truncate">{t.subject}</h4>
+                        <h4 className="text-xs font-bold text-foreground truncate">{t.subject || t.title}</h4>
 
                         <p className="text-[11px] text-muted-foreground truncate">
                           {t.user?.name || 'User'} &bull; {t.category}
@@ -371,7 +372,7 @@ export default function AdminSupportPage() {
                         {selectedTicket.priority}
                       </span>
                     </div>
-                    <h3 className="text-base font-bold text-foreground">{selectedTicket.subject}</h3>
+                    <h3 className="text-base font-bold text-foreground">{selectedTicket.subject || selectedTicket.title}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       Submitted by <strong className="text-foreground">{selectedTicket.user?.name || 'User'}</strong> ({selectedTicket.user?.email || 'N/A'})
                     </p>

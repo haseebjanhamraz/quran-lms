@@ -10,6 +10,11 @@ export enum TicketCategory {
   ADMINISTRATIVE = 'ADMINISTRATIVE',
   COMPLAINT = 'COMPLAINT',
   SUGGESTION = 'SUGGESTION',
+  SCHEDULE = 'SCHEDULE',
+  PAYROLL = 'PAYROLL',
+  CURRICULUM = 'CURRICULUM',
+  GENERAL = 'GENERAL',
+  OTHER = 'OTHER',
 }
 
 export enum TicketPriority {
@@ -34,6 +39,9 @@ export class Ticket {
 
   @Prop({ required: true })
   title: string;
+
+  @Prop()
+  subject?: string;
 
   @Prop({ required: true })
   description: string;

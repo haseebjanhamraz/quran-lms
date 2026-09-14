@@ -9,7 +9,7 @@ interface UserAccount {
   name: string;
   preferredName?: string;
   email: string;
-  role: 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'STUDENT';
+  role: 'ADMIN' | 'SUPERVISOR' | 'TEACHER' | 'STUDENT' | 'HR' | string;
   gender?: string;
   timezone?: string;
   isActive: boolean;
@@ -20,7 +20,7 @@ export default function UserAccountsManagement() {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | 'ADMIN' | 'SUPERVISOR'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'ADMIN' | 'SUPERVISOR' | 'HR'>('ALL');
 
   // Add Account Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -121,6 +121,7 @@ export default function UserAccountsManagement() {
 
       if (roleFilter === 'ADMIN') return u.role === 'ADMIN';
       if (roleFilter === 'SUPERVISOR') return u.role === 'SUPERVISOR' || u.role === ('REVIEWER' as any);
+      if (roleFilter === 'HR') return u.role === 'HR' || (u.role as any) === 'HR_MANAGER';
 
       return true;
     });
@@ -135,7 +136,7 @@ export default function UserAccountsManagement() {
             <Shield className="h-8 w-8 text-brand" />
             <span>User Accounts & Administrative Access</span>
           </h1>
-          <p className="text-muted-foreground mt-1">Manage system administrators, quality supervisors, and global account credentials.</p>
+          <p className="text-muted-foreground mt-1">Manage system administrators, quality supervisors, HR managers, and global account credentials.</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -148,7 +149,7 @@ export default function UserAccountsManagement() {
 
       {/* Role Filter Tabs */}
       <div className="flex border-b border-border mb-6 gap-2">
-        {(['ALL', 'ADMIN', 'SUPERVISOR'] as const).map((r) => (
+        {(['ALL', 'ADMIN', 'SUPERVISOR', 'HR'] as const).map((r) => (
           <button
             key={r}
             onClick={() => setRoleFilter(r)}
@@ -156,47 +157,49 @@ export default function UserAccountsManagement() {
               roleFilter === r ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}
           >
-            {r} ACCOUNTS
+            {r === 'HR' ? 'HR / MANAGER' : `${r} ACCOUNTS`}
           </button>
         ))}
       </div>
 
       {/* Search */}
       <div className="glass-panel rounded-xl p-4 mb-6 flex items-center gap-3">
-        <Search className="h-5 w-5 text-muted-foreground/60" />
+        <Search className="h-5 w-5 text-muted-foreground" />
         <input
           type="text"
-          placeholder="Search accounts by name or email..."
+          placeholder="Search by user name or email..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="bg-transparent border-none outline-none w-full text-sm text-foreground placeholder:text-muted-foreground/50"
+          className="bg-transparent border-none outline-none text-sm w-full text-foreground placeholder:text-muted-foreground"
         />
       </div>
 
       {/* Table */}
-      <div className="glass-panel rounded-2xl overflow-hidden shadow-xl border border-border/50">
+      <div className="glass-panel rounded-2xl overflow-hidden border border-border">
         {loading ? (
-          <div className="py-20 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            <p className="text-sm text-muted-foreground">Fetching user accounts...</p>
+          <div className="py-20 flex flex-col items-center justify-center">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+            <p className="text-xs text-muted-foreground">Loading user accounts...</p>
           </div>
         ) : filteredUsers.length === 0 ? (
-          <div className="py-20 text-center text-muted-foreground">
-            No user accounts found matching your search.
+          <div className="py-20 text-center">
+            <UserIcon className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-sm font-semibold text-foreground">No accounts found</p>
+            <p className="text-xs text-muted-foreground mt-1">Try refining your search filter.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-sm whitespace-nowrap">
+            <table className="w-full text-left border-collapse text-sm">
               <thead>
-                <tr className="border-b border-border bg-card/30">
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Account Name</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">System Role</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Status</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80">Timezone</th>
-                  <th className="py-4 px-6 font-semibold uppercase tracking-wider text-xs text-muted-foreground/80 text-right">Actions</th>
+                <tr className="border-b border-border/60 bg-muted/40 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  <th className="py-3.5 px-6">User</th>
+                  <th className="py-3.5 px-6">Role</th>
+                  <th className="py-3.5 px-6">Status</th>
+                  <th className="py-3.5 px-6">Timezone</th>
+                  <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border/40">
+              <tbody className="divide-y divide-border/40 text-xs">
                 {filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-card/20 transition-colors">
                     <td className="py-3.5 px-6">
@@ -209,9 +212,11 @@ export default function UserAccountsManagement() {
                           ? 'bg-purple-500/10 text-purple-500 border-purple-500/20'
                           : u.role === 'SUPERVISOR' || (u.role as any) === 'REVIEWER'
                           ? 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+                          : u.role === 'HR' || (u.role as any) === 'HR_MANAGER'
+                          ? 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20'
                           : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
                       }`}>
-                        {u.role}
+                        {u.role === 'HR' ? 'HR / Manager' : u.role}
                       </span>
                     </td>
                     <td className="py-3.5 px-6">
@@ -281,6 +286,7 @@ export default function UserAccountsManagement() {
                   <label className="text-xs font-semibold text-muted-foreground uppercase">System Role</label>
                   <select name="role" value={formData.role} onChange={handleInputChange} className="w-full bg-background border border-border rounded-lg p-2.5 text-sm outline-none">
                     <option value="SUPERVISOR">SUPERVISOR</option>
+                    <option value="HR">HR / Manager</option>
                     <option value="ADMIN">ADMIN</option>
                   </select>
                 </div>

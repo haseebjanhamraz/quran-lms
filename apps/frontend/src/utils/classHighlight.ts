@@ -7,7 +7,7 @@
  */
 export function getClassRowHighlight(session: {
   status?: string;
-  teacherReport?: { attendanceStatus?: string };
+  teacherReport?: { attendanceStatus?: string } | null;
   attendanceStatus?: string;
   isLeave?: boolean;
   studentOnLeave?: boolean;

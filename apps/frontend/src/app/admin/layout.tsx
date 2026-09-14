@@ -51,8 +51,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {children}
         </div>
       </main>
-
-      <Footer />
     </div>
   );
 }

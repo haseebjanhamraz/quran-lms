@@ -128,7 +128,11 @@ export default function Footer() {
             <span>•</span>
             <Link href="#" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">Terms of Service</Link>
             <span>•</span>
-            <span className="flex items-center gap-1">Made with <Heart className="h-3 w-3 text-red-500 fill-red-500" /> for Quran Education</span>
+            <span className="flex items-center gap-1">Developed with <Heart className="h-3 w-3 text-red-500 fill-red-500" /> by 
+            <Link href="https://kpcybers.com" target="_blank" rel="noopener noreferrer" className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+            KP Cybers
+            </Link>
+             </span>
           </div>
         </div>
       </footer>

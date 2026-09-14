@@ -1,16 +1,20 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Ticket, TicketDocument, TicketComment, TicketCommentDocument, TicketStatus, User, UserDocument, Counter, CounterDocument, Role } from '../schemas';
+import { Ticket, TicketDocument, TicketComment, TicketCommentDocument, TicketStatus, User, UserDocument, Counter, CounterDocument, Role, NotificationType } from '../schemas';
 import { CreateTicketDto } from './dto/create-ticket.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SupportService {
+  private readonly logger = new Logger(SupportService.name);
+
   constructor(
     @InjectModel(Ticket.name) private readonly ticketModel: Model<TicketDocument>,
     @InjectModel(TicketComment.name) private readonly commentModel: Model<TicketCommentDocument>,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @InjectModel(Counter.name) private readonly counterModel: Model<CounterDocument>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private async getNextTicketNumber(): Promise<string> {
@@ -24,11 +28,17 @@ export class SupportService {
   }
 
   async createTicket(dto: CreateTicketDto, user: any) {
+    const title = (dto.title || dto.subject || '').trim();
+    if (!title) {
+      throw new BadRequestException('Title or subject is required');
+    }
     const ticketNumber = await this.getNextTicketNumber();
     const isTeacherSupport = user.role === Role.TEACHER;
     const submitterRole = user.role || 'STUDENT';
-    return this.ticketModel.create({
+    const ticket = await this.ticketModel.create({
       ...dto,
+      title,
+      subject: dto.subject ? dto.subject.trim() : title,
       ticketNumber,
       raisedBy: user.id || user._id,
       raisedByName: user.name,
@@ -36,6 +46,20 @@ export class SupportService {
       isTeacherSupport,
       status: TicketStatus.OPEN,
     });
+
+    try {
+      await this.notificationsService.createNotification(
+        user.id || user._id,
+        `Support Ticket Created (${ticketNumber})`,
+        `Your ticket "${title}" has been submitted to support.`,
+        NotificationType.SUPPORT_TICKET_CREATED,
+        { ticketId: ticket._id.toString(), entityType: 'TICKET' },
+      );
+    } catch (notifErr: any) {
+      this.logger.warn(`Failed to dispatch ticket creation notification: ${notifErr.message}`);
+    }
+
+    return ticket;
   }
 
   async findAll(query: any = {}, user: any) {
@@ -121,6 +145,23 @@ export class SupportService {
     if (ticket.status === TicketStatus.OPEN && user.role !== Role.STUDENT) {
       ticket.status = TicketStatus.IN_PROGRESS;
       await ticket.save();
+    }
+
+    // Send in-app notification to ticket owner or assigned staff
+    try {
+      const recipientId = ticket.raisedBy?.toString();
+      const commenterId = (user.id || user._id)?.toString();
+      if (recipientId && recipientId !== commenterId && !isInternal) {
+        await this.notificationsService.createNotification(
+          recipientId,
+          `New Reply on #${ticket.ticketNumber || ticket.id}`,
+          `${user.name || 'Support Staff'}: ${comment.slice(0, 100)}`,
+          NotificationType.SUPPORT_TICKET_REPLIED,
+          { ticketId: ticket._id.toString(), entityType: 'TICKET' },
+        );
+      }
+    } catch (notifErr: any) {
+      this.logger.warn(`Failed to dispatch ticket comment notification: ${notifErr.message}`);
     }
 
     return commentDoc;

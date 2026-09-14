@@ -28,7 +28,8 @@ interface SupportTicket {
   id: string;
   _id?: string;
   ticketNumber?: string;
-  subject: string;
+  title?: string;
+  subject?: string;
   description: string;
   category: string;
   priority: string;
@@ -87,6 +88,7 @@ export default function TeacherSupportTab() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          title: subject.trim(),
           subject: subject.trim(),
           description: description.trim(),
           category,
@@ -102,7 +104,10 @@ export default function TeacherSupportTab() {
         fetchTickets();
       } else {
         const errData = await res.json();
-        setFeedback({ type: 'error', text: errData.message || 'Failed to create ticket' });
+        const errorMsg = Array.isArray(errData.message)
+          ? errData.message.join(', ')
+          : errData.message || 'Failed to create ticket';
+        setFeedback({ type: 'error', text: errorMsg });
       }
     } catch (err: any) {
       setFeedback({ type: 'error', text: err.message || 'Error creating ticket' });
@@ -267,7 +272,7 @@ export default function TeacherSupportTab() {
                     </div>
 
                     <h4 className="text-xs sm:text-sm font-bold text-foreground truncate">
-                      {ticket.subject}
+                      {ticket.subject || ticket.title}
                     </h4>
 
                     <p className="text-xs text-muted-foreground truncate max-w-xl">
@@ -426,7 +431,7 @@ export default function TeacherSupportTab() {
                     {selectedTicket.category}
                   </span>
                 </div>
-                <h3 className="text-base font-bold text-foreground">{selectedTicket.subject}</h3>
+                <h3 className="text-base font-bold text-foreground">{selectedTicket.subject || selectedTicket.title}</h3>
               </div>
               <button
                 onClick={() => setSelectedTicket(null)}

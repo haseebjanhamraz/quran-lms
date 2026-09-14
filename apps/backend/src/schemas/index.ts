@@ -36,4 +36,5 @@ export * from './material.schema';
 export * from './reviewer-assignment.schema';
 export * from './notice.schema';
 export * from './broadcast.schema';
+export * from './student-inquiry.schema';
 

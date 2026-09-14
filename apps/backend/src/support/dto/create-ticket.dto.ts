@@ -3,8 +3,12 @@ import { TicketCategory, TicketPriority } from '../../schemas';
 
 export class CreateTicketDto {
   @IsString()
-  @IsNotEmpty()
-  title: string;
+  @IsOptional()
+  title?: string;
+
+  @IsString()
+  @IsOptional()
+  subject?: string;
 
   @IsString()
   @IsNotEmpty()

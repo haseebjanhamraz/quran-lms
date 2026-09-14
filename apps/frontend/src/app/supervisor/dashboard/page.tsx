@@ -25,6 +25,7 @@ import {
   X,
   Star,
   Sparkles,
+  Users,
 } from 'lucide-react';
 import NotificationsDropdown from '@/components/NotificationsDropdown';
 import ThemeToggle from '@/components/ThemeToggle';
@@ -32,6 +33,7 @@ import UpcomingClassBanner from '@/components/UpcomingClassBanner';
 import { useUrlState } from '@/hooks/useUrlState';
 import { formatPKTDate, formatPKTTime } from '@/utils/islamabadTime';
 import Navbar from '@/components/Navbar';
+import UserAccountsManagement from '@/app/admin/users/page';
 
 function SupervisorSettingsTab() {
   const [aiEnabled, setAiEnabled] = useState(false);
@@ -165,7 +167,7 @@ function SupervisorDashboardContent() {
   const { user, logout } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useUrlState<'pending' | 'reports' | 'flagged' | 'history' | 'assignments' | 'settings'>('tab', 'pending');
+  const [activeTab, setActiveTab] = useUrlState<'pending' | 'reports' | 'flagged' | 'history' | 'assignments' | 'accounts' | 'settings'>('tab', 'pending');
   const [pendingSessions, setPendingSessions] = useState<SessionItem[]>([]);
   const [pendingReports, setPendingReports] = useState<any[]>([]);
   const [flaggedReviews, setFlaggedReviews] = useState<FlaggedReview[]>([]);
@@ -319,16 +321,27 @@ function SupervisorDashboardContent() {
           { key: 'flagged', label: 'Escalated Flags', badgeCount: flaggedReviews.length, icon: Flag },
           { key: 'history', label: 'Evaluations History', badgeCount: historyReviews.length, icon: Activity },
           { key: 'assignments', label: 'Assigned Courses', badgeCount: assignments.length, icon: UserCheck },
+          { key: 'accounts', label: 'User Accounts', icon: Users },
           { key: 'settings', label: 'System Settings', icon: Settings },
         ]}
       />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <section className="mb-8">
-          <h1 className="text-3xl font-display font-bold">Welcome back, {user?.name ?? 'Supervisor'}</h1>
-          <p className="text-muted-foreground mt-1">
-            Your evaluations preserve teaching quality and platform guidelines compliance.
-          </p>
+        <section className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-display font-bold">Welcome back, {user?.name ?? 'Supervisor'}</h1>
+            <p className="text-muted-foreground mt-1">
+              Your evaluations preserve teaching quality and platform guidelines compliance.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActiveTab('accounts')}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold shadow-md transition-all self-start sm:self-auto cursor-pointer"
+          >
+            <Users size={15} />
+            <span>Create HR / Manager Login</span>
+          </button>
         </section>
 
         {/* Blinking Live / Upcoming Class Banner */}
@@ -606,6 +619,11 @@ function SupervisorDashboardContent() {
                     </div>
                   )}
                 </div>
+              )}
+
+              {/* USER ACCOUNTS & ADMINISTRATIVE ACCESS TAB */}
+              {activeTab === 'accounts' && (
+                <UserAccountsManagement />
               )}
 
               {/* SETTINGS TAB */}
